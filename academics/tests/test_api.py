@@ -48,6 +48,34 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(children_response.data[0]['id'], self.student.id)
         self.assertEqual(confirmations_response.status_code, 200)
 
+    def test_lessons_browsable_api_page_renders_for_html_requests(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/academics/lessons/', HTTP_ACCEPT='text/html')
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_browsable_api_pages_with_date_fields_render_for_html_requests(self):
+        admin_user = User.objects.create_user(
+            username='html_admin',
+            email='html_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        urls = [
+            '/api/academics/enrollments/',
+            '/api/academics/confirmations/',
+            '/api/finance/parent-charges/',
+            '/api/finance/teacher-payouts/',
+        ]
+
+        for url in urls:
+            response = self.client.get(url, HTTP_ACCEPT='text/html')
+            self.assertEqual(response.status_code, 200, msg=url)
+
     def test_register_creates_user_and_role_profile(self):
         response = self.client.post(
             '/api/users/register/',

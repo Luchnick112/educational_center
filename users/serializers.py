@@ -5,6 +5,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, User, UserRole
 
+DATE_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DD'}
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -99,6 +101,7 @@ class StudentParentRelationSerializer(serializers.ModelSerializer):
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):
+    date_of_birth = serializers.DateField(required=False, allow_null=True, style=DATE_INPUT_STYLE)
     user_detail = UserSerializer(source='user', read_only=True)
     parent_links = StudentParentRelationSerializer(many=True, read_only=True)
 

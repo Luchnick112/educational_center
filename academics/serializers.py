@@ -11,6 +11,9 @@ from .models import (
     Subject,
 )
 
+DATE_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DD'}
+DATETIME_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DDTHH:MM:SSZ'}
+
 
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
@@ -35,6 +38,9 @@ class StudyGroupSerializer(serializers.ModelSerializer):
 
 
 class StudentEnrollmentSerializer(serializers.ModelSerializer):
+    start_date = serializers.DateField(style=DATE_INPUT_STYLE)
+    end_date = serializers.DateField(required=False, allow_null=True, style=DATE_INPUT_STYLE)
+
     class Meta:
         model = StudentEnrollment
         fields = (
@@ -65,6 +71,8 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 
 
 class LessonSerializer(serializers.ModelSerializer):
+    starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    ends_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
 
     class Meta:
@@ -83,6 +91,8 @@ class LessonSerializer(serializers.ModelSerializer):
 
 
 class LessonConfirmationSerializer(serializers.ModelSerializer):
+    confirmed_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+
     class Meta:
         model = LessonConfirmation
         fields = ('id', 'participant', 'requested_from', 'confirmer', 'status', 'confirmed_at', 'comment')
