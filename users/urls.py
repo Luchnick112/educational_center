@@ -6,6 +6,8 @@ from .api import (
     RegisterView,
     StudentProfileViewSet,
     TeacherProfileViewSet,
+    TelegramLinkTokenView,
+    TelegramWebhookView,
     TokenPageView,
     TokenRefreshPageView,
     UserViewSet,
@@ -21,6 +23,8 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('token/', TokenPageView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshPageView.as_view(), name='token_refresh'),
+    path('telegram/link-token/', TelegramLinkTokenView.as_view(), name='telegram-link-token'),
+    path('telegram/webhook/', TelegramWebhookView.as_view(), name='telegram-webhook'),
 ]
 
 urlpatterns += router.urls

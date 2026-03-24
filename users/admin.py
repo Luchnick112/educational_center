@@ -1,13 +1,13 @@
 from django.contrib import admin
 
-from .models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, User
+from .models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, TelegramLinkToken, User
 
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    list_display = ('email', 'username', 'role', 'is_staff')
+    list_display = ('telegram_username', 'telegram_chat_id', 'email', 'username', 'role', 'is_staff')
     list_filter = ('role', 'is_staff', 'is_active')
-    search_fields = ('email', 'username', 'first_name', 'last_name')
+    search_fields = ('telegram_username', 'email', 'username', 'first_name', 'last_name')
 
 
 @admin.register(StudentProfile)
@@ -32,3 +32,10 @@ class TeacherProfileAdmin(admin.ModelAdmin):
 class StudentParentRelationAdmin(admin.ModelAdmin):
     list_display = ('parent', 'student', 'relationship', 'is_primary', 'is_financial_contact')
     list_filter = ('is_primary', 'is_financial_contact')
+
+
+@admin.register(TelegramLinkToken)
+class TelegramLinkTokenAdmin(admin.ModelAdmin):
+    list_display = ('user', 'token', 'expires_at', 'used_at', 'linked_chat_id', 'linked_user_id')
+    search_fields = ('user__username', 'user__telegram_username', 'token')
+    list_filter = ('used_at',)

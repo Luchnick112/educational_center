@@ -36,10 +36,10 @@ python manage.py loaddata fixtures/demo_data.json
 
 Demo credentials for browser forms and API:
 
-- `admin@example.com` / `pass12345`
-- `teacher@example.com` / `pass12345`
-- `student@example.com` / `pass12345`
-- `parent@example.com` / `pass12345`
+- `admin@example.com` / `pass12345` (legacy, email login still accepted)
+- `teacher@example.com` / `pass12345` (legacy, email login still accepted)
+- `student@example.com` / `pass12345` (legacy, email login still accepted)
+- `parent@example.com` / `pass12345` (legacy, email login still accepted)
 
 ## API Docs
 
@@ -64,7 +64,7 @@ Example register payload:
   "password": "pass12345",
   "first_name": "New",
   "last_name": "Teacher",
-  "email": "teacher@example.com",
+  "telegram_username": "@teacher_example",
   "role": "teacher",
   "phone": "+380001112233"
 }
@@ -74,7 +74,7 @@ Example token payload:
 
 ```json
 {
-  "email": "teacher@example.com",
+  "telegram_username": "@teacher_api",
   "password": "pass12345"
 }
 ```
@@ -85,14 +85,46 @@ Use JWT in headers:
 Authorization: Bearer <access_token>
 ```
 
+## Telegram Linking (Optional)
+
+To send messages to users in Telegram, you must store their `chat_id`. Bots cannot reliably message a user by username only.
+
+1. Set environment variables:
+
+```bash
+set TELEGRAM_BOT_USERNAME=YourBotNameWithoutAtSign
+```
+
+2. Generate a link token (authenticated):
+
+- `POST /api/users/telegram/link-token/` -> returns `{ token, expires_at, deep_link_url }`
+
+3. User opens `deep_link_url` and presses Start in Telegram.
+
+### Option A: Webhook (needs public HTTPS)
+
+Configure Telegram webhook to:
+
+- `POST /api/users/telegram/webhook/`
+
+When the webhook receives `/start <token>`, it links `telegram_chat_id` and `telegram_user_id` to the user.
+
+### Option B: Long Polling (no public URL)
+
+Set environment variable `TELEGRAM_BOT_TOKEN` and run:
+
+```bash
+python manage.py telegram_poll --drop-pending
+```
+
 ## Core Endpoints
 
 - `GET /api/me/`
-- `GET /api/my-lessons/`
-- `GET /api/my-children/`
-- `GET /api/my-children-summary/`
-- `GET /api/my-payments/`
-- `GET /api/my-confirmations/`
+- `GET /api/my/lessons/`
+- `GET /api/my/children/`
+- `GET /api/my/children-summary/`
+- `GET /api/my/payments/`
+- `GET /api/my/confirmations/`
 
 ## Users API
 

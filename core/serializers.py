@@ -5,13 +5,21 @@ from finance.serializers import ParentChargeSerializer, TeacherPayoutSerializer
 from users.serializers import ParentProfileSerializer, StudentProfileSerializer, UserSerializer
 
 
+class MyLinkSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    url = serializers.URLField()
+
+
 class MeSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     first_name = serializers.CharField(allow_blank=True)
     last_name = serializers.CharField(allow_blank=True)
+    telegram_username = serializers.CharField(allow_blank=True, required=False)
     email = serializers.EmailField(allow_blank=True)
     role = serializers.CharField()
     is_staff = serializers.BooleanField()
+    # Discoverability: links to personal ("my") endpoints.
+    my = MyLinkSerializer(many=True, required=False)
 
 
 class MyPaymentsSerializer(serializers.Serializer):

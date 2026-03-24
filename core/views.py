@@ -1,4 +1,5 @@
 from drf_spectacular.utils import extend_schema
+from django.urls import reverse
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,14 +18,25 @@ class MeView(APIView):
 
     @extend_schema(responses=MeSerializer)
     def get(self, request):
+        def _url(name: str) -> str:
+            return request.build_absolute_uri(reverse(name))
+
         return Response(
             {
                 'id': request.user.id,
                 'first_name': request.user.first_name,
                 'last_name': request.user.last_name,
+                'telegram_username': request.user.telegram_username or '',
                 'email': request.user.email,
                 'role': request.user.role,
                 'is_staff': request.user.is_staff,
+                'my': [
+                    {'key': 'lessons', 'url': _url('my:lessons')},
+                    {'key': 'children', 'url': _url('my:children')},
+                    {'key': 'children_summary', 'url': _url('my:children-summary')},
+                    {'key': 'payments', 'url': _url('my:payments')},
+                    {'key': 'confirmations', 'url': _url('my:confirmations')},
+                ],
             }
         )
 

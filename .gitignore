@@ -1,7 +1,8 @@
 .idea/
+.env
 .venv/
 venv/
-env/
+*env/
 
 __pycache__/
 *.py[cod]
@@ -20,4 +21,3 @@ htmlcov/
 Thumbs.db
 
 *fixtures/
-

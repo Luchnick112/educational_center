@@ -15,6 +15,7 @@ class AcademicBaseTestCase(TestCase):
 
         self.teacher_user = User.objects.create_user(
             username='teacher_api',
+            telegram_username='@teacher_api',
             email='teacher_api@example.com',
             password='pass12345',
             role=UserRole.TEACHER,
@@ -23,6 +24,7 @@ class AcademicBaseTestCase(TestCase):
 
         self.student_user = User.objects.create_user(
             username='student_api',
+            telegram_username='@student_api',
             email='student_api@example.com',
             password='pass12345',
             role=UserRole.STUDENT,
@@ -31,6 +33,7 @@ class AcademicBaseTestCase(TestCase):
 
         self.parent_user = User.objects.create_user(
             username='parent_api',
+            telegram_username='@parent_api',
             email='parent_api@example.com',
             password='pass12345',
             role=UserRole.PARENT,

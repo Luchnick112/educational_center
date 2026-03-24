@@ -1,4 +1,4 @@
-from rest_framework import decorators, permissions, response, viewsets
+from rest_framework import decorators, exceptions, permissions, response, viewsets
 
 from users.models import UserRole
 from users.permissions import IsAdminOrRelatedAcademicObject, StaffWritePermission
@@ -6,6 +6,7 @@ from users.permissions import IsAdminOrRelatedAcademicObject, StaffWritePermissi
 from .models import (
     Lesson,
     LessonConfirmation,
+    LessonStatus,
     StudentEnrollment,
     StudyGroup,
     Subject,
@@ -22,6 +23,30 @@ from .serializers import (
     SubjectSerializer,
 )
 from .services import cancel_lesson, complete_lesson, confirm_lesson, mark_lesson_attendance
+
+
+class StaffOrTeacherScheduleWritePermission(permissions.BasePermission):
+    """
+    Allow teachers to create/update their own lessons (schedule) while keeping
+    admin/staff full write access and everyone else read-only.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        if request.method in permissions.SAFE_METHODS:
+            return bool(user and user.is_authenticated)
+
+        if not user or not user.is_authenticated:
+            return False
+
+        if user.is_staff or user.role == UserRole.ADMIN:
+            return True
+
+        # Teachers can manage their schedule via LessonViewSet only.
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            return getattr(view, 'action', None) in {'create', 'update', 'partial_update'}
+
+        return False
 
 
 class SubjectViewSet(viewsets.ModelViewSet):
@@ -69,7 +94,7 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.select_related('group', 'group__subject').prefetch_related('participants').all()
     serializer_class = LessonSerializer
-    permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
+    permission_classes = (StaffOrTeacherScheduleWritePermission, IsAdminOrRelatedAcademicObject)
 
     def get_permissions(self):
         if getattr(self, 'action', None) in {'mark_attendance', 'complete', 'cancel'}:
@@ -89,6 +114,39 @@ class LessonViewSet(viewsets.ModelViewSet):
                 participants__student__parent_links__parent=user.parent_profile,
             ).distinct()
         return self.queryset.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        group = serializer.validated_data['group']
+
+        if user.is_staff or user.role == UserRole.ADMIN:
+            serializer.save()
+            return
+
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            if group.teacher_id != user.teacher_profile.id:
+                raise exceptions.PermissionDenied('You can only create lessons for your own groups.')
+            status = serializer.validated_data.get('status', LessonStatus.SCHEDULED)
+            if status != LessonStatus.SCHEDULED:
+                raise exceptions.ValidationError({'status': 'Only scheduled lessons can be created.'})
+            serializer.save(status=LessonStatus.SCHEDULED)
+            return
+
+        raise exceptions.PermissionDenied('You cannot create lessons.')
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        instance = self.get_object()
+
+        if not (user.is_staff or user.role == UserRole.ADMIN):
+            if instance.status != LessonStatus.SCHEDULED:
+                raise exceptions.ValidationError({'detail': 'Only scheduled lessons can be updated.'})
+            if 'status' in serializer.validated_data and serializer.validated_data['status'] != instance.status:
+                raise exceptions.ValidationError({'status': 'Status cannot be changed here.'})
+            if 'group' in serializer.validated_data and serializer.validated_data['group'].id != instance.group_id:
+                raise exceptions.ValidationError({'group': 'Lesson group cannot be changed.'})
+
+        serializer.save()
 
     @decorators.action(detail=True, methods=['post'], url_path='mark-attendance')
     def mark_attendance(self, request, pk=None):

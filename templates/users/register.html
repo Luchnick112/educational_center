@@ -240,8 +240,8 @@
                         </select>
                     </label>
                     <label>
-                        Email
-                        <input type="email" name="email" required>
+                        Telegram username
+                        <input type="text" name="telegram_username" required placeholder="@username">
                     </label>
                 </div>
 
@@ -315,7 +315,7 @@
                 }
 
                 form.reset();
-                setStatus(`User ${data.email} created successfully with role ${data.role}.`, 'ok');
+                setStatus(`User ${data.telegram_username || data.username} created successfully with role ${data.role}.`, 'ok');
             } catch (error) {
                 setStatus('Network error while sending request.', 'error');
             } finally {

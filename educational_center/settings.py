@@ -11,9 +11,45 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 from datetime import timedelta
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """
+    Minimal .env loader (no external deps).
+
+    - Supports KEY=VALUE lines, optional quotes, ignores comments/blank lines.
+    - Does not override already defined environment variables.
+    """
+    if not path.exists() or not path.is_file():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or key in os.environ:
+            continue
+
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+
+        os.environ[key] = value
+
+
+# Allow local development to use a repo-root .env file.
+_load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -161,3 +197,11 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=3),
     "ROTATE_REFRESH_TOKENS": False,
 }
+
+# Telegram integration (optional)
+# TELEGRAM_BOT_USERNAME: without @ (used to build deep links). Example: "MySchoolBot"
+TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@")
+# Link token TTL in seconds (default: 10 minutes)
+TELEGRAM_LINK_TOKEN_TTL_SECONDS = int(os.environ.get("TELEGRAM_LINK_TOKEN_TTL_SECONDS", "600"))
+# Bot token used for sending messages (if you implement sending).
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
