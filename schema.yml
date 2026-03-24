@@ -2179,8 +2179,6 @@ components:
           format: date-time
         status:
           $ref: '#/components/schemas/LessonStatusEnum'
-        homework:
-          type: string
         notes:
           type: string
         participants:
@@ -2310,8 +2308,6 @@ components:
           format: date-time
         status:
           $ref: '#/components/schemas/LessonStatusEnum'
-        homework:
-          type: string
         notes:
           type: string
       required:
@@ -2506,8 +2502,6 @@ components:
           format: date-time
         status:
           $ref: '#/components/schemas/LessonStatusEnum'
-        homework:
-          type: string
         notes:
           type: string
     PatchedParentChargeRequest:

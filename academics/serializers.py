@@ -84,7 +84,6 @@ class LessonSerializer(serializers.ModelSerializer):
             'starts_at',
             'ends_at',
             'status',
-            'homework',
             'notes',
             'participants',
         )

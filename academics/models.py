@@ -99,7 +99,6 @@ class Lesson(models.Model):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     status = models.CharField(max_length=16, choices=LessonStatus.choices, default=LessonStatus.SCHEDULED)
-    homework = models.TextField(blank=True)
     notes = models.TextField(blank=True)
 
     def clean(self) -> None:

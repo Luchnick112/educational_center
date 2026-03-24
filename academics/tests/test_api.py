@@ -37,6 +37,12 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(me_response.status_code, 200)
         self.assertEqual(me_response.data['role'], UserRole.STUDENT)
+        self.assertIn('my', me_response.data)
+        keys = {item['key'] for item in me_response.data['my']}
+        self.assertEqual(
+            keys,
+            {'lessons', 'children', 'children_summary', 'payments', 'confirmations'},
+        )
         self.assertEqual(lessons_response.status_code, 200)
         self.assertEqual(len(lessons_response.data), 1)
         self.assertEqual(payments_response.status_code, 200)

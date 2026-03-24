@@ -1,5 +1,5 @@
 from drf_spectacular.utils import extend_schema
-from django.urls import reverse
+from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -21,6 +21,29 @@ class MeView(APIView):
         def _url(name: str) -> str:
             return request.build_absolute_uri(reverse(name))
 
+        def _find_my_resolvers():
+            resolver = get_resolver()
+            stack = [resolver]
+            while stack:
+                current = stack.pop()
+                for pattern in getattr(current, "url_patterns", []):
+                    if isinstance(pattern, URLResolver):
+                        if pattern.namespace == "my":
+                            yield pattern
+                        stack.append(pattern)
+
+        my_links = []
+        # Discoverability: expose all "my:" endpoints from the URLconf.
+        for my_resolver in _find_my_resolvers():
+            for pattern in getattr(my_resolver, "url_patterns", []):
+                if not isinstance(pattern, URLPattern):
+                    continue
+                name = getattr(pattern, "name", None)
+                if not name or getattr(pattern, "pattern", None) is None or getattr(pattern.pattern, "converters", None):
+                    continue
+                my_links.append({"key": str(name).replace("-", "_"), "url": _url(f"my:{name}")})
+        my_links.sort(key=lambda item: item["key"])
+
         return Response(
             {
                 'id': request.user.id,
@@ -30,13 +53,7 @@ class MeView(APIView):
                 'email': request.user.email,
                 'role': request.user.role,
                 'is_staff': request.user.is_staff,
-                'my': [
-                    {'key': 'lessons', 'url': _url('my:lessons')},
-                    {'key': 'children', 'url': _url('my:children')},
-                    {'key': 'children_summary', 'url': _url('my:children-summary')},
-                    {'key': 'payments', 'url': _url('my:payments')},
-                    {'key': 'confirmations', 'url': _url('my:confirmations')},
-                ],
+                'my': my_links,
             }
         )
 
