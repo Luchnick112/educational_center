@@ -42,7 +42,6 @@ class AcademicBaseTestCase(TestCase):
         StudentParentRelation.objects.create(
             parent=self.parent,
             student=self.student,
-            relationship='father',
             is_financial_contact=True,
         )
 

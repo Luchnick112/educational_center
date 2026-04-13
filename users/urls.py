@@ -5,6 +5,7 @@ from .api import (
     ParentProfileViewSet,
     RegisterView,
     StudentProfileViewSet,
+    StudentParentRelationViewSet,
     TeacherProfileViewSet,
     TelegramLinkTokenView,
     TelegramWebhookView,
@@ -17,6 +18,7 @@ router = DefaultRouter()
 router.register('', UserViewSet, basename='user')
 router.register('students', StudentProfileViewSet, basename='student')
 router.register('parents', ParentProfileViewSet, basename='parent')
+router.register('student-parent-relations', StudentParentRelationViewSet, basename='student-parent-relation')
 router.register('teachers', TeacherProfileViewSet, basename='teacher')
 
 urlpatterns = [

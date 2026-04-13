@@ -13,7 +13,15 @@ from academics.models import Lesson, LessonConfirmation, LessonParticipant, Stud
 from core.serializers import DashboardSerializer
 from finance.models import ParentCharge, TeacherPayout
 
-from .models import ParentProfile, StudentProfile, TeacherProfile, TelegramLinkToken, User, UserRole
+from .models import (
+    ParentProfile,
+    StudentParentRelation,
+    StudentProfile,
+    TeacherProfile,
+    TelegramLinkToken,
+    User,
+    UserRole,
+)
 from .permissions import StaffWritePermission
 from .serializers import (
     ParentProfileSerializer,
@@ -21,6 +29,7 @@ from .serializers import (
     EmailTokenRefreshSerializer,
     RegisterSerializer,
     StudentProfileSerializer,
+    StudentParentRelationSerializer,
     TeacherProfileSerializer,
     TelegramLinkTokenResponseSerializer,
     TelegramWebhookSerializer,
@@ -33,6 +42,9 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
     permission_classes = (StaffWritePermission,)
+    # Prevent the catch-all "/api/users/<pk>/" route from swallowing other prefixes
+    # like "/api/users/student-parent-relations/".
+    lookup_value_regex = r'\d+'
 
     def get_queryset(self):
         user = self.request.user
@@ -132,6 +144,28 @@ class ParentProfileViewSet(viewsets.ModelViewSet):
         return self.queryset.none()
 
 
+class StudentParentRelationViewSet(viewsets.ModelViewSet):
+    queryset = StudentParentRelation.objects.select_related('parent__user', 'student__user').all()
+    serializer_class = StudentParentRelationSerializer
+    permission_classes = (StaffWritePermission,)
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return StudentParentRelation.objects.none()
+
+        if user.is_staff or user.role == UserRole.ADMIN:
+            return super().get_queryset()
+
+        if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
+            return self.queryset.filter(parent=user.parent_profile)
+
+        if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
+            return self.queryset.filter(student=user.student_profile)
+
+        return StudentParentRelation.objects.none()
+
+
 class TeacherProfileViewSet(viewsets.ModelViewSet):
     queryset = TeacherProfile.objects.select_related('user').all()
     serializer_class = TeacherProfileSerializer
@@ -217,7 +251,7 @@ class TelegramLinkTokenView(APIView):
         # Extremely unlikely; fallback to a longer token.
         return secrets.token_urlsafe(48)
 
-    @extend_schema(responses={200: TelegramLinkTokenResponseSerializer})
+    @extend_schema(request=None, responses={200: TelegramLinkTokenResponseSerializer})
     def post(self, request):
         token = self._generate_token()
         ttl_seconds = max(60, int(getattr(settings, 'TELEGRAM_LINK_TOKEN_TTL_SECONDS', 600)))

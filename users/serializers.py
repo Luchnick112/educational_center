@@ -168,7 +168,8 @@ class TelegramWebhookSerializer(serializers.Serializer):
 class StudentParentRelationSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentParentRelation
-        fields = ('id', 'parent', 'student', 'relationship', 'is_primary', 'is_financial_contact')
+        # relationship is stored in the model for optional metadata, but the API only needs the link itself.
+        fields = ('id', 'parent', 'student', 'is_primary', 'is_financial_contact')
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):

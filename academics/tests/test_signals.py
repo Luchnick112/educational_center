@@ -37,7 +37,6 @@ class LessonSignalsTestCase(TestCase):
         StudentParentRelation.objects.create(
             parent=self.parent,
             student=self.student,
-            relationship='mother',
             is_primary=True,
             is_financial_contact=True,
         )

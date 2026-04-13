@@ -30,7 +30,7 @@ class TeacherProfileAdmin(admin.ModelAdmin):
 
 @admin.register(StudentParentRelation)
 class StudentParentRelationAdmin(admin.ModelAdmin):
-    list_display = ('parent', 'student', 'relationship', 'is_primary', 'is_financial_contact')
+    list_display = ('parent', 'student', 'is_primary', 'is_financial_contact')
     list_filter = ('is_primary', 'is_financial_contact')
 
 

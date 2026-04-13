@@ -9,7 +9,7 @@ paths:
     get:
       operationId: api_academics_confirmations_list
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -25,7 +25,7 @@ paths:
     post:
       operationId: api_academics_confirmations_create
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -59,7 +59,7 @@ paths:
         description: A unique integer value identifying this lesson confirmation.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -80,7 +80,7 @@ paths:
         description: A unique integer value identifying this lesson confirmation.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -113,7 +113,7 @@ paths:
         description: A unique integer value identifying this lesson confirmation.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -145,7 +145,7 @@ paths:
         description: A unique integer value identifying this lesson confirmation.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -163,7 +163,7 @@ paths:
         description: A unique integer value identifying this lesson confirmation.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -190,7 +190,7 @@ paths:
     get:
       operationId: api_academics_enrollments_list
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -206,7 +206,7 @@ paths:
     post:
       operationId: api_academics_enrollments_create
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -240,7 +240,7 @@ paths:
         description: A unique integer value identifying this student enrollment.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -261,7 +261,7 @@ paths:
         description: A unique integer value identifying this student enrollment.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -294,7 +294,7 @@ paths:
         description: A unique integer value identifying this student enrollment.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -326,7 +326,7 @@ paths:
         description: A unique integer value identifying this student enrollment.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -337,7 +337,7 @@ paths:
     get:
       operationId: api_academics_groups_list
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -353,7 +353,7 @@ paths:
     post:
       operationId: api_academics_groups_create
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -387,7 +387,7 @@ paths:
         description: A unique integer value identifying this study group.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -408,7 +408,7 @@ paths:
         description: A unique integer value identifying this study group.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -441,7 +441,7 @@ paths:
         description: A unique integer value identifying this study group.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -473,7 +473,7 @@ paths:
         description: A unique integer value identifying this study group.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -484,7 +484,7 @@ paths:
     get:
       operationId: api_academics_lessons_list
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -500,7 +500,7 @@ paths:
     post:
       operationId: api_academics_lessons_create
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -534,7 +534,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -555,7 +555,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -588,7 +588,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -620,7 +620,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -638,7 +638,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -672,7 +672,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -706,7 +706,7 @@ paths:
         description: A unique integer value identifying this lesson.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -733,7 +733,7 @@ paths:
     get:
       operationId: api_academics_subjects_list
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -749,7 +749,7 @@ paths:
     post:
       operationId: api_academics_subjects_create
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -783,7 +783,7 @@ paths:
         description: A unique integer value identifying this subject.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -804,7 +804,7 @@ paths:
         description: A unique integer value identifying this subject.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -837,7 +837,7 @@ paths:
         description: A unique integer value identifying this subject.
         required: true
       tags:
-      - api
+      - Academics
       requestBody:
         content:
           application/json:
@@ -869,7 +869,7 @@ paths:
         description: A unique integer value identifying this subject.
         required: true
       tags:
-      - api
+      - Academics
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -880,7 +880,7 @@ paths:
     get:
       operationId: api_finance_parent_charges_list
       tags:
-      - api
+      - Finance
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -896,7 +896,7 @@ paths:
     post:
       operationId: api_finance_parent_charges_create
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -930,7 +930,7 @@ paths:
         description: A unique integer value identifying this parent charge.
         required: true
       tags:
-      - api
+      - Finance
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -951,7 +951,7 @@ paths:
         description: A unique integer value identifying this parent charge.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -984,7 +984,7 @@ paths:
         description: A unique integer value identifying this parent charge.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1016,7 +1016,7 @@ paths:
         description: A unique integer value identifying this parent charge.
         required: true
       tags:
-      - api
+      - Finance
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1034,7 +1034,7 @@ paths:
         description: A unique integer value identifying this parent charge.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1068,7 +1068,7 @@ paths:
         description: A unique integer value identifying this parent charge.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1095,7 +1095,7 @@ paths:
     get:
       operationId: api_finance_teacher_payouts_list
       tags:
-      - api
+      - Finance
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1111,7 +1111,7 @@ paths:
     post:
       operationId: api_finance_teacher_payouts_create
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1145,7 +1145,7 @@ paths:
         description: A unique integer value identifying this teacher payout.
         required: true
       tags:
-      - api
+      - Finance
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1166,7 +1166,7 @@ paths:
         description: A unique integer value identifying this teacher payout.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1199,7 +1199,7 @@ paths:
         description: A unique integer value identifying this teacher payout.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1231,7 +1231,7 @@ paths:
         description: A unique integer value identifying this teacher payout.
         required: true
       tags:
-      - api
+      - Finance
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1249,7 +1249,7 @@ paths:
         description: A unique integer value identifying this teacher payout.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1283,7 +1283,7 @@ paths:
         description: A unique integer value identifying this teacher payout.
         required: true
       tags:
-      - api
+      - Finance
       requestBody:
         content:
           application/json:
@@ -1310,7 +1310,7 @@ paths:
     get:
       operationId: api_me_retrieve
       tags:
-      - api
+      - Core
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1321,11 +1321,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Me'
           description: ''
-  /api/my-children/:
+  /api/my/children/:
     get:
       operationId: api_my_children_list
       tags:
-      - api
+      - Core
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1338,11 +1338,11 @@ paths:
                 items:
                   $ref: '#/components/schemas/StudentProfile'
           description: ''
-  /api/my-children-summary/:
+  /api/my/children-summary/:
     get:
       operationId: api_my_children_summary_retrieve
       tags:
-      - api
+      - Core
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1355,11 +1355,11 @@ paths:
           description: ''
         '204':
           description: No response body
-  /api/my-confirmations/:
+  /api/my/confirmations/:
     get:
       operationId: api_my_confirmations_list
       tags:
-      - api
+      - Core
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1372,11 +1372,11 @@ paths:
                 items:
                   $ref: '#/components/schemas/LessonConfirmation'
           description: ''
-  /api/my-lessons/:
+  /api/my/lessons/:
     get:
       operationId: api_my_lessons_list
       tags:
-      - api
+      - Core
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1389,11 +1389,11 @@ paths:
                 items:
                   $ref: '#/components/schemas/Lesson'
           description: ''
-  /api/my-payments/:
+  /api/my/payments/:
     get:
       operationId: api_my_payments_retrieve
       tags:
-      - api
+      - Core
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1408,7 +1408,7 @@ paths:
     get:
       operationId: api_users_list
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1424,7 +1424,7 @@ paths:
     post:
       operationId: api_users_create
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1458,7 +1458,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1479,7 +1479,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1512,7 +1512,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1544,100 +1544,18 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
       responses:
         '204':
           description: No response body
-  /api/users/register/:
-    post:
-      operationId: api_users_auth_register_create
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - cookieAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-          description: ''
-  /api/users/token/:
-    post:
-      operationId: api_users_auth_token_create
-      description: |-
-        Takes a set of user credentials and returns an access and refresh JSON web
-        token pair to prove the authentication of those credentials.
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPairRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPairRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPairRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenObtainPair'
-          description: ''
-  /api/users/token/refresh/:
-    post:
-      operationId: api_users_auth_token_refresh_create
-      description: |-
-        Takes a refresh type JSON web token and returns an access type JSON web
-        token if the refresh token is valid.
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TokenRefreshRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenRefreshRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenRefreshRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenRefresh'
-          description: ''
   /api/users/dashboard/:
     get:
       operationId: api_users_dashboard_retrieve
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1652,7 +1570,7 @@ paths:
     get:
       operationId: api_users_me_retrieve
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1667,7 +1585,7 @@ paths:
     get:
       operationId: api_users_parents_list
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1683,7 +1601,7 @@ paths:
     post:
       operationId: api_users_parents_create
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1717,7 +1635,7 @@ paths:
         description: A unique integer value identifying this parent profile.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1738,7 +1656,7 @@ paths:
         description: A unique integer value identifying this parent profile.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1771,7 +1689,7 @@ paths:
         description: A unique integer value identifying this parent profile.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1803,18 +1721,46 @@ paths:
         description: A unique integer value identifying this parent profile.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
       responses:
         '204':
           description: No response body
+  /api/users/register/:
+    post:
+      operationId: api_users_register_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
   /api/users/students/:
     get:
       operationId: api_users_students_list
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1830,7 +1776,7 @@ paths:
     post:
       operationId: api_users_students_create
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1864,7 +1810,7 @@ paths:
         description: A unique integer value identifying this student profile.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1885,7 +1831,7 @@ paths:
         description: A unique integer value identifying this student profile.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1918,7 +1864,7 @@ paths:
         description: A unique integer value identifying this student profile.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -1950,7 +1896,7 @@ paths:
         description: A unique integer value identifying this student profile.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1961,7 +1907,7 @@ paths:
     get:
       operationId: api_users_teachers_list
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -1977,7 +1923,7 @@ paths:
     post:
       operationId: api_users_teachers_create
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -2011,7 +1957,7 @@ paths:
         description: A unique integer value identifying this teacher profile.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -2032,7 +1978,7 @@ paths:
         description: A unique integer value identifying this teacher profile.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -2065,7 +2011,7 @@ paths:
         description: A unique integer value identifying this teacher profile.
         required: true
       tags:
-      - api
+      - Users
       requestBody:
         content:
           application/json:
@@ -2097,13 +2043,114 @@ paths:
         description: A unique integer value identifying this teacher profile.
         required: true
       tags:
-      - api
+      - Users
       security:
       - jwtAuth: []
       - cookieAuth: []
       responses:
         '204':
           description: No response body
+  /api/users/telegram/link-token/:
+    post:
+      operationId: api_users_telegram_link_token_create
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelegramLinkTokenResponse'
+          description: ''
+  /api/users/telegram/webhook/:
+    post:
+      operationId: api_users_telegram_webhook_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/users/token/:
+    post:
+      operationId: api_users_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramUsernameTokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TelegramUsernameTokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TelegramUsernameTokenObtainPairRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelegramUsernameTokenObtainPair'
+          description: ''
+  /api/users/token/refresh/:
+    post:
+      operationId: api_users_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRefreshRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailTokenRefresh'
+          description: ''
 components:
   schemas:
     AttendanceStatusEnum:
@@ -2152,6 +2199,25 @@ components:
           type: integer
         users:
           type: integer
+    EmailTokenRefresh:
+      type: object
+      properties:
+        refresh:
+          type: string
+        access:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    EmailTokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
     FormatEnum:
       enum:
       - group
@@ -2329,11 +2395,11 @@ components:
       properties:
         id:
           type: integer
-        username:
-          type: string
         first_name:
           type: string
         last_name:
+          type: string
+        telegram_username:
           type: string
         email:
           type: string
@@ -2342,6 +2408,10 @@ components:
           type: string
         is_staff:
           type: boolean
+        my:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyLink'
       required:
       - email
       - first_name
@@ -2349,7 +2419,17 @@ components:
       - is_staff
       - last_name
       - role
-      - username
+    MyLink:
+      type: object
+      properties:
+        key:
+          type: string
+        url:
+          type: string
+          format: uri
+      required:
+      - key
+      - url
     MyPayments:
       type: object
       properties:
@@ -2389,7 +2469,7 @@ components:
         issued_at:
           type: string
           format: date-time
-          readOnly: true
+          nullable: true
         paid_at:
           type: string
           format: date-time
@@ -2397,7 +2477,6 @@ components:
       required:
       - amount
       - id
-      - issued_at
       - parent
       - participant
       - student
@@ -2419,6 +2498,10 @@ components:
         due_date:
           type: string
           format: date
+          nullable: true
+        issued_at:
+          type: string
+          format: date-time
           nullable: true
         paid_at:
           type: string
@@ -2522,6 +2605,10 @@ components:
         due_date:
           type: string
           format: date
+          nullable: true
+        issued_at:
+          type: string
+          format: date-time
           nullable: true
         paid_at:
           type: string
@@ -2646,19 +2733,28 @@ components:
     PatchedUserRequest:
       type: object
       properties:
-        username:
-          type: string
-          minLength: 1
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
         first_name:
           type: string
           maxLength: 150
         last_name:
           type: string
           maxLength: 150
+        telegram_username:
+          type: string
+          nullable: true
+          maxLength: 33
+        telegram_chat_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        telegram_user_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
         email:
           type: string
           format: email
@@ -2677,13 +2773,6 @@ components:
     RegisterRequest:
       type: object
       properties:
-        username:
-          type: string
-          minLength: 1
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
         password:
           type: string
           writeOnly: true
@@ -2694,11 +2783,10 @@ components:
         last_name:
           type: string
           maxLength: 150
-        email:
+        telegram_username:
           type: string
-          format: email
-          title: Email address
-          maxLength: 254
+          minLength: 1
+          maxLength: 33
         role:
           $ref: '#/components/schemas/RoleEnum'
         phone:
@@ -2707,7 +2795,7 @@ components:
       required:
       - password
       - role
-      - username
+      - telegram_username
     RequestedFromEnum:
       enum:
       - student
@@ -3090,67 +3178,82 @@ components:
           type: string
       required:
       - user
-    TokenObtainPair:
+    TelegramLinkTokenResponse:
       type: object
       properties:
-        access:
+        token:
           type: string
-          readOnly: true
-        refresh:
+        expires_at:
           type: string
-          readOnly: true
+          format: date-time
+        deep_link_url:
+          type: string
+          format: uri
       required:
-      - access
-      - refresh
-    TokenObtainPairRequest:
+      - deep_link_url
+      - expires_at
+      - token
+    TelegramUsernameTokenObtainPair:
       type: object
       properties:
-        username:
+        telegram_username:
           type: string
-          writeOnly: true
-          minLength: 1
+        email:
+          type: string
+          format: email
+    TelegramUsernameTokenObtainPairRequest:
+      type: object
+      properties:
+        telegram_username:
+          type: string
+        email:
+          type: string
+          format: email
         password:
           type: string
           writeOnly: true
           minLength: 1
       required:
       - password
-      - username
-    TokenRefresh:
+    TelegramWebhookRequest:
       type: object
       properties:
-        access:
-          type: string
-          readOnly: true
-      required:
-      - access
-    TokenRefreshRequest:
-      type: object
-      properties:
-        refresh:
-          type: string
-          writeOnly: true
-          minLength: 1
-      required:
-      - refresh
+        update_id:
+          type: integer
+        message:
+          type: object
+          additionalProperties: {}
+        edited_message:
+          type: object
+          additionalProperties: {}
     User:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        username:
-          type: string
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
         first_name:
           type: string
           maxLength: 150
         last_name:
           type: string
           maxLength: 150
+        telegram_username:
+          type: string
+          nullable: true
+          maxLength: 33
+        telegram_chat_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        telegram_user_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
         email:
           type: string
           format: email
@@ -3169,23 +3272,31 @@ components:
       required:
       - id
       - role
-      - username
     UserRequest:
       type: object
       properties:
-        username:
-          type: string
-          minLength: 1
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
         first_name:
           type: string
           maxLength: 150
         last_name:
           type: string
           maxLength: 150
+        telegram_username:
+          type: string
+          nullable: true
+          maxLength: 33
+        telegram_chat_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        telegram_user_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
         email:
           type: string
           format: email
@@ -3203,7 +3314,6 @@ components:
             this instead of deleting accounts.
       required:
       - role
-      - username
   securitySchemes:
     cookieAuth:
       type: apiKey
@@ -3213,3 +3323,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+tags:
+- name: Users
+  description: Authentication, profiles and user resources.
+- name: Academics
+  description: Subjects, groups, lessons, enrollments and confirmations.
+- name: Finance
+  description: Charges and teacher payouts.
+- name: Core
+  description: Cross-cutting endpoints like /api/me and /api/my/*.

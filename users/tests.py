@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from academics.models import Lesson, LessonConfirmation, LessonParticipant, StudentEnrollment, StudyGroup, Subject
 from finance.models import ParentCharge, TeacherPayout
-from users.models import ParentProfile, StudentProfile, TeacherProfile, TelegramLinkToken, User, UserRole
+from users.models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, TelegramLinkToken, User, UserRole
 
 
 class DemoFixtureTestCase(TestCase):
@@ -67,3 +67,96 @@ class TelegramLinkFlowTestCase(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.telegram_chat_id, 123456)
         self.assertEqual(self.user.telegram_user_id, 654321)
+
+
+class StudentParentRelationApiTestCase(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+        self.staff = User.objects.create_user(
+            username='staff_user',
+            telegram_username='@staff_user',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.parent_user = User.objects.create_user(
+            username='parent_user',
+            telegram_username='@parent_user',
+            password='pass12345',
+            role=UserRole.PARENT,
+        )
+        self.student_user = User.objects.create_user(
+            username='student_user',
+            telegram_username='@student_user',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+
+        self.parent = ParentProfile.objects.create(user=self.parent_user)
+        self.student = StudentProfile.objects.create(user=self.student_user)
+
+    def test_staff_can_create_relation(self):
+        self.client.force_authenticate(self.staff)
+        resp = self.client.post(
+            '/api/users/student-parent-relations/',
+            {
+                'parent': self.parent.id,
+                'student': self.student.id,
+                'is_primary': True,
+                'is_financial_contact': True,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertTrue(
+            StudentParentRelation.objects.filter(parent=self.parent, student=self.student).exists()
+        )
+
+    def test_non_staff_cannot_create_relation(self):
+        self.client.force_authenticate(self.parent_user)
+        resp = self.client.post(
+            '/api/users/student-parent-relations/',
+            {
+                'parent': self.parent.id,
+                'student': self.student.id,
+                'is_primary': True,
+                'is_financial_contact': True,
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_parent_sees_only_own_relations(self):
+        other_parent_user = User.objects.create_user(
+            username='parent_user2',
+            telegram_username='@parent_user2',
+            password='pass12345',
+            role=UserRole.PARENT,
+        )
+        other_parent = ParentProfile.objects.create(user=other_parent_user)
+        StudentParentRelation.objects.create(parent=self.parent, student=self.student)
+        StudentParentRelation.objects.create(parent=other_parent, student=self.student)
+
+        self.client.force_authenticate(self.parent_user)
+        resp = self.client.get('/api/users/student-parent-relations/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['parent'], self.parent.id)
+
+    def test_student_sees_only_own_relations(self):
+        other_student_user = User.objects.create_user(
+            username='student_user2',
+            telegram_username='@student_user2',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        other_student = StudentProfile.objects.create(user=other_student_user)
+        StudentParentRelation.objects.create(parent=self.parent, student=self.student)
+        StudentParentRelation.objects.create(parent=self.parent, student=other_student)
+
+        self.client.force_authenticate(self.student_user)
+        resp = self.client.get('/api/users/student-parent-relations/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['student'], self.student.id)

@@ -94,7 +94,6 @@ class TeacherProfile(models.Model):
 class StudentParentRelation(models.Model):
     parent = models.ForeignKey(ParentProfile, on_delete=models.CASCADE, related_name='student_links')
     student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='parent_links')
-    relationship = models.CharField(max_length=64, blank=True)
     is_primary = models.BooleanField(default=False)
     is_financial_contact = models.BooleanField(default=True)
 
