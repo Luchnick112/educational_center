@@ -173,13 +173,12 @@ class StudentParentRelationSerializer(serializers.ModelSerializer):
 
 
 class StudentProfileSerializer(serializers.ModelSerializer):
-    date_of_birth = serializers.DateField(required=False, allow_null=True, style=DATE_INPUT_STYLE)
     user_detail = UserSerializer(source='user', read_only=True)
     parent_links = StudentParentRelationSerializer(many=True, read_only=True)
 
     class Meta:
         model = StudentProfile
-        fields = ('id', 'user', 'user_detail', 'date_of_birth', 'grade', 'notes', 'parent_links')
+        fields = ('id', 'user', 'user_detail', 'grade', 'notes', 'parent_links')
 
 
 class ParentProfileSerializer(serializers.ModelSerializer):

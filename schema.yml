@@ -1454,8 +1454,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this user.
+          type: string
+          pattern: ^\d+$
         required: true
       tags:
       - Users
@@ -1475,8 +1475,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this user.
+          type: string
+          pattern: ^\d+$
         required: true
       tags:
       - Users
@@ -1508,8 +1508,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this user.
+          type: string
+          pattern: ^\d+$
         required: true
       tags:
       - Users
@@ -1540,8 +1540,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: integer
-        description: A unique integer value identifying this user.
+          type: string
+          pattern: ^\d+$
         required: true
       tags:
       - Users
@@ -1756,6 +1756,153 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
           description: ''
+  /api/users/student-parent-relations/:
+    get:
+      operationId: api_users_student_parent_relations_list
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    post:
+      operationId: api_users_student_parent_relations_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+  /api/users/student-parent-relations/{id}/:
+    get:
+      operationId: api_users_student_parent_relations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    put:
+      operationId: api_users_student_parent_relations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    patch:
+      operationId: api_users_student_parent_relations_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentParentRelationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentParentRelationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentParentRelationRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    delete:
+      operationId: api_users_student_parent_relations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/users/students/:
     get:
       operationId: api_users_students_list
@@ -2533,8 +2680,7 @@ components:
         user:
           type: integer
         user_detail:
-          allOf:
-          - $ref: '#/components/schemas/User'
+          type: string
           readOnly: true
         billing_notes:
           type: string
@@ -2647,15 +2793,22 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           nullable: true
+    PatchedStudentParentRelationRequest:
+      type: object
+      properties:
+        parent:
+          type: integer
+        student:
+          type: integer
+        is_primary:
+          type: boolean
+        is_financial_contact:
+          type: boolean
     PatchedStudentProfileRequest:
       type: object
       properties:
         user:
           type: integer
-        date_of_birth:
-          type: string
-          format: date
-          nullable: true
         grade:
           type: string
           maxLength: 32
@@ -2904,9 +3057,6 @@ components:
           type: integer
         student:
           type: integer
-        relationship:
-          type: string
-          maxLength: 64
         is_primary:
           type: boolean
         is_financial_contact:
@@ -2922,9 +3072,6 @@ components:
           type: integer
         student:
           type: integer
-        relationship:
-          type: string
-          maxLength: 64
         is_primary:
           type: boolean
         is_financial_contact:
@@ -2944,10 +3091,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/User'
           readOnly: true
-        date_of_birth:
-          type: string
-          format: date
-          nullable: true
         grade:
           type: string
           maxLength: 32
@@ -2968,10 +3111,6 @@ components:
       properties:
         user:
           type: integer
-        date_of_birth:
-          type: string
-          format: date
-          nullable: true
         grade:
           type: string
           maxLength: 32

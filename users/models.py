@@ -54,7 +54,6 @@ class TelegramLinkToken(models.Model):
 
 class StudentProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
-    date_of_birth = models.DateField(null=True, blank=True)
     grade = models.CharField(max_length=32, blank=True)
     notes = models.TextField(blank=True)
 
