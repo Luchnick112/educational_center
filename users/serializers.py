@@ -183,7 +183,19 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 
 
 class ParentProfileSerializer(serializers.ModelSerializer):
-    user_detail = UserSerializer(source='user', read_only=True)
+    user_detail = serializers.SerializerMethodField()
+
+    def get_user_detail(self, obj: ParentProfile):
+        data = UserSerializer(obj.user).data
+        data['relationship'] = [
+            {
+                'first_name': rel.student.user.first_name,
+                'last_name': rel.student.user.last_name,
+                'telegram_username': rel.student.user.telegram_username,
+            }
+            for rel in obj.student_links.all()
+        ]
+        return data
 
     class Meta:
         model = ParentProfile

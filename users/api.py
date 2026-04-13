@@ -131,7 +131,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
 
 
 class ParentProfileViewSet(viewsets.ModelViewSet):
-    queryset = ParentProfile.objects.select_related('user').all()
+    queryset = ParentProfile.objects.select_related('user').prefetch_related('student_links__student__user').all()
     serializer_class = ParentProfileSerializer
     permission_classes = (StaffWritePermission,)
 

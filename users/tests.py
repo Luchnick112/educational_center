@@ -160,3 +160,22 @@ class StudentParentRelationApiTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
         self.assertEqual(resp.data[0]['student'], self.student.id)
+
+    def test_parents_endpoint_user_detail_has_relationship_students_min_fields(self):
+        self.student_user.first_name = 'Andrii'
+        self.student_user.last_name = 'Student'
+        self.student_user.telegram_username = '@stud_ex_21'
+        self.student_user.save(update_fields=['first_name', 'last_name', 'telegram_username'])
+        StudentParentRelation.objects.create(parent=self.parent, student=self.student)
+
+        self.client.force_authenticate(self.parent_user)
+        resp = self.client.get('/api/users/parents/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 1)
+
+        relationship = resp.data[0]['user_detail']['relationship']
+        self.assertEqual(len(relationship), 1)
+        self.assertEqual(
+            relationship[0],
+            {'first_name': 'Andrii', 'last_name': 'Student', 'telegram_username': '@stud_ex_21'},
+        )
