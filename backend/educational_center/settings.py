@@ -15,6 +15,8 @@ import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+REPO_ROOT = BASE_DIR.parent
+FRONTEND_DIR = REPO_ROOT / "frontend"
 
 
 def _load_dotenv(path: Path) -> None:
@@ -49,7 +51,7 @@ def _load_dotenv(path: Path) -> None:
 
 
 # Allow local development to use a repo-root .env file.
-_load_dotenv(BASE_DIR / ".env")
+_load_dotenv(REPO_ROOT / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -97,8 +99,14 @@ ROOT_URLCONF = 'educational_center.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates']
-        ,
+        'DIRS': [
+            p
+            for p in (
+                FRONTEND_DIR / "templates",
+                BASE_DIR / "templates",  # fallback for older layout
+            )
+            if p.exists()
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

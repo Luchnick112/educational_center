@@ -22,8 +22,8 @@ School CRM / electronic diary backend on Django + DRF.
 ## Local Run
 
 ```bash
-python manage.py migrate
-python manage.py runserver
+python backend/manage.py migrate
+python backend/manage.py runserver
 ```
 
 ## Demo Fixture
@@ -31,7 +31,7 @@ python manage.py runserver
 Load demo data into the local database:
 
 ```bash
-python manage.py loaddata fixtures/demo_data.json
+python backend/manage.py loaddata demo_data.json
 ```
 
 Demo credentials for browser forms and API:
@@ -114,7 +114,7 @@ When the webhook receives `/start <token>`, it links `telegram_chat_id` and `tel
 Set environment variable `TELEGRAM_BOT_TOKEN` and run:
 
 ```bash
-python manage.py telegram_poll --drop-pending
+python backend/manage.py telegram_poll --drop-pending
 ```
 
 ## Core Endpoints
@@ -228,6 +228,6 @@ Example `mark-paid` payload:
 ## Testing
 
 ```bash
-python manage.py check
-python manage.py test academics finance
+python backend/manage.py check
+python backend/manage.py test academics finance
 ```
