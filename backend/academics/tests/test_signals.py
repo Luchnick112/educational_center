@@ -43,7 +43,6 @@ class LessonSignalsTestCase(TestCase):
 
         self.subject = Subject.objects.create(name='Math')
         self.group = StudyGroup.objects.create(
-            name='Math A',
             subject=self.subject,
             teacher=self.teacher,
             format='group',

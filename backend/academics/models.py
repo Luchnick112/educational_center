@@ -52,7 +52,8 @@ class Subject(models.Model):
 
 
 class StudyGroup(models.Model):
-    name = models.CharField(max_length=128)
+    # Auto-generated from subject_ + teacher.id_ + group.id (see save()).
+    name = models.CharField(max_length=128, blank=True, default='')
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='groups')
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
     format = models.CharField(max_length=16, choices=LessonFormat.choices)
@@ -60,6 +61,28 @@ class StudyGroup(models.Model):
     student_price = models.DecimalField(max_digits=10, decimal_places=2)
     teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
+
+    def _build_auto_name(self) -> str:
+        if not (self.subject_id and self.teacher_id and self.pk):
+            return self.name
+        return f'{self.subject}+{self.teacher_id}+{self.pk}'
+
+    def save(self, *args, **kwargs):
+        # We need `pk` for the name, so on create we save once, then set name.
+        if self.pk is None:
+            super().save(*args, **kwargs)
+            auto_name = self._build_auto_name()
+            if self.name != auto_name:
+                StudyGroup.objects.filter(pk=self.pk).update(name=auto_name)
+                self.name = auto_name
+            return
+
+        auto_name = self._build_auto_name()
+        if self.name != auto_name:
+            self.name = auto_name
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'name'})
+        super().save(*args, **kwargs)
 
     def clean(self) -> None:
         if self.format == LessonFormat.INDIVIDUAL and self.capacity != 1:

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import timedelta
 
 from django.utils import timezone
@@ -27,6 +28,65 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Refresh access token')
+
+    def test_group_name_is_auto_generated_on_create(self):
+        admin_user = User.objects.create_user(
+            username='group_admin',
+            email='group_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        create_response = self.client.post(
+            '/api/academics/groups/',
+            {
+                'subject': self.subject.id,
+                'teacher': self.teacher.id,
+                'format': 'group',
+                'capacity': 5,
+                'student_price': '700.00',
+                'teacher_rate': '400.00',
+                'is_active': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        created_id = create_response.data['id']
+        self.assertEqual(create_response.data['name'], f'{self.subject.name}+{self.teacher.id}+{created_id}')
+
+    def test_teacher_sees_only_teacher_rate_in_group_detail(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get(f'/api/academics/groups/{self.group.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('student_price', response.data)
+        self.assertIn('teacher_rate', response.data)
+
+    def test_student_sees_only_own_price_in_group_detail(self):
+        self.enrollment.student_price_override = Decimal('123.45')
+        self.enrollment.save(update_fields=['student_price_override'])
+        self.client.force_authenticate(self.student_user)
+
+        response = self.client.get(f'/api/academics/groups/{self.group.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('teacher_rate', response.data)
+        self.assertEqual(response.data['student_price'], '123.45')
+
+    def test_parent_sees_only_child_price_in_group_detail(self):
+        self.enrollment.student_price_override = Decimal('234.56')
+        self.enrollment.save(update_fields=['student_price_override'])
+        self.client.force_authenticate(self.parent_user)
+
+        response = self.client.get(f'/api/academics/groups/{self.group.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('teacher_rate', response.data)
+        self.assertEqual(response.data['student_price'], '234.56')
 
     def test_student_me_and_my_lessons_endpoints(self):
         self.client.force_authenticate(self.student_user)
@@ -186,7 +246,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         other_teacher = TeacherProfile.objects.create(user=other_teacher_user, hourly_rate=200)
         other_subject = Subject.objects.create(name='Chemistry')
         other_group = StudyGroup.objects.create(
-            name='Chem Pro',
             subject=other_subject,
             teacher=other_teacher,
             format='group',

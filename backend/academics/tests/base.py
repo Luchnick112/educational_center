@@ -47,7 +47,6 @@ class AcademicBaseTestCase(TestCase):
 
         self.subject = Subject.objects.create(name='Physics')
         self.group = StudyGroup.objects.create(
-            name='Physics Pro',
             subject=self.subject,
             teacher=self.teacher,
             format='group',
