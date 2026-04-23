@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -117,19 +118,20 @@ class StudentEnrollment(models.Model):
 
 
 class Lesson(models.Model):
+    DEFAULT_DURATION = timedelta(hours=1)
+
     group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='lessons')
-    title = models.CharField(max_length=255, blank=True)
     starts_at = models.DateTimeField()
-    ends_at = models.DateTimeField()
     status = models.CharField(max_length=16, choices=LessonStatus.choices, default=LessonStatus.SCHEDULED)
     notes = models.TextField(blank=True)
 
-    def clean(self) -> None:
-        if self.ends_at <= self.starts_at:
-            raise ValidationError('Lesson end time must be after start time.')
+    @property
+    def end_at(self):
+        # Lesson duration is fixed by product requirement: 1 lesson == 1 hour.
+        return self.starts_at + self.DEFAULT_DURATION
 
     def __str__(self) -> str:
-        return self.title or f'{self.group} @ {self.starts_at}'
+        return f'{self.group} @ {self.starts_at}'
 
 
 class LessonParticipant(models.Model):

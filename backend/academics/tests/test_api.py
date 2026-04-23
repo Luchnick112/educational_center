@@ -3,10 +3,12 @@ from datetime import timedelta
 
 from django.utils import timezone
 from finance.models import ChargeStatus, ParentCharge, PayoutStatus, TeacherPayout
+from rest_framework.test import APIRequestFactory
 from users.models import ParentProfile, TeacherProfile, User, UserRole
 
 from academics.models import AttendanceStatus, ConfirmationRequester, LessonStatus
 from academics.models import StudyGroup, Subject
+from academics.serializers import LessonSerializer
 from academics.tests.base import AcademicBaseTestCase
 
 
@@ -65,6 +67,18 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('student_price', response.data)
         self.assertIn('teacher_rate', response.data)
+
+    def test_teacher_sees_only_payroll_amount_in_lesson_participants(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get(f'/api/academics/lessons/{self.lesson.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('participants', response.data)
+        self.assertEqual(len(response.data['participants']), 1)
+        participant = response.data['participants'][0]
+        self.assertNotIn('billed_amount', participant)
+        self.assertIn('payroll_amount', participant)
 
     def test_student_sees_only_own_price_in_group_detail(self):
         self.enrollment.student_price_override = Decimal('123.45')
@@ -211,30 +225,29 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.client.force_authenticate(self.teacher_user)
 
         starts_at = timezone.now() + timedelta(days=1)
-        ends_at = starts_at + timedelta(hours=1)
 
         create_response = self.client.post(
             '/api/academics/lessons/',
             {
                 'group': self.group.id,
-                'title': 'New schedule item',
                 'starts_at': starts_at.isoformat(),
-                'ends_at': ends_at.isoformat(),
+                'notes': 'New schedule item',
             },
             format='json',
         )
         self.assertEqual(create_response.status_code, 201)
         self.assertEqual(create_response.data['group'], self.group.id)
         self.assertEqual(create_response.data['status'], LessonStatus.SCHEDULED)
+        self.assertEqual(create_response.data['notes'], 'New schedule item')
 
         lesson_id = create_response.data['id']
         update_response = self.client.patch(
             f'/api/academics/lessons/{lesson_id}/',
-            {'title': 'Updated title'},
+            {'notes': 'Updated notes'},
             format='json',
         )
         self.assertEqual(update_response.status_code, 200)
-        self.assertEqual(update_response.data['title'], 'Updated title')
+        self.assertEqual(update_response.data['notes'], 'Updated notes')
 
     def test_teacher_cannot_create_lesson_for_other_teacher_group(self):
         other_teacher_user = User.objects.create_user(
@@ -256,20 +269,46 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.client.force_authenticate(self.teacher_user)
         starts_at = timezone.now() + timedelta(days=1)
-        ends_at = starts_at + timedelta(hours=1)
 
         response = self.client.post(
             '/api/academics/lessons/',
             {
                 'group': other_group.id,
-                'title': 'Should be forbidden',
                 'starts_at': starts_at.isoformat(),
-                'ends_at': ends_at.isoformat(),
+                'notes': 'Should be forbidden',
             },
             format='json',
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
+
+    def test_teacher_create_lesson_group_choices_are_limited_to_own_groups(self):
+        other_teacher_user = User.objects.create_user(
+            username='other_teacher_for_lesson_choices',
+            email='other_teacher_for_lesson_choices@example.com',
+            password='pass12345',
+            role=UserRole.TEACHER,
+        )
+        other_teacher = TeacherProfile.objects.create(user=other_teacher_user, hourly_rate=200)
+        other_subject = Subject.objects.create(name='Biology')
+        other_group = StudyGroup.objects.create(
+            subject=other_subject,
+            teacher=other_teacher,
+            format='group',
+            capacity=10,
+            student_price=600,
+            teacher_rate=350,
+        )
+
+        factory = APIRequestFactory()
+        request = factory.post('/api/academics/lessons/', {}, format='json')
+        request.user = self.teacher_user
+
+        serializer = LessonSerializer(context={'request': request})
+        qs = serializer.fields['group'].queryset
+        ids = set(qs.values_list('id', flat=True))
+        self.assertIn(self.group.id, ids)
+        self.assertNotIn(other_group.id, ids)
 
     def test_teacher_cannot_delete_lessons(self):
         self.client.force_authenticate(self.teacher_user)

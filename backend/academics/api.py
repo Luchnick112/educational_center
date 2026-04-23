@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from rest_framework import decorators, exceptions, permissions, response, viewsets
 
 from users.models import UserRole
@@ -6,6 +7,7 @@ from users.permissions import IsAdminOrRelatedAcademicObject, StaffWritePermissi
 from .models import (
     Lesson,
     LessonConfirmation,
+    LessonParticipant,
     LessonStatus,
     StudentEnrollment,
     StudyGroup,
@@ -92,7 +94,21 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
 
 
 class LessonViewSet(viewsets.ModelViewSet):
-    queryset = Lesson.objects.select_related('group', 'group__subject').prefetch_related('participants').all()
+    queryset = (
+        Lesson.objects.select_related(
+            'group',
+            'group__subject',
+            'group__teacher',
+            'group__teacher__user',
+        )
+        .prefetch_related(
+            Prefetch(
+                'participants',
+                queryset=LessonParticipant.objects.select_related('student__user', 'enrollment'),
+            ),
+        )
+        .all()
+    )
     serializer_class = LessonSerializer
     permission_classes = (StaffOrTeacherScheduleWritePermission, IsAdminOrRelatedAcademicObject)
 

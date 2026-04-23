@@ -28,7 +28,7 @@ class LessonParticipantInline(admin.TabularInline):
 
 @admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
-    list_display = ('title', 'group', 'starts_at', 'ends_at', 'status')
+    list_display = ('id', 'group', 'starts_at', 'status')
     list_filter = ('status', 'group__format', 'group__subject')
     inlines = (LessonParticipantInline,)
 

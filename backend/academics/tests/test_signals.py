@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from django.test import TestCase
 from django.utils import timezone
@@ -59,9 +59,7 @@ class LessonSignalsTestCase(TestCase):
     def test_lesson_creation_builds_participants_and_confirmations(self):
         lesson = Lesson.objects.create(
             group=self.group,
-            title='Algebra',
             starts_at=timezone.now(),
-            ends_at=timezone.now() + timedelta(hours=1),
         )
 
         participant = lesson.participants.get()
@@ -77,9 +75,7 @@ class LessonSignalsTestCase(TestCase):
     def test_completed_lesson_creates_parent_charge_and_teacher_payout(self):
         lesson = Lesson.objects.create(
             group=self.group,
-            title='Geometry',
             starts_at=timezone.now(),
-            ends_at=timezone.now() + timedelta(hours=1),
         )
 
         lesson.status = LessonStatus.COMPLETED

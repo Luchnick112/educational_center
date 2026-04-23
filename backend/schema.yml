@@ -2381,13 +2381,7 @@ components:
           readOnly: true
         group:
           type: integer
-        title:
-          type: string
-          maxLength: 255
         starts_at:
-          type: string
-          format: date-time
-        ends_at:
           type: string
           format: date-time
         status:
@@ -2400,7 +2394,6 @@ components:
             $ref: '#/components/schemas/LessonParticipant'
           readOnly: true
       required:
-      - ends_at
       - group
       - id
       - participants
@@ -2474,6 +2467,15 @@ components:
         student:
           type: integer
           readOnly: true
+        teacher_id:
+          type: integer
+          readOnly: true
+        teacher_last_name:
+          type: string
+          readOnly: true
+        student_last_name:
+          type: string
+          readOnly: true
         attendance_status:
           $ref: '#/components/schemas/AttendanceStatusEnum'
         billed_amount:
@@ -2493,6 +2495,9 @@ components:
       - lesson
       - payroll_amount
       - student
+      - student_last_name
+      - teacher_id
+      - teacher_last_name
     LessonParticipantRequest:
       type: object
       properties:
@@ -2510,13 +2515,7 @@ components:
       properties:
         group:
           type: integer
-        title:
-          type: string
-          maxLength: 255
         starts_at:
-          type: string
-          format: date-time
-        ends_at:
           type: string
           format: date-time
         status:
@@ -2524,7 +2523,6 @@ components:
         notes:
           type: string
       required:
-      - ends_at
       - group
       - starts_at
     LessonStatusEnum:
@@ -2720,13 +2718,7 @@ components:
       properties:
         group:
           type: integer
-        title:
-          type: string
-          maxLength: 255
         starts_at:
-          type: string
-          format: date-time
-        ends_at:
           type: string
           format: date-time
         status:
@@ -2817,10 +2809,6 @@ components:
     PatchedStudyGroupRequest:
       type: object
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 128
         subject:
           type: integer
         teacher:
@@ -3126,7 +3114,7 @@ components:
           readOnly: true
         name:
           type: string
-          maxLength: 128
+          readOnly: true
         subject:
           type: integer
         teacher:
@@ -3159,10 +3147,6 @@ components:
     StudyGroupRequest:
       type: object
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 128
         subject:
           type: integer
         teacher:
@@ -3186,7 +3170,6 @@ components:
           type: boolean
       required:
       - format
-      - name
       - student_price
       - subject
       - teacher

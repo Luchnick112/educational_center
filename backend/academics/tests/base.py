@@ -61,7 +61,5 @@ class AcademicBaseTestCase(TestCase):
         )
         self.lesson = Lesson.objects.create(
             group=self.group,
-            title='Mechanics',
             starts_at=timezone.now(),
-            ends_at=timezone.now() + timedelta(hours=1),
         )

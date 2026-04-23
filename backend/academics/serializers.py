@@ -110,6 +110,38 @@ class StudentEnrollmentSerializer(serializers.ModelSerializer):
 
 
 class LessonParticipantSerializer(serializers.ModelSerializer):
+    teacher_id = serializers.IntegerField(source='lesson.group.teacher_id', read_only=True)
+    teacher_last_name = serializers.CharField(source='lesson.group.teacher.user.last_name', read_only=True)
+    student_last_name = serializers.CharField(source='student.user.last_name', read_only=True)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+
+        if not user or not getattr(user, 'is_authenticated', False):
+            rep.pop('teacher_id', None)
+            rep.pop('teacher_last_name', None)
+            rep.pop('student_last_name', None)
+            rep.pop('payroll_amount', None)
+            return rep
+
+        if user.is_staff or getattr(user, 'role', None) == UserRole.ADMIN:
+            return rep
+
+        role = getattr(user, 'role', None)
+        if role == UserRole.TEACHER:
+            # Teachers should see their payroll amount, not the billed amount charged to parents/students.
+            rep.pop('billed_amount', None)
+        if role in {UserRole.STUDENT, UserRole.PARENT}:
+            rep.pop('payroll_amount', None)
+
+        rep.pop('teacher_id', None)
+        rep.pop('teacher_last_name', None)
+        rep.pop('student_last_name', None)
+        return rep
+
     class Meta:
         model = LessonParticipant
         fields = (
@@ -117,6 +149,9 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
             'lesson',
             'enrollment',
             'student',
+            'teacher_id',
+            'teacher_last_name',
+            'student_last_name',
             'attendance_status',
             'billed_amount',
             'payroll_amount',
@@ -126,17 +161,34 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 
 class LessonSerializer(serializers.ModelSerializer):
     starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
-    ends_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Limit group choices based on role for create/update forms and OPTIONS metadata.
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not getattr(user, 'is_authenticated', False):
+            self.fields['group'].queryset = StudyGroup.objects.none()
+            return
+
+        if user.is_staff or getattr(user, 'role', None) == UserRole.ADMIN:
+            self.fields['group'].queryset = StudyGroup.objects.all()
+            return
+
+        if getattr(user, 'role', None) == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            self.fields['group'].queryset = StudyGroup.objects.filter(teacher=user.teacher_profile)
+            return
+
+        self.fields['group'].queryset = StudyGroup.objects.none()
 
     class Meta:
         model = Lesson
         fields = (
             'id',
             'group',
-            'title',
             'starts_at',
-            'ends_at',
             'status',
             'notes',
             'participants',
