@@ -65,6 +65,17 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Local dev CORS allowlist for the Vite frontend.
+# NOTE: enforced by core.middleware.DevCorsMiddleware in MIDDLEWARE.
+DEV_CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5190",
+    "http://127.0.0.1:5190",
+]
+
 
 # Application definition
 
@@ -87,6 +98,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    # Frontend runs on a different origin (Vite dev server). Add CORS headers in DEBUG.
+    'core.middleware.DevCorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -219,3 +232,8 @@ TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "").strip().lstr
 TELEGRAM_LINK_TOKEN_TTL_SECONDS = int(os.environ.get("TELEGRAM_LINK_TOKEN_TTL_SECONDS", "600"))
 # Bot token used for sending messages (if you implement sending).
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+]

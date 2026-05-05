@@ -7,7 +7,8 @@ from users.serializers import ParentProfileSerializer, StudentProfileSerializer,
 
 class MyLinkSerializer(serializers.Serializer):
     key = serializers.CharField()
-    url = serializers.URLField()
+    # Relative URL, e.g. "/api/my/lessons/".
+    url = serializers.CharField()
 
 
 class MeSerializer(serializers.Serializer):

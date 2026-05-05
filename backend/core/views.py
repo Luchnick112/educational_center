@@ -19,7 +19,9 @@ class MeView(APIView):
     @extend_schema(responses=MeSerializer)
     def get(self, request):
         def _url(name: str) -> str:
-            return request.build_absolute_uri(reverse(name))
+            # Return relative URLs so the frontend can resolve them against its configured API base.
+            # Absolute URLs make local dev annoying (localhost vs 127.0.0.1) and are not needed here.
+            return reverse(name)
 
         def _find_my_resolvers():
             resolver = get_resolver()
