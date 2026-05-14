@@ -212,6 +212,7 @@ class LessonSerializer(serializers.ModelSerializer):
     starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
     payroll_amount = serializers.SerializerMethodField()
+    billed_amount = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -239,6 +240,12 @@ class LessonSerializer(serializers.ModelSerializer):
             value = sum((participant.payroll_amount for participant in instance.participants.all()), Decimal('0.00'))
         return f'{value:.2f}'
 
+    def get_billed_amount(self, instance):
+        value = getattr(instance, 'billed_amount_total', None)
+        if value is None:
+            value = sum((participant.billed_amount for participant in instance.participants.all()), Decimal('0.00'))
+        return f'{value:.2f}'
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
 
@@ -246,11 +253,14 @@ class LessonSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None)
         if not user or not getattr(user, 'is_authenticated', False):
             rep.pop('payroll_amount', None)
+            rep.pop('billed_amount', None)
             return rep
 
         role = getattr(user, 'role', None)
         if not (user.is_staff or role in {UserRole.ADMIN, UserRole.TEACHER}):
             rep.pop('payroll_amount', None)
+        if not (user.is_staff or role == UserRole.ADMIN):
+            rep.pop('billed_amount', None)
 
         return rep
 
@@ -261,6 +271,7 @@ class LessonSerializer(serializers.ModelSerializer):
             'group',
             'starts_at',
             'payroll_amount',
+            'billed_amount',
             'status',
             'notes',
             'participants',

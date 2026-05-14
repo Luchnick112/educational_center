@@ -1,6 +1,6 @@
 <template>
   <AppShell title="Мої уроки">
-    <div v-if="isTeacher" class="panel form">
+    <div v-if="canManageLessons" class="panel form">
       <button class="btn create-toggle" type="button" @click="createLessonFormOpen = !createLessonFormOpen">
         {{ createLessonFormOpen ? 'Сховати' : 'Створити урок' }}
       </button>
@@ -37,15 +37,16 @@
           Очистити
         </button>
       </div>
-      <div v-if="isTeacher && hasDateInterval" class="payroll-total">
-        Сума за період: {{ formatPayrollAmount(payrollAmountTotal) }}
+      <div v-if="canSeePayroll && hasDateInterval" class="period-totals">
+        <div>Винагорода вчителя за період: {{ formatPayrollAmount(payrollAmountTotal) }}</div>
+        <div v-if="isAdmin">Вартість занять за період: {{ formatPayrollAmount(billedAmountTotal) }}</div>
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-else-if="loading" class="muted">Завантаження...</div>
       <DataTable v-else :columns="columns" :rows="rows" :onRowClick="onLessonClick" />
     </div>
 
-    <div v-if="isTeacher && selectedLesson" class="panel form">
+    <div v-if="canManageLessons && selectedLesson" class="panel form">
       <div class="panel__title">Редагувати урок #{{ selectedLesson.id }}</div>
       <div class="grid">
         <div class="dropdown">
@@ -74,11 +75,12 @@ import DataTable from '@/components/DataTable.vue'
 import { apiRequest } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 
-type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; notes?: string; group: number }
+type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number }
 type Group = { id: number; name?: string }
 
 const auth = useAuthStore()
-const isTeacher = ref(false)
+const canManageLessons = ref(false)
+const isAdmin = ref(false)
 const loading = ref(true)
 const savingLesson = ref(false)
 const error = ref<string | null>(null)
@@ -101,15 +103,20 @@ const columns = computed(() => {
     { key: 'status', label: 'Статус', render: (r: Lesson) => lessonStatusLabel(r.status) },
     { key: 'starts_at', label: 'Початок', render: (r: Lesson) => formatLessonDateTime(r.starts_at) },
   ]
-  if (isTeacher.value) {
-    items.push({ key: 'payroll_amount', label: 'Вартість', render: (r: Lesson) => formatPayrollAmount(r.payroll_amount) })
+  if (canSeePayroll.value) {
+    items.push({ key: 'payroll_amount', label: 'Винагорода вчителя', render: (r: Lesson) => formatPayrollAmount(r.payroll_amount) })
+  }
+  if (isAdmin.value) {
+    items.push({ key: 'billed_amount', label: 'Вартість заняття', render: (r: Lesson) => formatPayrollAmount(r.billed_amount) })
   }
   items.push({ key: 'notes', label: 'Нотатки', render: (r: Lesson) => r.notes || '-' })
   return items
 })
 
 const hasDateInterval = computed(() => Boolean(dateFilterFrom.value || dateFilterTo.value))
+const canSeePayroll = computed(() => canManageLessons.value)
 const payrollAmountTotal = computed(() => rows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0))
+const billedAmountTotal = computed(() => rows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0))
 
 const selectedLessonGroupLabel = computed(() => {
   if (!lessonForm.value.group) return 'Група...'
@@ -268,7 +275,8 @@ onMounted(async () => {
   loading.value = true
   try {
     await auth.bootstrap()
-    isTeacher.value = auth.me?.role === 'teacher'
+    canManageLessons.value = auth.me?.role === 'teacher' || auth.me?.role === 'admin' || !!auth.me?.is_staff
+    isAdmin.value = auth.me?.role === 'admin' || !!auth.me?.is_staff
     await loadTeacherGroups()
     await loadLessons()
   } catch (e: any) {
@@ -305,6 +313,9 @@ watch(
 }
 .create-toggle {
   justify-self: start;
+  padding: 1px 9px;
+  font-size: 12px;
+  line-height: 1.1;
 }
 .filters {
   display: grid;
@@ -316,7 +327,9 @@ watch(
 .filter-clear {
   min-height: 39px;
 }
-.payroll-total {
+.period-totals {
+  display: grid;
+  gap: 4px;
   margin-bottom: 10px;
   color: rgba(232, 238, 252, 0.85);
   font-size: 13px;

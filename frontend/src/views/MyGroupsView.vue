@@ -95,7 +95,7 @@
             </div>
           </div>
         </div>
-        <div class="field">
+        <div v-if="isAdmin" class="field">
           <div class="field__label">Місткість</div>
           <input class="input" type="number" min="1" v-model.number="editForm.capacity" placeholder="Місткість" />
         </div>
@@ -487,9 +487,9 @@ async function saveEditedGroup() {
     const groupId = editableGroup.value.id
     const body: Record<string, unknown> = {
       subject: editForm.value.subject,
-      capacity: editForm.value.capacity,
     }
     if (isAdmin.value) {
+      body.capacity = editForm.value.capacity
       body.student_price = editForm.value.student_price
       body.teacher_rate = editForm.value.teacher_rate
     }

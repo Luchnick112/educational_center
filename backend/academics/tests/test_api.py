@@ -87,6 +87,24 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['payroll_amount'], '350.00')
+        self.assertNotIn('billed_amount', response.data[0])
+
+    def test_admin_my_lessons_include_lesson_billed_amount(self):
+        admin_user = User.objects.create_user(
+            username='lesson_amount_admin',
+            email='lesson_amount_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.get('/api/my/lessons/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['payroll_amount'], '350.00')
+        self.assertEqual(response.data[0]['billed_amount'], '600.00')
 
     def test_student_my_lessons_hide_lesson_payroll_amount(self):
         self.client.force_authenticate(self.student_user)
@@ -95,6 +113,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('payroll_amount', response.data[0])
+        self.assertNotIn('billed_amount', response.data[0])
 
     def test_my_lessons_can_be_filtered_by_date_interval(self):
         self.lesson.starts_at = timezone.make_aware(datetime(2026, 5, 10, 10, 0))

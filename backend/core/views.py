@@ -90,7 +90,10 @@ class MyLessonsView(APIView):
         if date_to is not None:
             queryset = queryset.filter(starts_at__date__lte=date_to)
 
-        queryset = queryset.annotate(payroll_amount_total=Sum('participants__payroll_amount')).order_by('starts_at')
+        queryset = queryset.annotate(
+            payroll_amount_total=Sum('participants__payroll_amount'),
+            billed_amount_total=Sum('participants__billed_amount'),
+        ).order_by('starts_at')
         if not has_date_filter:
             queryset = queryset[:20]
 
