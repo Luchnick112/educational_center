@@ -97,13 +97,6 @@
                 </select>
               </div>
               <div class="field">
-                <div class="field__label">Формат</div>
-                <select class="input" v-model="form.group.format" :disabled="mode === 'view'">
-                  <option value="group">group</option>
-                  <option value="individual">individual</option>
-                </select>
-              </div>
-              <div class="field">
                 <div class="field__label">Місткість</div>
                 <input class="input" type="number" min="1" v-model.number="form.group.capacity" :disabled="mode === 'view'" />
               </div>
@@ -114,6 +107,12 @@
               <div class="field">
                 <div class="field__label">Ставка вчителя</div>
                 <input class="input" type="number" step="0.01" v-model="form.group.teacher_rate" :disabled="mode === 'view'" />
+              </div>
+              <div class="field">
+                <div class="field__label">Студенти</div>
+                <select class="input" multiple v-model="form.group.students" :disabled="mode === 'view'">
+                  <option v-for="s in students" :key="s.id" :value="s.id">{{ studentLabel(s) }}</option>
+                </select>
               </div>
               <label class="check">
                 <input type="checkbox" v-model="form.group.is_active" :disabled="mode === 'view'" />
@@ -181,9 +180,9 @@
               <div class="field">
                 <div class="field__label">Статус</div>
                 <select class="input" v-model="form.lesson.status" :disabled="mode === 'view'">
-                  <option value="scheduled">scheduled</option>
-                  <option value="completed">completed</option>
-                  <option value="cancelled">cancelled</option>
+                  <option value="scheduled">Заплановано</option>
+                  <option value="completed">Завершено</option>
+                  <option value="cancelled">Скасовано</option>
                 </select>
               </div>
               <div class="field">
@@ -310,22 +309,54 @@ const formTitle = computed(() => {
 type SubjectRow = { id: number; name: string; description?: string }
 type TeacherRow = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type StudentRow = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
-type GroupRow = { id: number; name?: string; subject?: number; teacher?: number; format?: string; is_active?: boolean }
-type LessonRow = { id: number; group: number; starts_at: string; status: string }
-type UserRow = { id: number; first_name?: string; last_name?: string; telegram_username?: string; email?: string }
-type ParticipantRow = { id: number; student?: number; student_last_name?: string; attendance_status?: string }
+type GroupRow = { id: number; name?: string; subject?: number; teacher?: number; is_active?: boolean }
+  type LessonRow = { id: number; group: number; starts_at: string; status: string }
+  type UserRow = { id: number; first_name?: string; last_name?: string; telegram_username?: string; email?: string }
+  type ParticipantRow = { id: number; student?: number; student_last_name?: string; attendance_status?: string }
+    type LessonParticipantTableRow = {
+      // Lesson id (used for detail/edit/delete).
+      id: number
+      // Unique key for Vue rows; this is LessonParticipant.id.
+      participant_id: number
+    starts_at: string
+    group_id: number | null
+    teacher_last_name: string | null
+    student_last_name: string | null
+      billed_amount: string | number | null
+      payroll_amount: string | number | null
+    }
+    type EnrollmentRow = {
+      id: number
+      group: number
+      student: number
+      status: string
+      start_date: string
+      end_date?: string | null
+      student_price_override?: string | null
+      teacher_rate_override?: string | null
+    }
 
 const subjects = ref<SubjectRow[]>([])
 const teachers = ref<TeacherRow[]>([])
 const students = ref<StudentRow[]>([])
 const groups = ref<GroupRow[]>([])
-const lessons = ref<LessonRow[]>([])
-const users = ref<UserRow[]>([])
-const participants = ref<ParticipantRow[]>([])
+  const lessons = ref<LessonRow[]>([])
+  const users = ref<UserRow[]>([])
+  const participants = ref<ParticipantRow[]>([])
+  const enrollments = ref<EnrollmentRow[]>([])
+  const enrollmentsLoaded = ref(false)
 
 const form = ref({
   subject: { name: '', description: '' },
-  group: { subject: null as number | null, teacher: null as number | null, format: 'group', capacity: 1, student_price: '0.00', teacher_rate: '0.00', is_active: true },
+  group: {
+    subject: null as number | null,
+    teacher: null as number | null,
+    capacity: 1,
+    student_price: '0.00',
+    teacher_rate: '0.00',
+    is_active: true,
+    students: [] as number[],
+  },
   enrollment: {
     group: null as number | null,
     student: null as number | null,
@@ -347,9 +378,24 @@ const form = ref({
   },
 })
 
-const rowKey = (r: any, idx: number) => (typeof r?.id === 'number' ? r.id : idx)
+const rowKey = (r: any, idx: number) => {
+  if (currentTab.value.key === 'lessons' && typeof r?.participant_id === 'number') return r.participant_id
+  return typeof r?.id === 'number' ? r.id : idx
+}
 
 const columns = computed(() => {
+  if (currentTab.value.key === 'lessons') {
+    return [
+      { key: 'id', label: 'id' },
+      { key: 'starts_at', label: 'Дата', render: (r: any) => fmtDt(r?.starts_at) },
+      { key: 'group_id', label: 'Група', render: (r: any) => groupNameById(r?.group_id) },
+      { key: 'teacher_last_name', label: 'Викладач', render: (r: any) => String(r?.teacher_last_name ?? '-') },
+      { key: 'student_last_name', label: 'Студент', render: (r: any) => String(r?.student_last_name ?? '-') },
+      { key: 'billed_amount', label: 'Вартість заняття', render: (r: any) => fmtMoney(r?.billed_amount) },
+      { key: 'payroll_amount', label: 'Винагорода викладача', render: (r: any) => fmtMoney(r?.payroll_amount) },
+    ]
+  }
+
   const first = rows.value[0]
   if (!first || typeof first !== 'object') return [{ key: 'id', label: 'ID' }]
 
@@ -379,7 +425,12 @@ async function loadList() {
   mode.value = 'view'
   formError.value = null
   try {
-    rows.value = await apiRequest<any[]>(currentTab.value.listPath)
+    const list = await apiRequest<any[]>(currentTab.value.listPath)
+    if (currentTab.value.key === 'lessons') {
+      rows.value = lessonRowsToParticipantRows(list)
+    } else {
+      rows.value = list
+    }
   } catch (e: any) {
     error.value = e?.payload?.detail || e?.message || 'Failed to load'
   } finally {
@@ -394,12 +445,25 @@ async function loadDetail(id: number) {
   try {
     detail.value = await apiRequest<any>(currentTab.value.detailPath(id))
     hydrateFormFromDetail()
+    if (currentTab.value.key === 'groups') {
+      await ensureEnrollmentsLoaded(true)
+      form.value.group.students = groupEnrollments(id)
+        .filter((e) => e.status === 'active')
+        .map((e) => e.student)
+    }
   } catch (e: any) {
     detail.value = { error: e?.payload || e?.message || 'Failed to load detail' }
   }
 }
 
 function onRowClick(row: any) {
+  if (currentTab.value.key === 'lessons') {
+    const lessonId = row?.id
+    if (typeof lessonId !== 'number') return
+    loadDetail(lessonId)
+    return
+  }
+
   const id = row?.id
   if (typeof id !== 'number') return
   loadDetail(id)
@@ -452,7 +516,15 @@ function hydrateFormFromDetail(resetForCreate = false) {
   const tab = currentTab.value.key
   if (resetForCreate || !detail.value || typeof detail.value !== 'object') {
     form.value.subject = { name: '', description: '' }
-    form.value.group = { subject: null, teacher: null, format: 'group', capacity: 1, student_price: '0.00', teacher_rate: '0.00', is_active: true }
+    form.value.group = {
+      subject: null,
+      teacher: null,
+      capacity: 1,
+      student_price: '0.00',
+      teacher_rate: '0.00',
+      is_active: true,
+      students: [],
+    }
     form.value.enrollment = { group: null, student: null, status: 'active', start_date: '', end_date: '', student_price_override: '', teacher_rate_override: '' }
     form.value.lesson = { group: null, starts_at_local: '', status: 'scheduled', notes: '' }
     form.value.confirmation = { lesson_id: null, participant: null, requested_from: 'student', confirmer: null, status: 'pending', confirmed_at_local: '', comment: '' }
@@ -466,11 +538,11 @@ function hydrateFormFromDetail(resetForCreate = false) {
     form.value.group = {
       subject: d.subject ?? null,
       teacher: d.teacher ?? null,
-      format: d.format ?? 'group',
       capacity: d.capacity ?? 1,
       student_price: String(d.student_price ?? '0.00'),
       teacher_rate: String(d.teacher_rate ?? '0.00'),
       is_active: !!d.is_active,
+      students: [],
     }
   } else if (tab === 'enrollments') {
     form.value.enrollment = {
@@ -516,15 +588,132 @@ function groupLabel(g: GroupRow) {
   return g.name || `Група #${g.id}`
 }
 function lessonLabel(l: LessonRow) {
-  return `Урок #${l.id} (${l.status})`
+  return `Урок #${l.id} (${lessonStatusLabel(l.status)})`
 }
 function participantLabel(p: ParticipantRow) {
   const tail = [p.student_last_name, p.attendance_status].filter(Boolean).join(', ')
   return tail ? `#${p.id} (${tail})` : `Учасник #${p.id}`
 }
+
+function lessonStatusLabel(status: string) {
+  const map: Record<string, string> = {
+    scheduled: 'Заплановано',
+    completed: 'Завершено',
+    cancelled: 'Скасовано',
+  }
+  return map[status] || status
+}
 function userLabel(u: UserRow) {
   const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
   return name || u.telegram_username || u.email || `Користувач #${u.id}`
+}
+
+function groupNameById(groupId: number | null | undefined) {
+  if (typeof groupId !== 'number') return '-'
+  const g = groups.value.find((x) => x.id === groupId)
+  return g ? groupLabel(g) : `Група #${groupId}`
+}
+
+function fmtMoney(v: any) {
+  if (v === null || v === undefined || v === '') return '-'
+  const n = typeof v === 'number' ? v : Number(v)
+  if (Number.isFinite(n)) return n.toFixed(2)
+  return String(v)
+}
+
+function fmtDt(iso: any) {
+  if (!iso) return '-'
+  const d = new Date(String(iso))
+  if (isNaN(d.getTime())) return String(iso)
+  return d.toLocaleString()
+}
+
+function lessonRowsToParticipantRows(list: any[]): LessonParticipantTableRow[] {
+  const out: LessonParticipantTableRow[] = []
+  for (const l of list) {
+    const lessonId = l?.id
+    const startsAt = l?.starts_at
+    const groupId = l?.group
+    const participants = Array.isArray(l?.participants) ? l.participants : []
+    const totalBilled = participants.reduce((acc: number, p: any) => acc + Number(p?.billed_amount || 0), 0)
+    for (const p of participants) {
+      const pid = p?.id
+      if (typeof lessonId !== 'number' || typeof pid !== 'number') continue
+      out.push({
+        id: lessonId,
+        participant_id: pid,
+        starts_at: String(startsAt ?? ''),
+        group_id: typeof groupId === 'number' ? groupId : null,
+        teacher_last_name: (p?.teacher_last_name ?? null) as any,
+        student_last_name: (p?.student_last_name ?? null) as any,
+        billed_amount: totalBilled,
+        payroll_amount: p?.payroll_amount ?? null,
+      })
+    }
+  }
+  return out
+}
+
+function todayDate() {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+async function ensureEnrollmentsLoaded(refresh = false) {
+  if (enrollmentsLoaded.value && !refresh) return
+  enrollments.value = await apiRequest<EnrollmentRow[]>('/api/academics/enrollments/')
+  enrollmentsLoaded.value = true
+}
+
+function groupEnrollments(groupId: number) {
+  return enrollments.value.filter((e) => e.group === groupId)
+}
+
+async function syncGroupStudents(groupId: number, studentIds: number[]) {
+  await ensureEnrollmentsLoaded(true)
+
+  const byStudent = new Map<number, EnrollmentRow>()
+  for (const e of groupEnrollments(groupId)) byStudent.set(e.student, e)
+
+  const desired = new Set(studentIds.filter((x) => typeof x === 'number'))
+  const start = todayDate()
+
+  // Add/reactivate selected students.
+  for (const sid of desired) {
+    const existing = byStudent.get(sid)
+    if (!existing) {
+      const created = await apiRequest<EnrollmentRow>('/api/academics/enrollments/', {
+        method: 'POST',
+        body: { group: groupId, student: sid, status: 'active', start_date: start },
+      })
+      enrollments.value.push(created)
+      byStudent.set(sid, created)
+      continue
+    }
+
+    if (existing.status !== 'active' || existing.end_date) {
+      const updated = await apiRequest<EnrollmentRow>(`/api/academics/enrollments/${existing.id}/`, {
+        method: 'PATCH',
+        body: { status: 'active', end_date: null },
+      })
+      const idx = enrollments.value.findIndex((x) => x.id === updated.id)
+      if (idx >= 0) enrollments.value[idx] = updated
+      byStudent.set(sid, updated)
+    }
+  }
+
+  // Cancel active enrollments that were unselected.
+  for (const e of groupEnrollments(groupId)) {
+    if (e.status === 'active' && !desired.has(e.student)) {
+      const updated = await apiRequest<EnrollmentRow>(`/api/academics/enrollments/${e.id}/`, {
+        method: 'PATCH',
+        body: { status: 'cancelled', end_date: start },
+      })
+      const idx = enrollments.value.findIndex((x) => x.id === updated.id)
+      if (idx >= 0) enrollments.value[idx] = updated
+    }
+  }
 }
 
 async function ensureLookups() {
@@ -533,7 +722,7 @@ async function ensureLookups() {
   const needsSubjects = tab === 'groups'
   const needsTeachers = tab === 'groups'
   const needsGroups = tab === 'enrollments' || tab === 'lessons'
-  const needsStudents = tab === 'enrollments'
+  const needsStudents = tab === 'enrollments' || tab === 'groups'
   const needsLessons = tab === 'confirmations'
   const needsUsers = tab === 'confirmations'
 
@@ -572,7 +761,6 @@ function payloadForSubmit() {
     return {
       subject: form.value.group.subject,
       teacher: form.value.group.teacher,
-      format: form.value.group.format,
       capacity: form.value.group.capacity,
       student_price: form.value.group.student_price,
       teacher_rate: form.value.group.teacher_rate,
@@ -618,22 +806,28 @@ async function submitForm() {
   formError.value = null
   saving.value = true
   try {
-    const payload = payloadForSubmit()
-    if (mode.value === 'create') {
-      const created = await apiRequest<any>(currentTab.value.listPath, { method: 'POST', body: payload })
-      await loadList()
-      if (typeof created?.id === 'number') await loadDetail(created.id)
-      mode.value = 'view'
-      return
-    }
+      const payload = payloadForSubmit()
+      if (mode.value === 'create') {
+        const created = await apiRequest<any>(currentTab.value.listPath, { method: 'POST', body: payload })
+        if (currentTab.value.key === 'groups' && typeof created?.id === 'number') {
+          await syncGroupStudents(created.id, form.value.group.students || [])
+        }
+        await loadList()
+        if (typeof created?.id === 'number') await loadDetail(created.id)
+        mode.value = 'view'
+        return
+      }
 
-    if (mode.value === 'edit' && selectedId.value) {
-      const updated = await apiRequest<any>(currentTab.value.detailPath(selectedId.value), { method: 'PATCH', body: payload })
-      // Reload list + detail to reflect server truth.
-      await loadList()
-      if (typeof updated?.id === 'number') await loadDetail(updated.id)
-      mode.value = 'view'
-    }
+      if (mode.value === 'edit' && selectedId.value) {
+        const updated = await apiRequest<any>(currentTab.value.detailPath(selectedId.value), { method: 'PATCH', body: payload })
+        if (currentTab.value.key === 'groups' && typeof updated?.id === 'number') {
+          await syncGroupStudents(updated.id, form.value.group.students || [])
+        }
+        // Reload list + detail to reflect server truth.
+        await loadList()
+        if (typeof updated?.id === 'number') await loadDetail(updated.id)
+        mode.value = 'view'
+      }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'
   } finally {

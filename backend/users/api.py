@@ -22,7 +22,7 @@ from .models import (
     User,
     UserRole,
 )
-from .permissions import StaffWritePermission
+from .permissions import StaffOrTeacherWritePermission, StaffWritePermission
 from .serializers import (
     ParentProfileSerializer,
     TelegramUsernameTokenObtainPairSerializer,
@@ -117,11 +117,13 @@ class UserViewSet(viewsets.ModelViewSet):
 class StudentProfileViewSet(viewsets.ModelViewSet):
     queryset = StudentProfile.objects.select_related('user').all()
     serializer_class = StudentProfileSerializer
-    permission_classes = (StaffWritePermission,)
+    permission_classes = (StaffOrTeacherWritePermission,)
 
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.role == UserRole.ADMIN:
+            return super().get_queryset()
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             return super().get_queryset()
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             return self.queryset.filter(pk=user.student_profile.pk)

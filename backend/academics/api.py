@@ -1,10 +1,13 @@
 from django.db.models import Prefetch
-from rest_framework import decorators, exceptions, permissions, response, viewsets
+from django.utils import timezone
+from decimal import Decimal
+from rest_framework import decorators, exceptions, permissions, response, status, viewsets
 
 from users.models import UserRole
-from users.permissions import IsAdminOrRelatedAcademicObject, StaffWritePermission
+from users.permissions import IsAdminOrRelatedAcademicObject, IsAdminUserRole, StaffWritePermission
 
 from .models import (
+    GroupPricing,
     Lesson,
     LessonConfirmation,
     LessonParticipant,
@@ -15,6 +18,8 @@ from .models import (
 )
 from .serializers import (
     AttendanceMarkSerializer,
+    GroupPricingSerializer,
+    GroupStudentsSyncSerializer,
     LessonCancelSerializer,
     LessonCompletionSerializer,
     LessonConfirmSerializer,
@@ -51,6 +56,25 @@ class StaffOrTeacherScheduleWritePermission(permissions.BasePermission):
         return False
 
 
+class StaffOrTeacherAcademicWritePermission(permissions.BasePermission):
+    """
+    Allow teachers to create and manage their own groups/enrollments/lessons.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+        if request.method in permissions.SAFE_METHODS:
+            return bool(user and user.is_authenticated)
+
+        if not user or not user.is_authenticated:
+            return False
+
+        if user.is_staff or user.role == UserRole.ADMIN:
+            return True
+
+        return user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile')
+
+
 class SubjectViewSet(viewsets.ModelViewSet):
     queryset = Subject.objects.all().order_by('name')
     serializer_class = SubjectSerializer
@@ -60,7 +84,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
 class StudyGroupViewSet(viewsets.ModelViewSet):
     queryset = StudyGroup.objects.select_related('subject', 'teacher', 'teacher__user').all()
     serializer_class = StudyGroupSerializer
-    permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
+    permission_classes = (StaffOrTeacherAcademicWritePermission, IsAdminOrRelatedAcademicObject)
 
     def get_queryset(self):
         user = self.request.user
@@ -74,11 +98,74 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             return self.queryset.filter(enrollments__student__parent_links__parent=user.parent_profile).distinct()
         return self.queryset.none()
 
+    def perform_create(self, serializer):
+        user = self.request.user
+        student_price = serializer.validated_data.get('student_price', Decimal('0.00'))
+        teacher_rate = serializer.validated_data.get('teacher_rate', Decimal('0.00'))
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            serializer.save(
+                teacher=user.teacher_profile,
+                format='group',
+                student_price=Decimal('0.00'),
+                teacher_rate=Decimal('0.00'),
+            )
+            return
+        serializer.save(format='group', student_price=student_price, teacher_rate=teacher_rate)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        student_price = serializer.validated_data.get('student_price', serializer.instance.student_price)
+        teacher_rate = serializer.validated_data.get('teacher_rate', serializer.instance.teacher_rate)
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            serializer.save(
+                teacher=user.teacher_profile,
+                format='group',
+                student_price=serializer.instance.student_price,
+                teacher_rate=serializer.instance.teacher_rate,
+            )
+            return
+        serializer.save(format='group', student_price=student_price, teacher_rate=teacher_rate)
+
+    @decorators.action(detail=True, methods=['post'], url_path='students')
+    def sync_students(self, request, pk=None):
+        group = self.get_object()
+        serializer = GroupStudentsSyncSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        today = timezone.localdate()
+        desired_ids = set(serializer.validated_data['student_ids'])
+        existing = {enrollment.student_id: enrollment for enrollment in group.enrollments.all()}
+
+        for student_id in desired_ids:
+            enrollment = existing.get(student_id)
+            if enrollment:
+                if enrollment.status != 'active' or enrollment.end_date is not None:
+                    enrollment.status = 'active'
+                    enrollment.end_date = None
+                    enrollment.save(update_fields=['status', 'end_date'])
+                continue
+
+            StudentEnrollment.objects.create(
+                group=group,
+                student_id=student_id,
+                status='active',
+                start_date=today,
+            )
+
+        for student_id, enrollment in existing.items():
+            if enrollment.status == 'active' and student_id not in desired_ids:
+                enrollment.status = 'cancelled'
+                enrollment.end_date = today
+                enrollment.save(update_fields=['status', 'end_date'])
+
+        queryset = StudentEnrollment.objects.filter(group=group).select_related('group', 'student', 'student__user')
+        return response.Response(StudentEnrollmentSerializer(queryset, many=True, context={'request': request}).data)
+
 
 class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     queryset = StudentEnrollment.objects.select_related('group', 'student', 'student__user').all()
     serializer_class = StudentEnrollmentSerializer
-    permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
+    permission_classes = (StaffOrTeacherAcademicWritePermission, IsAdminOrRelatedAcademicObject)
 
     def get_queryset(self):
         user = self.request.user
@@ -91,6 +178,50 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
         if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
             return self.queryset.filter(student__parent_links__parent=user.parent_profile).distinct()
         return self.queryset.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        group = serializer.validated_data['group']
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            if group.teacher_id != user.teacher_profile.id:
+                raise exceptions.PermissionDenied('You can only enroll students in your own groups.')
+        serializer.save()
+
+    def create(self, request, *args, **kwargs):
+        group_id = request.data.get('group')
+        student_id = request.data.get('student')
+        if group_id is not None and student_id is not None:
+            existing = self.get_queryset().filter(group_id=group_id, student_id=student_id).first()
+            if existing:
+                data = request.data.copy()
+                if data.get('status') == 'active':
+                    data['end_date'] = None
+                serializer = self.get_serializer(existing, data=data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+                return response.Response(serializer.data, status=status.HTTP_200_OK)
+        return super().create(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        group = serializer.validated_data.get('group', serializer.instance.group)
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            if group.teacher_id != user.teacher_profile.id:
+                raise exceptions.PermissionDenied('You can only manage enrollments in your own groups.')
+        serializer.save()
+
+
+class GroupPricingViewSet(viewsets.ModelViewSet):
+    queryset = GroupPricing.objects.select_related('group', 'group__subject', 'group__teacher').all()
+    serializer_class = GroupPricingSerializer
+    permission_classes = (IsAdminUserRole,)
+
+    def get_queryset(self):
+        queryset = self.queryset.order_by('group_id', '-effective_from', '-id')
+        group_id = self.request.query_params.get('group')
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        return queryset
 
 
 class LessonViewSet(viewsets.ModelViewSet):

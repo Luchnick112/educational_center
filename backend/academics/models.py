@@ -1,15 +1,10 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from users.models import StudentProfile, TeacherProfile, User
-
-
-class LessonFormat(models.TextChoices):
-    GROUP = 'group', 'Group'
-    INDIVIDUAL = 'individual', 'Individual'
 
 
 class EnrollmentStatus(models.TextChoices):
@@ -57,16 +52,27 @@ class StudyGroup(models.Model):
     name = models.CharField(max_length=128, blank=True, default='')
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='groups')
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
-    format = models.CharField(max_length=16, choices=LessonFormat.choices)
+    format = models.CharField(max_length=16, default='group')
     capacity = models.PositiveIntegerField(default=1)
     student_price = models.DecimalField(max_digits=10, decimal_places=2)
     teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
 
+    def get_effective_pricing(self, at=None) -> tuple[Decimal, Decimal]:
+        at = at or timezone.now()
+        pricing = (
+            self.pricing_rules.filter(effective_from__lte=at)
+            .order_by('-effective_from', '-id')
+            .first()
+        )
+        if pricing:
+            return pricing.student_price, pricing.teacher_rate
+        return self.student_price, self.teacher_rate
+
     def _build_auto_name(self) -> str:
         if not (self.subject_id and self.teacher_id and self.pk):
             return self.name
-        return f'{self.subject}+{self.teacher_id}+{self.pk}'
+        return f'{self.subject}{self.teacher_id}{self.pk}'
 
     def save(self, *args, **kwargs):
         # We need `pk` for the name, so on create we save once, then set name.
@@ -85,12 +91,8 @@ class StudyGroup(models.Model):
                 kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'name'})
         super().save(*args, **kwargs)
 
-    def clean(self) -> None:
-        if self.format == LessonFormat.INDIVIDUAL and self.capacity != 1:
-            raise ValidationError('Individual groups must have capacity 1.')
-
     def __str__(self) -> str:
-        return f'{self.name} [{self.get_format_display()}]'
+        return self.name
 
 
 class StudentEnrollment(models.Model):
@@ -107,11 +109,13 @@ class StudentEnrollment(models.Model):
 
     @property
     def student_price(self) -> Decimal:
-        return self.student_price_override or self.group.student_price
+        base_student_price, _ = self.group.get_effective_pricing()
+        return self.student_price_override or base_student_price
 
     @property
     def teacher_rate(self) -> Decimal:
-        return self.teacher_rate_override or self.group.teacher_rate
+        _, base_teacher_rate = self.group.get_effective_pricing()
+        return self.teacher_rate_override or base_teacher_rate
 
     def __str__(self) -> str:
         return f'{self.student} / {self.group}'
@@ -154,10 +158,13 @@ class LessonParticipant(models.Model):
         unique_together = ('lesson', 'student')
 
     def save(self, *args, **kwargs):
+        base_student_price, base_teacher_rate = self.lesson.group.get_effective_pricing(self.lesson.starts_at)
+        student_price = self.enrollment.student_price_override or base_student_price
+        teacher_rate = self.enrollment.teacher_rate_override or base_teacher_rate
         if not self.billed_amount:
-            self.billed_amount = self.enrollment.student_price
+            self.billed_amount = student_price
         if not self.payroll_amount:
-            self.payroll_amount = self.enrollment.teacher_rate
+            self.payroll_amount = teacher_rate
         self.student = self.enrollment.student
         super().save(*args, **kwargs)
 
@@ -184,3 +191,17 @@ class LessonConfirmation(models.Model):
 
     def __str__(self) -> str:
         return f'{self.participant} / {self.requested_from}'
+
+
+class GroupPricing(models.Model):
+    group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='pricing_rules')
+    student_price = models.DecimalField(max_digits=10, decimal_places=2)
+    teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    effective_from = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-effective_from', '-id')
+
+    def __str__(self) -> str:
+        return f'{self.group} from {self.effective_from}'

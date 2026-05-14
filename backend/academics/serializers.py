@@ -1,9 +1,13 @@
+from decimal import Decimal
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from users.models import StudentParentRelation, UserRole
 
 from .models import (
     AttendanceStatus,
+    GroupPricing,
     Lesson,
     LessonConfirmation,
     LessonParticipant,
@@ -26,13 +30,17 @@ class SubjectSerializer(serializers.ModelSerializer):
 class StudyGroupSerializer(serializers.ModelSerializer):
     def _get_effective_student_price_for_student_ids(self, group: StudyGroup, student_ids: list[int]):
         if not student_ids:
-            return group.student_price
+            student_price, _ = group.get_effective_pricing(timezone.now())
+            return student_price
         enrollment = (
             StudentEnrollment.objects.filter(group=group, student_id__in=student_ids)
             .order_by('-id')
             .first()
         )
-        return (enrollment.student_price if enrollment else group.student_price)
+        if enrollment and enrollment.student_price_override is not None:
+            return enrollment.student_price_override
+        student_price, _ = group.get_effective_pricing(timezone.now())
+        return student_price
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
@@ -48,6 +56,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         role = getattr(user, 'role', None)
         if role == UserRole.TEACHER:
             rep.pop('student_price', None)
+            _, teacher_rate = instance.get_effective_pricing(timezone.now())
+            rep['teacher_rate'] = self.fields['teacher_rate'].to_representation(teacher_rate)
             return rep
 
         if role == UserRole.STUDENT:
@@ -73,6 +83,9 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             rep['student_price'] = self.fields['student_price'].to_representation(value)
             return rep
 
+        student_price, teacher_rate = instance.get_effective_pricing(timezone.now())
+        rep['student_price'] = self.fields['student_price'].to_representation(student_price)
+        rep['teacher_rate'] = self.fields['teacher_rate'].to_representation(teacher_rate)
         return rep
 
     class Meta:
@@ -82,18 +95,25 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'name',
             'subject',
             'teacher',
-            'format',
             'capacity',
             'student_price',
             'teacher_rate',
             'is_active',
         )
         read_only_fields = ('name',)
+        extra_kwargs = {
+            'student_price': {'required': False},
+            'teacher_rate': {'required': False},
+        }
 
 
 class StudentEnrollmentSerializer(serializers.ModelSerializer):
     start_date = serializers.DateField(style=DATE_INPUT_STYLE)
     end_date = serializers.DateField(required=False, allow_null=True, style=DATE_INPUT_STYLE)
+    student_first_name = serializers.CharField(source='student.user.first_name', read_only=True)
+    student_last_name = serializers.CharField(source='student.user.last_name', read_only=True)
+    student_email = serializers.EmailField(source='student.user.email', read_only=True)
+    student_telegram_username = serializers.CharField(source='student.user.telegram_username', read_only=True)
 
     class Meta:
         model = StudentEnrollment
@@ -101,12 +121,41 @@ class StudentEnrollmentSerializer(serializers.ModelSerializer):
             'id',
             'group',
             'student',
+            'student_first_name',
+            'student_last_name',
+            'student_email',
+            'student_telegram_username',
             'status',
             'start_date',
             'end_date',
             'student_price_override',
             'teacher_rate_override',
         )
+
+
+class GroupStudentsSyncSerializer(serializers.Serializer):
+    student_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=True,
+    )
+
+
+class GroupPricingSerializer(serializers.ModelSerializer):
+    effective_from = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    group_name = serializers.CharField(source='group.name', read_only=True)
+
+    class Meta:
+        model = GroupPricing
+        fields = (
+            'id',
+            'group',
+            'group_name',
+            'student_price',
+            'teacher_rate',
+            'effective_from',
+            'created_at',
+        )
+        read_only_fields = ('created_at',)
 
 
 class LessonParticipantSerializer(serializers.ModelSerializer):
@@ -162,6 +211,7 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 class LessonSerializer(serializers.ModelSerializer):
     starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
+    payroll_amount = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -183,12 +233,34 @@ class LessonSerializer(serializers.ModelSerializer):
 
         self.fields['group'].queryset = StudyGroup.objects.none()
 
+    def get_payroll_amount(self, instance):
+        value = getattr(instance, 'payroll_amount_total', None)
+        if value is None:
+            value = sum((participant.payroll_amount for participant in instance.participants.all()), Decimal('0.00'))
+        return f'{value:.2f}'
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not getattr(user, 'is_authenticated', False):
+            rep.pop('payroll_amount', None)
+            return rep
+
+        role = getattr(user, 'role', None)
+        if not (user.is_staff or role in {UserRole.ADMIN, UserRole.TEACHER}):
+            rep.pop('payroll_amount', None)
+
+        return rep
+
     class Meta:
         model = Lesson
         fields = (
             'id',
             'group',
             'starts_at',
+            'payroll_amount',
             'status',
             'notes',
             'participants',

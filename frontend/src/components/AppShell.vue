@@ -9,16 +9,19 @@
       <nav class="nav">
         <RouterLink class="nav__link" to="/me">Профіль</RouterLink>
         <RouterLink class="nav__link" to="/">Панель</RouterLink>
+
         <div class="nav__section">Моє</div>
         <RouterLink class="nav__link" to="/my/lessons">Уроки</RouterLink>
+        <RouterLink class="nav__link" to="/my/groups">Групи</RouterLink>
         <RouterLink class="nav__link" to="/my/confirmations">Підтвердження</RouterLink>
         <RouterLink class="nav__link" to="/my/payments">Платежі</RouterLink>
-        <RouterLink class="nav__link" to="/my/children">Діти</RouterLink>
 
-        <div class="nav__section">Користувачі</div>
-        <RouterLink class="nav__link" to="/users/students">Учні</RouterLink>
-        <RouterLink class="nav__link" to="/users/parents">Батьки</RouterLink>
-        <RouterLink class="nav__link" to="/users/teachers">Вчителі</RouterLink>
+        <template v-if="isAdmin">
+          <div class="nav__section">Користувачі</div>
+          <RouterLink class="nav__link" to="/users/students">Учні</RouterLink>
+          <RouterLink class="nav__link" to="/users/parents">Батьки</RouterLink>
+          <RouterLink class="nav__link" to="/users/teachers">Вчителі</RouterLink>
+        </template>
 
         <template v-if="isStaffish">
           <div class="nav__section">Навчання</div>
@@ -57,6 +60,7 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const isStaffish = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
+const isAdmin = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
 
 function onLogout() {
   auth.logOut()

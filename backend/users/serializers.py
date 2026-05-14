@@ -186,14 +186,25 @@ class ParentProfileSerializer(serializers.ModelSerializer):
 
     def get_user_detail(self, obj: ParentProfile):
         data = UserSerializer(obj.user).data
-        data['relationship'] = [
-            {
-                'first_name': rel.student.user.first_name,
-                'last_name': rel.student.user.last_name,
-                'telegram_username': rel.student.user.telegram_username,
-            }
-            for rel in obj.student_links.all()
-        ]
+        relationship: list[dict] = []
+        for rel in obj.student_links.all():
+            # Defensive: data may contain orphaned links/profiles in dev DB.
+            student = getattr(rel, 'student', None)
+            if not student:
+                continue
+            try:
+                student_user = student.user
+            except User.DoesNotExist:
+                continue
+            relationship.append(
+                {
+                    'first_name': student_user.first_name,
+                    'last_name': student_user.last_name,
+                    'telegram_username': student_user.telegram_username,
+                }
+            )
+
+        data['relationship'] = relationship
         return data
 
     class Meta:

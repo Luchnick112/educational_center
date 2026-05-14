@@ -1,12 +1,12 @@
 from decimal import Decimal
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.utils import timezone
 from finance.models import ChargeStatus, ParentCharge, PayoutStatus, TeacherPayout
 from rest_framework.test import APIRequestFactory
 from users.models import ParentProfile, TeacherProfile, User, UserRole
 
-from academics.models import AttendanceStatus, ConfirmationRequester, LessonStatus
+from academics.models import AttendanceStatus, ConfirmationRequester, GroupPricing, Lesson, LessonStatus
 from academics.models import StudyGroup, Subject
 from academics.serializers import LessonSerializer
 from academics.tests.base import AcademicBaseTestCase
@@ -46,7 +46,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             {
                 'subject': self.subject.id,
                 'teacher': self.teacher.id,
-                'format': 'group',
                 'capacity': 5,
                 'student_price': '700.00',
                 'teacher_rate': '400.00',
@@ -79,6 +78,38 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         participant = response.data['participants'][0]
         self.assertNotIn('billed_amount', participant)
         self.assertIn('payroll_amount', participant)
+
+    def test_teacher_my_lessons_include_lesson_payroll_amount(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/lessons/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['payroll_amount'], '350.00')
+
+    def test_student_my_lessons_hide_lesson_payroll_amount(self):
+        self.client.force_authenticate(self.student_user)
+
+        response = self.client.get('/api/my/lessons/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('payroll_amount', response.data[0])
+
+    def test_my_lessons_can_be_filtered_by_date_interval(self):
+        self.lesson.starts_at = timezone.make_aware(datetime(2026, 5, 10, 10, 0))
+        self.lesson.save(update_fields=['starts_at'])
+        outside_lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.make_aware(datetime(2026, 5, 20, 10, 0)),
+        )
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/lessons/?date_from=2026-05-10&date_to=2026-05-10')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.data], [self.lesson.id])
+        self.assertNotIn(outside_lesson.id, [item['id'] for item in response.data])
 
     def test_student_sees_only_own_price_in_group_detail(self):
         self.enrollment.student_price_override = Decimal('123.45')
@@ -248,6 +279,51 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         )
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.data['notes'], 'Updated notes')
+
+    def test_admin_can_manage_group_pricing_rules(self):
+        admin_user = User.objects.create_user(
+            username='pricing_admin',
+            email='pricing_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.post(
+            '/api/academics/group-pricings/',
+            {
+                'group': self.group.id,
+                'student_price': '800.00',
+                'teacher_rate': '420.00',
+                'effective_from': timezone.make_aware(datetime(2026, 6, 1, 0, 0)).isoformat(),
+            },
+            format='json',
+        )
+        list_response = self.client.get(f'/api/academics/group-pricings/?group={self.group.id}')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['student_price'], '800.00')
+        self.assertEqual(response.data['teacher_rate'], '420.00')
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(len(list_response.data), 1)
+        self.assertTrue(GroupPricing.objects.filter(group=self.group, student_price='800.00').exists())
+
+    def test_teacher_cannot_manage_group_pricing_rules(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.post(
+            '/api/academics/group-pricings/',
+            {
+                'group': self.group.id,
+                'student_price': '800.00',
+                'teacher_rate': '420.00',
+                'effective_from': timezone.make_aware(datetime(2026, 6, 1, 0, 0)).isoformat(),
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 403)
 
     def test_teacher_cannot_create_lesson_for_other_teacher_group(self):
         other_teacher_user = User.objects.create_user(

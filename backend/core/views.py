@@ -1,5 +1,7 @@
-from drf_spectacular.utils import extend_schema
+from django.db.models import Sum
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
+from django.utils.dateparse import parse_date
+from drf_spectacular.utils import extend_schema
 from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -79,7 +81,20 @@ class MyLessonsView(APIView):
         elif user.is_staff or user.role == UserRole.ADMIN:
             queryset = Lesson.objects.all()
 
-        serializer = LessonSerializer(queryset.order_by('starts_at')[:20], many=True)
+        date_from = parse_date(request.query_params.get('date_from', ''))
+        date_to = parse_date(request.query_params.get('date_to', ''))
+        has_date_filter = date_from is not None or date_to is not None
+
+        if date_from is not None:
+            queryset = queryset.filter(starts_at__date__gte=date_from)
+        if date_to is not None:
+            queryset = queryset.filter(starts_at__date__lte=date_to)
+
+        queryset = queryset.annotate(payroll_amount_total=Sum('participants__payroll_amount')).order_by('starts_at')
+        if not has_date_filter:
+            queryset = queryset[:20]
+
+        serializer = LessonSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
