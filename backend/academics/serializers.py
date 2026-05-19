@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -160,6 +161,7 @@ class GroupPricingSerializer(serializers.ModelSerializer):
 
 class LessonParticipantSerializer(serializers.ModelSerializer):
     teacher_id = serializers.IntegerField(source='lesson.group.teacher_id', read_only=True)
+    student_first_name = serializers.CharField(source='student.user.first_name', read_only=True)
     teacher_last_name = serializers.CharField(source='lesson.group.teacher.user.last_name', read_only=True)
     student_last_name = serializers.CharField(source='student.user.last_name', read_only=True)
 
@@ -172,6 +174,7 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
         if not user or not getattr(user, 'is_authenticated', False):
             rep.pop('teacher_id', None)
             rep.pop('teacher_last_name', None)
+            rep.pop('student_first_name', None)
             rep.pop('student_last_name', None)
             rep.pop('payroll_amount', None)
             return rep
@@ -188,6 +191,7 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 
         rep.pop('teacher_id', None)
         rep.pop('teacher_last_name', None)
+        rep.pop('student_first_name', None)
         rep.pop('student_last_name', None)
         return rep
 
@@ -199,6 +203,7 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
             'enrollment',
             'student',
             'teacher_id',
+            'student_first_name',
             'teacher_last_name',
             'student_last_name',
             'attendance_status',
@@ -208,9 +213,16 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
         read_only_fields = ('student', 'billed_amount', 'payroll_amount')
 
 
+class LessonParticipantAmountUpdateSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    billed_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    payroll_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+
+
 class LessonSerializer(serializers.ModelSerializer):
     starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
+    participant_updates = LessonParticipantAmountUpdateSerializer(many=True, write_only=True, required=False)
     payroll_amount = serializers.SerializerMethodField()
     billed_amount = serializers.SerializerMethodField()
 
@@ -246,6 +258,42 @@ class LessonSerializer(serializers.ModelSerializer):
             value = sum((participant.billed_amount for participant in instance.participants.all()), Decimal('0.00'))
         return f'{value:.2f}'
 
+    def update(self, instance, validated_data):
+        participant_updates = validated_data.pop('participant_updates', [])
+        participants = {}
+
+        if participant_updates:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            if not user or not (getattr(user, 'is_staff', False) or getattr(user, 'role', None) == UserRole.ADMIN):
+                raise serializers.ValidationError({'participant_updates': 'Only admins can update participant amounts.'})
+
+            participants = {p.id: p for p in instance.participants.filter(id__in=[item['id'] for item in participant_updates])}
+            for item in participant_updates:
+                if item['id'] not in participants:
+                    raise serializers.ValidationError({'participant_updates': f'Participant {item["id"]} does not belong to this lesson.'})
+
+        with transaction.atomic():
+            if participant_updates:
+                for item in participant_updates:
+                    participant = participants[item['id']]
+                    update_fields = []
+                    if 'billed_amount' in item:
+                        participant.billed_amount = item['billed_amount']
+                        update_fields.append('billed_amount')
+                    if 'payroll_amount' in item:
+                        participant.payroll_amount = item['payroll_amount']
+                        update_fields.append('payroll_amount')
+                    if update_fields:
+                        participant.save(update_fields=update_fields)
+
+            instance = super().update(instance, validated_data)
+
+            if hasattr(instance, '_prefetched_objects_cache'):
+                instance._prefetched_objects_cache.pop('participants', None)
+
+        return instance
+
     def to_representation(self, instance):
         rep = super().to_representation(instance)
 
@@ -275,6 +323,7 @@ class LessonSerializer(serializers.ModelSerializer):
             'status',
             'notes',
             'participants',
+            'participant_updates',
         )
 
 

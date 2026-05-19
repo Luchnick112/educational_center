@@ -9,7 +9,7 @@
           <button class="input dropdown__trigger" type="button" @click="lessonGroupOpen = !lessonGroupOpen">
             {{ selectedLessonGroupLabel }}
           </button>
-          <div v-if="lessonGroupOpen" class="dropdown__menu">
+          <div v-if="lessonGroupOpen" class="dropdown__menu dropdown-list">
             <button class="dropdown__option" type="button" @click="selectLessonGroup(null)">Група...</button>
             <button class="dropdown__option" v-for="g in groups" :key="g.id" type="button" @click="selectLessonGroup(g.id)">
               {{ g.name || `Група #${g.id}` }}
@@ -33,7 +33,14 @@
           <span class="field__label">До</span>
           <input class="input" type="date" v-model="dateFilterTo" @change="reloadLessons" />
         </label>
-        <button class="btn btn--ghost filter-clear" type="button" :disabled="!hasDateInterval" @click="clearDateFilters">
+        <label v-if="isAdmin" class="field">
+          <span class="field__label">Викладач</span>
+          <select class="input dropdown-list" v-model.number="teacherFilter">
+            <option :value="null">Всі викладачі</option>
+            <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacherLabel(teacher) }}</option>
+          </select>
+        </label>
+        <button class="btn btn--ghost filter-clear" type="button" :disabled="!hasFilters" @click="clearFilters">
           Очистити
         </button>
       </div>
@@ -43,26 +50,70 @@
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-else-if="loading" class="muted">Завантаження...</div>
-      <DataTable v-else :columns="columns" :rows="rows" :onRowClick="onLessonClick" />
+      <DataTable v-else :columns="columns" :rows="filteredRows" :onRowClick="onLessonClick" />
     </div>
 
-    <div v-if="canManageLessons && selectedLesson" class="panel form">
-      <div class="panel__title">Редагувати урок #{{ selectedLesson.id }}</div>
-      <div class="grid">
-        <div class="dropdown">
-          <button class="input dropdown__trigger" type="button" @click="editLessonGroupOpen = !editLessonGroupOpen">
-            {{ selectedEditLessonGroupLabel }}
-          </button>
-          <div v-if="editLessonGroupOpen" class="dropdown__menu">
-            <button class="dropdown__option" type="button" @click="selectEditLessonGroup(null)">Група...</button>
-            <button class="dropdown__option" v-for="g in groups" :key="g.id" type="button" @click="selectEditLessonGroup(g.id)">
-              {{ g.name || `Група #${g.id}` }}
-            </button>
-          </div>
+    <div v-if="selectedLesson" class="panel form">
+      <div class="panel__title">Деталізація уроку #{{ selectedLesson.id }}</div>
+      <div v-if="detailError" class="error">{{ detailError }}</div>
+      <div v-else-if="detailLoading" class="muted">Завантаження...</div>
+      <div v-else class="lesson-detail">
+        <div class="detail-grid">
+          <label class="field">
+            <span class="field__label">Викладач</span>
+            <input class="input" type="text" :value="teacherLabelByGroup(editLessonForm.group)" disabled />
+          </label>
+          <label class="field">
+            <span class="field__label">Група</span>
+            <input class="input" type="text" :value="groupLabel(editLessonForm.group)" disabled />
+          </label>
+          <label class="field">
+            <span class="field__label">Статус</span>
+            <select class="input dropdown-list" v-model="editLessonForm.status" :disabled="savingLesson || !isAdmin">
+              <option value="scheduled">Заплановано</option>
+              <option value="completed">Завершено</option>
+              <option value="cancelled">Скасовано</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field__label">Початок заняття</span>
+            <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" :disabled="savingLesson || !canManageLessons" />
+          </label>
         </div>
-        <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" />
-        <textarea class="input ta" v-model="editLessonForm.notes" placeholder="Нотатки"></textarea>
-        <button class="btn" type="button" :disabled="savingLesson" @click="updateLesson">{{ savingLesson ? 'Збереження...' : 'Зберегти урок' }}</button>
+
+        <div class="section-title">Учні</div>
+        <table class="participants-table">
+          <thead>
+            <tr>
+              <th>Учень</th>
+              <th>Вартість заняття</th>
+              <th>Винагорода викладача</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="participantForms.length === 0">
+              <td class="muted" colspan="3">Немає учнів</td>
+            </tr>
+            <tr v-for="participant in participantForms" :key="participant.id">
+              <td>{{ participant.studentLabel }}</td>
+              <td>
+                <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.billed_amount" :disabled="savingLesson || !isAdmin" />
+              </td>
+              <td>
+                <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.payroll_amount" :disabled="savingLesson || !isAdmin" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <label class="field">
+          <span class="field__label">Нотатки</span>
+          <textarea class="input ta" v-model="editLessonForm.notes" placeholder="Нотатки" :disabled="savingLesson || !canManageLessons"></textarea>
+        </label>
+
+        <button v-if="canManageLessons" class="btn save-detail" type="button" :disabled="savingLesson" @click="updateLesson">
+          {{ savingLesson ? 'Збереження...' : 'Зберегти урок' }}
+        </button>
       </div>
     </div>
   </AppShell>
@@ -76,7 +127,18 @@ import { apiRequest } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 
 type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number }
-type Group = { id: number; name?: string }
+type LessonParticipant = {
+  id: number
+  student: number
+  student_first_name?: string
+  student_last_name?: string
+  billed_amount?: string | number
+  payroll_amount?: string | number
+}
+type LessonDetail = Lesson & { participants?: LessonParticipant[] }
+type ParticipantForm = { id: number; studentLabel: string; billed_amount: string; payroll_amount: string }
+type Group = { id: number; name?: string; teacher?: number | null }
+type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 
 const auth = useAuthStore()
 const canManageLessons = ref(false)
@@ -84,17 +146,22 @@ const isAdmin = ref(false)
 const loading = ref(true)
 const savingLesson = ref(false)
 const error = ref<string | null>(null)
+const detailLoading = ref(false)
+const detailError = ref<string | null>(null)
 const lessonGroupOpen = ref(false)
-const editLessonGroupOpen = ref(false)
 const createLessonFormOpen = ref(false)
 const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
+const teacherFilter = ref<number | null>(null)
 const rows = ref<Lesson[]>([])
 const selectedLesson = ref<Lesson | null>(null)
 const groups = ref<Group[]>([])
+const teachers = ref<Teacher[]>([])
+const participantForms = ref<ParticipantForm[]>([])
+let detailRequestSeq = 0
 
 const lessonForm = ref({ group: null as number | null, starts_at_local: '', notes: '' })
-const editLessonForm = ref({ group: null as number | null, starts_at_local: '', notes: '' })
+const editLessonForm = ref({ group: null as number | null, status: 'scheduled', starts_at_local: '', notes: '' })
 
 const columns = computed(() => {
   const items = [
@@ -103,6 +170,9 @@ const columns = computed(() => {
     { key: 'status', label: 'Статус', render: (r: Lesson) => lessonStatusLabel(r.status) },
     { key: 'starts_at', label: 'Початок', render: (r: Lesson) => formatLessonDateTime(r.starts_at) },
   ]
+  if (isAdmin.value) {
+    items.splice(1, 0, { key: 'teacher', label: 'Викладач', render: (r: Lesson) => teacherLabelByGroup(r.group) })
+  }
   if (canSeePayroll.value) {
     items.push({ key: 'payroll_amount', label: 'Винагорода вчителя', render: (r: Lesson) => formatPayrollAmount(r.payroll_amount) })
   }
@@ -114,28 +184,23 @@ const columns = computed(() => {
 })
 
 const hasDateInterval = computed(() => Boolean(dateFilterFrom.value || dateFilterTo.value))
+const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null)
 const canSeePayroll = computed(() => canManageLessons.value)
-const payrollAmountTotal = computed(() => rows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0))
-const billedAmountTotal = computed(() => rows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0))
+const filteredRows = computed(() => {
+  if (!isAdmin.value || teacherFilter.value === null) return rows.value
+  return rows.value.filter((lesson) => groupTeacherId(lesson.group) === teacherFilter.value)
+})
+const payrollAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0))
+const billedAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0))
 
 const selectedLessonGroupLabel = computed(() => {
   if (!lessonForm.value.group) return 'Група...'
   return groups.value.find((g) => g.id === lessonForm.value.group)?.name || `Група #${lessonForm.value.group}`
 })
 
-const selectedEditLessonGroupLabel = computed(() => {
-  if (!editLessonForm.value.group) return 'Група...'
-  return groups.value.find((g) => g.id === editLessonForm.value.group)?.name || `Група #${editLessonForm.value.group}`
-})
-
 function selectLessonGroup(groupId: number | null) {
   lessonForm.value.group = groupId
   lessonGroupOpen.value = false
-}
-
-function selectEditLessonGroup(groupId: number | null) {
-  editLessonForm.value.group = groupId
-  editLessonGroupOpen.value = false
 }
 
 function localFromIso(iso: string) {
@@ -171,8 +236,47 @@ function lessonStatusLabel(status: string) {
   return map[status] || status
 }
 
-function groupLabel(groupId: number) {
+function groupLabel(groupId: number | null) {
+  if (!groupId) return '-'
   return groups.value.find((g) => g.id === groupId)?.name || `Група #${groupId}`
+}
+
+function teacherLabelByGroup(groupId: number | null) {
+  if (!groupId) return '-'
+  const teacherId = groupTeacherId(groupId)
+  if (!teacherId) return '-'
+  const teacher = teachers.value.find((t) => t.id === teacherId)
+  if (teacher) return teacherLabel(teacher)
+  return `Викладач #${teacherId}`
+}
+
+function groupTeacherId(groupId: number | null) {
+  if (!groupId) return null
+  return groups.value.find((g) => g.id === groupId)?.teacher ?? null
+}
+
+function teacherLabel(teacher: Teacher) {
+  const u = teacher.user_detail || {}
+  return [u.first_name, u.last_name].filter(Boolean).join(' ') || u.telegram_username || u.email || `Викладач #${teacher.id}`
+}
+
+function studentLabel(participant: LessonParticipant) {
+  return [participant.student_first_name, participant.student_last_name].filter(Boolean).join(' ') || `Учень #${participant.student}`
+}
+
+function fillLessonDetailForm(lesson: LessonDetail) {
+  editLessonForm.value = {
+    group: lesson.group,
+    status: lesson.status,
+    starts_at_local: localFromIso(lesson.starts_at),
+    notes: lesson.notes || '',
+  }
+  participantForms.value = (lesson.participants || []).map((participant) => ({
+    id: participant.id,
+    studentLabel: studentLabel(participant),
+    billed_amount: String(participant.billed_amount ?? '0.00'),
+    payroll_amount: String(participant.payroll_amount ?? '0.00'),
+  }))
 }
 
 function normalizeToQuarterHour(localDateTime: string) {
@@ -187,16 +291,35 @@ function normalizeToQuarterHour(localDateTime: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function onLessonClick(lesson: Lesson) {
+async function onLessonClick(lesson: Lesson) {
+  const requestSeq = ++detailRequestSeq
   selectedLesson.value = lesson
-  editLessonForm.value = {
-    group: lesson.group,
-    starts_at_local: localFromIso(lesson.starts_at),
-    notes: lesson.notes || '',
+  fillLessonDetailForm({ ...lesson, participants: [] })
+  detailLoading.value = true
+  detailError.value = null
+  try {
+    const detail = await apiRequest<LessonDetail>(`/api/academics/lessons/${lesson.id}/`)
+    if (requestSeq !== detailRequestSeq) return
+    selectedLesson.value = detail
+    fillLessonDetailForm(detail)
+  } catch (e: any) {
+    if (requestSeq !== detailRequestSeq) return
+    detailError.value = e?.payload?.detail || e?.message || 'Не вдалося завантажити деталізацію уроку'
+  } finally {
+    if (requestSeq === detailRequestSeq) detailLoading.value = false
   }
 }
 
 async function loadTeacherGroups() {
+  if (isAdmin.value) {
+    const [groupItems, teacherItems] = await Promise.all([
+      apiRequest<Group[]>('/api/academics/groups/'),
+      apiRequest<Teacher[]>('/api/users/teachers/'),
+    ])
+    groups.value = groupItems
+    teachers.value = teacherItems
+    return
+  }
   groups.value = await apiRequest<Group[]>('/api/academics/groups/')
 }
 
@@ -220,11 +343,13 @@ async function reloadLessons() {
   }
 }
 
-function clearDateFilters() {
-  if (!dateFilterFrom.value && !dateFilterTo.value) return
+function clearFilters() {
+  if (!hasFilters.value) return
+  const hadDateFilter = hasDateInterval.value
   dateFilterFrom.value = ''
   dateFilterTo.value = ''
-  void reloadLessons()
+  teacherFilter.value = null
+  if (hadDateFilter) void reloadLessons()
 }
 
 async function createLesson() {
@@ -250,22 +375,32 @@ async function createLesson() {
 }
 
 async function updateLesson() {
-  if (!selectedLesson.value || !editLessonForm.value.group || !editLessonForm.value.starts_at_local) return
+  if (!selectedLesson.value || !editLessonForm.value.starts_at_local) return
   savingLesson.value = true
   error.value = null
+  detailError.value = null
   try {
-    const updated = await apiRequest<Lesson>(`/api/academics/lessons/${selectedLesson.value.id}/`, {
+    const body: Record<string, unknown> = {
+      starts_at: new Date(editLessonForm.value.starts_at_local).toISOString(),
+      notes: editLessonForm.value.notes,
+    }
+    if (isAdmin.value) {
+      body.status = editLessonForm.value.status
+      body.participant_updates = participantForms.value.map((participant) => ({
+        id: participant.id,
+        billed_amount: participant.billed_amount,
+        payroll_amount: participant.payroll_amount,
+      }))
+    }
+    const updated = await apiRequest<LessonDetail>(`/api/academics/lessons/${selectedLesson.value.id}/`, {
       method: 'PATCH',
-      body: {
-        group: editLessonForm.value.group,
-        starts_at: new Date(editLessonForm.value.starts_at_local).toISOString(),
-        notes: editLessonForm.value.notes,
-      },
+      body,
     })
     selectedLesson.value = updated
+    fillLessonDetailForm(updated as LessonDetail)
     await reloadLessons()
   } catch (e: any) {
-    error.value = e?.payload?.detail || e?.message || 'Не вдалося оновити урок'
+    detailError.value = e?.payload?.detail || e?.message || 'Не вдалося оновити урок'
   } finally {
     savingLesson.value = false
   }
@@ -319,7 +454,7 @@ watch(
 }
 .filters {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(180px, 1fr) auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 10px;
@@ -334,6 +469,34 @@ watch(
   color: rgba(232, 238, 252, 0.85);
   font-size: 13px;
   font-weight: 650;
+}
+.lesson-detail {
+  display: grid;
+  gap: 12px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 10px;
+}
+.section-title {
+  font-weight: 650;
+}
+.participants-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.participants-table th,
+.participants-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.amount-input {
+  min-width: 120px;
+}
+.save-detail {
+  justify-self: start;
 }
 .ta {
   min-height: 80px;
@@ -356,7 +519,6 @@ watch(
   overflow: auto;
   border: 1px solid #d0d7de;
   border-radius: 6px;
-  background: #514f4f;
   padding: 6px;
 }
 .dropdown__option {
@@ -365,7 +527,7 @@ watch(
   border: 0;
   border-radius: 4px;
   padding: 8px;
-  color: #e8eefc;
+  color: inherit;
   background: transparent;
   cursor: pointer;
 }
@@ -374,6 +536,9 @@ watch(
 }
 @media (max-width: 640px) {
   .filters {
+    grid-template-columns: 1fr;
+  }
+  .detail-grid {
     grid-template-columns: 1fr;
   }
 }

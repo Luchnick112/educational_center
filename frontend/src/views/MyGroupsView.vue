@@ -10,14 +10,14 @@
       <div class="filters">
         <div class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="teacherFilterOpen = !teacherFilterOpen">{{ selectedTeacherFilterLabel }}</button>
-          <div v-if="teacherFilterOpen" class="dropdown__menu">
+          <div v-if="teacherFilterOpen" class="dropdown__menu dropdown-list">
             <button class="dropdown__option" type="button" @click="setTeacherFilter(null)">Всі вчителі</button>
             <button class="dropdown__option" v-for="t in teachers" :key="t.id" type="button" @click="setTeacherFilter(t.id)">{{ teacherLabel(t.id) }}</button>
           </div>
         </div>
         <div class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="studentFilterOpen = !studentFilterOpen">{{ selectedStudentFilterLabel }}</button>
-          <div v-if="studentFilterOpen" class="dropdown__menu">
+          <div v-if="studentFilterOpen" class="dropdown__menu dropdown-list">
             <button class="dropdown__option" type="button" @click="setStudentFilter(null)">Всі студенти</button>
             <button class="dropdown__option" v-for="s in students" :key="s.id" type="button" @click="setStudentFilter(s.id)">{{ studentLabel(s) }}</button>
           </div>
@@ -60,7 +60,7 @@
       <div class="grid">
         <div class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="subjectOpen = !subjectOpen">{{ selectedCreateSubjectLabel }}</button>
-          <div v-if="subjectOpen" class="dropdown__menu">
+          <div v-if="subjectOpen" class="dropdown__menu dropdown-list">
             <button class="dropdown__option" type="button" @click="setCreateSubject(null)">Предмет...</button>
             <button class="dropdown__option" v-for="s in subjects" :key="s.id" type="button" @click="setCreateSubject(s.id)">{{ s.name }}</button>
           </div>
@@ -68,7 +68,7 @@
         <input class="input" type="number" min="1" v-model.number="createForm.capacity" placeholder="Місткість" />
         <div class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="createStudentsOpen = !createStudentsOpen">{{ selectedStudentsLabel(createForm.students) }}</button>
-          <div v-if="createStudentsOpen" class="dropdown__menu dropdown__menu--static">
+          <div v-if="createStudentsOpen" class="dropdown__menu dropdown-list dropdown__menu--static">
             <label v-for="s in students" :key="s.id" class="dropdown__item">
               <input type="checkbox" :checked="createForm.students.includes(s.id)" @change="toggleStudentSelection(createForm.students, s.id)" />
               <span>{{ studentLabel(s) }}</span>
@@ -89,7 +89,7 @@
           <div class="field__label">Предмет</div>
           <div class="dropdown">
             <button class="input dropdown__trigger" type="button" @click="editSubjectOpen = !editSubjectOpen">{{ selectedEditSubjectLabel }}</button>
-            <div v-if="editSubjectOpen" class="dropdown__menu">
+            <div v-if="editSubjectOpen" class="dropdown__menu dropdown-list">
               <button class="dropdown__option" type="button" @click="setEditSubject(null)">Предмет...</button>
               <button class="dropdown__option" v-for="s in subjects" :key="s.id" type="button" @click="setEditSubject(s.id)">{{ s.name }}</button>
             </div>
@@ -111,7 +111,7 @@
           <div class="field__label">Учні групи</div>
           <div class="dropdown">
             <button class="input dropdown__trigger" type="button" @click="editStudentsOpen = !editStudentsOpen">{{ selectedStudentsLabel(editForm.students) }}</button>
-            <div v-if="editStudentsOpen" class="dropdown__menu dropdown__menu--static">
+            <div v-if="editStudentsOpen" class="dropdown__menu dropdown-list dropdown__menu--static">
               <label v-for="s in students" :key="s.id" class="dropdown__item">
                 <input type="checkbox" :checked="editForm.students.includes(s.id)" @change="toggleStudentSelection(editForm.students, s.id)" />
                 <span>{{ studentLabel(s) }}</span>
@@ -564,7 +564,6 @@ onMounted(async () => {
   overflow: auto;
   border: 1px solid #d0d7de;
   border-radius: 6px;
-  background: #514f4f;
   padding: 6px;
 }
 .dropdown__menu--static {
@@ -577,7 +576,7 @@ onMounted(async () => {
   border: 0;
   border-radius: 4px;
   padding: 8px;
-  color: #e8eefc;
+  color: inherit;
   background: transparent;
   cursor: pointer;
 }

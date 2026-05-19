@@ -106,6 +106,48 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data[0]['payroll_amount'], '350.00')
         self.assertEqual(response.data[0]['billed_amount'], '600.00')
 
+    def test_admin_can_update_lesson_detail_and_participant_amounts(self):
+        admin_user = User.objects.create_user(
+            username='lesson_detail_admin',
+            email='lesson_detail_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        participant = self.lesson.participants.get()
+        starts_at = timezone.make_aware(datetime(2026, 5, 19, 12, 30))
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {
+                'starts_at': starts_at.isoformat(),
+                'status': LessonStatus.COMPLETED,
+                'notes': 'Admin correction',
+                'participant_updates': [
+                    {
+                        'id': participant.id,
+                        'billed_amount': '650.00',
+                        'payroll_amount': '375.00',
+                    }
+                ],
+            },
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+        participant.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.lesson.status, LessonStatus.COMPLETED)
+        self.assertEqual(self.lesson.notes, 'Admin correction')
+        self.assertEqual(participant.billed_amount, Decimal('650.00'))
+        self.assertEqual(participant.payroll_amount, Decimal('375.00'))
+        self.assertEqual(response.data['participants'][0]['billed_amount'], '650.00')
+        self.assertEqual(response.data['participants'][0]['payroll_amount'], '375.00')
+        self.assertEqual(ParentCharge.objects.get(participant=participant).amount, Decimal('650.00'))
+        self.assertEqual(TeacherPayout.objects.get(participant=participant).amount, Decimal('375.00'))
+
     def test_student_my_lessons_hide_lesson_payroll_amount(self):
         self.client.force_authenticate(self.student_user)
 
