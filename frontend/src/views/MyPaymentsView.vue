@@ -103,13 +103,13 @@
             </div>
           </div>
           <div v-if="loading" class="muted">Завантаження...</div>
-          <DataTable v-else :columns="studentSummaryCols" :rows="data.student_summaries" />
+          <DataTable v-else :columns="studentSummaryCols" :rows="studentSummaryRows" />
         </div>
 
         <div class="panel">
           <div class="panel__title">Нарахування та оплати</div>
           <div v-if="loading" class="muted">Завантаження...</div>
-          <DataTable v-else :columns="chargeCols" :rows="data.charges" />
+          <DataTable v-else :columns="chargeCols" :rows="allocatedStudentCharges" />
         </div>
 
         <div class="panel">
@@ -201,13 +201,19 @@
     </template>
 
     <template v-else>
-      <div class="panel">
+      <div v-if="!isTeacher" class="panel">
         <div class="panel__title">Нарахування</div>
         <div v-if="loading" class="muted">Завантаження...</div>
-        <DataTable v-else :columns="chargeCols" :rows="data.charges" />
+        <DataTable v-else :columns="chargeCols" :rows="allocatedStudentCharges" />
       </div>
 
-      <div class="panel">
+      <div v-if="!isTeacher" class="panel">
+        <div class="panel__title">Внесені оплати</div>
+        <div v-if="loading" class="muted">Завантаження...</div>
+        <DataTable v-else :columns="studentPaymentCols" :rows="data.student_payments" />
+      </div>
+
+      <div v-if="isTeacher" class="panel">
         <div class="panel__title">Виплати</div>
         <div v-if="loading" class="muted">Завантаження...</div>
         <DataTable v-else :columns="payoutCols" :rows="data.payouts" />
@@ -237,6 +243,7 @@ import { useAuthStore } from '@/stores/auth'
 
 type Charge = {
   id: number
+  student?: number
   status: string
   amount: string
   student_name?: string
@@ -356,8 +363,86 @@ const teacherPaymentForm = reactive({ teacher: '', paid_at: today(), amount: '',
 const isAdmin = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
 const isTeacher = computed(() => auth.me?.role === 'teacher')
 
+const studentSummaryRows = computed<StudentSummary[]>(() => {
+  if (!data.value.charges.length && !data.value.student_payments.length) {
+    return data.value.student_summaries
+  }
+
+  type StudentAccumulator = {
+    student: number
+    student_name: string
+    charged: number
+    paid: number
+    charges: Array<{ id: number; amount: number; lesson_starts_at?: string }>
+  }
+
+  const rows = new Map<number, StudentAccumulator>()
+  const ensureRow = (student: number, studentName?: string) => {
+    const existing = rows.get(student)
+    if (existing) {
+      if (!existing.student_name && studentName) existing.student_name = studentName
+      return existing
+    }
+    const row = {
+      student,
+      student_name: studentName || `#${student}`,
+      charged: 0,
+      paid: 0,
+      charges: [],
+    }
+    rows.set(student, row)
+    return row
+  }
+
+  for (const charge of data.value.charges) {
+    if (!charge.student || charge.status === 'cancelled') continue
+    const row = ensureRow(charge.student, charge.student_name)
+    const amount = Number(charge.amount || 0)
+    row.charged += amount
+    row.charges.push({ id: charge.id, amount, lesson_starts_at: charge.lesson_starts_at })
+  }
+
+  for (const payment of data.value.student_payments) {
+    if (!payment.student) continue
+    const row = ensureRow(payment.student, payment.student_name)
+    row.paid += Number(payment.amount || 0)
+  }
+
+  return Array.from(rows.values())
+    .map((row) => {
+      let remainingPaid = row.paid
+      let paidCount = 0
+      let debtCount = 0
+      for (const charge of [...row.charges].sort((a, b) => {
+        const aTime = a.lesson_starts_at ? new Date(a.lesson_starts_at).getTime() : 0
+        const bTime = b.lesson_starts_at ? new Date(b.lesson_starts_at).getTime() : 0
+        return aTime - bTime || a.id - b.id
+      })) {
+        if (remainingPaid >= charge.amount) {
+          paidCount += 1
+          remainingPaid -= charge.amount
+        } else {
+          debtCount += 1
+          remainingPaid = 0
+        }
+      }
+
+      return {
+        student: row.student,
+        student_name: row.student_name,
+        charged_amount: row.charged.toFixed(2),
+        paid_amount: row.paid.toFixed(2),
+        debt_amount: Math.max(row.charged - row.paid, 0).toFixed(2),
+        charge_count: row.charges.length,
+        paid_count: paidCount,
+        debt_count: debtCount,
+      }
+    })
+    .sort((a, b) => Number(b.debt_amount) - Number(a.debt_amount) || a.student_name.localeCompare(b.student_name))
+})
+
 const studentTotals = computed(() =>
-  data.value.student_summaries.reduce(
+  studentSummaryRows.value.reduce(
     (acc, row) => ({
       charged: acc.charged + Number(row.charged_amount || 0),
       paid: acc.paid + Number(row.paid_amount || 0),
@@ -366,6 +451,50 @@ const studentTotals = computed(() =>
     { charged: 0, paid: 0, debt: 0 },
   ),
 )
+
+const allocatedStudentCharges = computed<Charge[]>(() => {
+  const paymentsByStudent = new Map<number, Array<{ remaining: number; paid_at: string }>>()
+  for (const payment of data.value.student_payments) {
+    const list = paymentsByStudent.get(payment.student) || []
+    list.push({ remaining: Number(payment.amount || 0), paid_at: payment.paid_at })
+    paymentsByStudent.set(payment.student, list)
+  }
+  for (const payments of paymentsByStudent.values()) {
+    payments.sort((a, b) => a.paid_at.localeCompare(b.paid_at))
+  }
+
+  return [...data.value.charges]
+    .sort((a, b) => {
+      const aTime = a.lesson_starts_at ? new Date(a.lesson_starts_at).getTime() : 0
+      const bTime = b.lesson_starts_at ? new Date(b.lesson_starts_at).getTime() : 0
+      return aTime - bTime || a.id - b.id
+    })
+    .map((charge) => {
+      const student = charge.student
+      if (!student || charge.status === 'cancelled') return charge
+      const payments = paymentsByStudent.get(student) || []
+      let remainingCharge = Number(charge.amount || 0)
+      let paid = 0
+      let paidAt: string | null = null
+
+      for (const payment of payments) {
+        if (remainingCharge <= 0) break
+        if (payment.remaining <= 0) continue
+        const applied = Math.min(payment.remaining, remainingCharge)
+        payment.remaining -= applied
+        remainingCharge -= applied
+        paid += applied
+        paidAt = payment.paid_at
+      }
+
+      return {
+        ...charge,
+        status: paid >= Number(charge.amount || 0) ? 'paid' : paid > 0 ? 'partial' : charge.status,
+        paid_at: paidAt || charge.paid_at || null,
+      }
+    })
+    .sort((a, b) => b.id - a.id)
+})
 
 const teacherTotals = computed(() =>
   data.value.teacher_summaries.reduce(
@@ -674,6 +803,7 @@ function chargeStatusLabel(status: string) {
   const map: Record<string, string> = {
     draft: 'Чернетка',
     issued: 'Очікує оплати',
+    partial: 'Частково оплачено',
     paid: 'Оплачено',
     cancelled: 'Скасовано',
   }

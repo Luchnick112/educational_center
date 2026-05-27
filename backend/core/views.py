@@ -449,6 +449,35 @@ class MyNotificationsView(APIView):
                 }
             )
 
+        def uncovered_student_charges(charges, payments):
+            paid_by_student = {}
+            for payment in payments:
+                paid_by_student[payment.student_id] = (
+                    paid_by_student.get(payment.student_id, Decimal('0.00')) + payment.amount
+                )
+
+            charges_by_student = {}
+            for charge in charges:
+                if charge.status == ChargeStatus.CANCELLED:
+                    continue
+                charges_by_student.setdefault(charge.student_id, []).append(charge)
+
+            uncovered = []
+            for student_id, student_charges in charges_by_student.items():
+                paid_remaining = paid_by_student.get(student_id, Decimal('0.00'))
+                for charge in sorted(
+                    student_charges,
+                    key=lambda item: (item.participant.lesson.starts_at, item.id),
+                ):
+                    if paid_remaining >= charge.amount:
+                        paid_remaining -= charge.amount
+                    elif charge.status == ChargeStatus.PAID:
+                        continue
+                    else:
+                        uncovered.append(charge)
+                        paid_remaining = Decimal('0.00')
+            return uncovered
+
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             confirmations = LessonConfirmation.objects.filter(
                 participant__student=user.student_profile,
@@ -465,8 +494,9 @@ class MyNotificationsView(APIView):
                     confirmation.participant.lesson.starts_at,
                 )
 
-            charges = ParentCharge.objects.filter(student=user.student_profile).exclude(status=ChargeStatus.PAID)
-            for charge in charges:
+            charges = ParentCharge.objects.select_related('participant__lesson').filter(student=user.student_profile)
+            payments = StudentPayment.objects.filter(student=user.student_profile)
+            for charge in uncovered_student_charges(charges, payments):
                 add(
                     'payment',
                     charge.id,
@@ -506,8 +536,11 @@ class MyNotificationsView(APIView):
                     reschedule.created_at,
                 )
 
-            charges = ParentCharge.objects.filter(parent=user.parent_profile).exclude(status=ChargeStatus.PAID)
-            for charge in charges:
+            charges = ParentCharge.objects.select_related('participant__lesson').filter(parent=user.parent_profile)
+            payments = StudentPayment.objects.filter(
+                student__parent_links__parent=user.parent_profile,
+            ).distinct()
+            for charge in uncovered_student_charges(charges, payments):
                 add(
                     'payment',
                     charge.id,

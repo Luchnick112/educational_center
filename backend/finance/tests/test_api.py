@@ -5,7 +5,7 @@ from django.utils import timezone
 from academics.models import AttendanceStatus, Lesson
 from academics.services import complete_lesson
 from academics.tests.base import AcademicBaseTestCase
-from finance.models import TeacherPayment
+from finance.models import StudentPayment, TeacherPayment
 from finance.services import mark_parent_charge_paid
 from users.models import User, UserRole
 
@@ -125,6 +125,48 @@ class MyPaymentsApiTestCase(AcademicBaseTestCase):
         self.assertEqual(teacher_summary['debt_amount'], '0.00')
         self.assertEqual(teacher_summary['paid_count'], 2)
         self.assertEqual(teacher_summary['debt_count'], 0)
+
+    def test_prepaid_completed_lesson_does_not_notify_student_or_parent_about_payment(self):
+        StudentPayment.objects.create(
+            student=self.student,
+            amount='600.00',
+            paid_at=timezone.localdate(),
+            created_by=self.admin_user,
+        )
+        participant = self.complete_lesson_with_finance_docs(self.lesson)
+        payment_notification_id = f'payment:{participant.parent_charge.id}'
+
+        self.client.force_authenticate(self.student_user)
+        student_response = self.client.get('/api/my/notifications/')
+
+        self.client.force_authenticate(self.parent_user)
+        parent_response = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(student_response.status_code, 200)
+        self.assertEqual(parent_response.status_code, 200)
+        self.assertFalse(any(item['id'] == payment_notification_id for item in student_response.data))
+        self.assertFalse(any(item['id'] == payment_notification_id for item in parent_response.data))
+
+    def test_partly_prepaid_completed_lesson_still_notifies_student_and_parent_about_payment(self):
+        StudentPayment.objects.create(
+            student=self.student,
+            amount='500.00',
+            paid_at=timezone.localdate(),
+            created_by=self.admin_user,
+        )
+        participant = self.complete_lesson_with_finance_docs(self.lesson)
+        payment_notification_id = f'payment:{participant.parent_charge.id}'
+
+        self.client.force_authenticate(self.student_user)
+        student_response = self.client.get('/api/my/notifications/')
+
+        self.client.force_authenticate(self.parent_user)
+        parent_response = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(student_response.status_code, 200)
+        self.assertEqual(parent_response.status_code, 200)
+        self.assertTrue(any(item['id'] == payment_notification_id for item in student_response.data))
+        self.assertTrue(any(item['id'] == payment_notification_id for item in parent_response.data))
 
     def test_teacher_gets_notification_for_received_payment(self):
         payment = TeacherPayment.objects.create(
