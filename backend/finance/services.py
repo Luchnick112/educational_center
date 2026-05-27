@@ -3,7 +3,7 @@ from rest_framework import exceptions
 
 from users.models import UserRole
 
-from .models import ChargeStatus, ParentCharge, PayoutStatus, TeacherPayout
+from .models import ChargeStatus, ParentCharge, PayoutStatus, StudentPayment, TeacherPayment, TeacherPayout
 
 
 def ensure_finance_admin(user, action_label: str) -> None:
@@ -34,6 +34,13 @@ def mark_parent_charge_paid(*, user, charge: ParentCharge, paid_at=None) -> Pare
     charge.status = ChargeStatus.PAID
     charge.paid_at = paid_at or timezone.now()
     charge.save(update_fields=['status', 'paid_at'])
+    StudentPayment.objects.get_or_create(
+        student=charge.student,
+        amount=charge.amount,
+        paid_at=charge.paid_at.date(),
+        comment=f'Charge #{charge.id}',
+        defaults={'created_by': user},
+    )
     return charge
 
 
@@ -60,4 +67,11 @@ def mark_teacher_payout_paid(*, user, payout: TeacherPayout, paid_at=None) -> Te
         payout.approved_at = timezone.now()
         update_fields.append('approved_at')
     payout.save(update_fields=update_fields)
+    TeacherPayment.objects.get_or_create(
+        teacher=payout.teacher,
+        amount=payout.amount,
+        paid_at=payout.paid_at.date(),
+        comment=f'Payout #{payout.id}',
+        defaults={'created_by': user},
+    )
     return payout

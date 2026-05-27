@@ -15,6 +15,20 @@ export type MeResponse = {
   my: Array<{ key: string; url: string }>
 }
 
+function errorMessage(e: any, fallback: string) {
+  const payload = e?.payload
+  if (payload?.detail) return String(payload.detail)
+  if (payload && typeof payload === 'object') {
+    return Object.entries(payload)
+      .map(([field, messages]) => {
+        const text = Array.isArray(messages) ? messages.join(', ') : String(messages)
+        return `${field}: ${text}`
+      })
+      .join('; ')
+  }
+  return e?.message || fallback
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const me = ref<MeResponse | null>(null)
   const bootstrapped = ref(false)
@@ -48,6 +62,24 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function refreshMe() {
+    isAuthed.value = !!localStorage.getItem('access')
+    if (!isAuthed.value) {
+      me.value = null
+      return
+    }
+
+    try {
+      me.value = await apiRequest<MeResponse>('/api/me/')
+      isAuthed.value = true
+    } catch {
+      clearTokens()
+      me.value = null
+      isAuthed.value = false
+      throw new Error('Session refresh failed')
+    }
+  }
+
   async function logIn(payload: { email?: string; telegram_username?: string; password: string }) {
     isLoading.value = true
     error.value = null
@@ -61,7 +93,7 @@ export const useAuthStore = defineStore('auth', () => {
       isAuthed.value = true
       me.value = await apiRequest<MeResponse>('/api/me/')
     } catch (e: any) {
-      error.value = e?.payload?.detail || e?.message || 'Login failed'
+      error.value = errorMessage(e, 'Login failed')
       clearTokens()
       me.value = null
       isAuthed.value = false
@@ -85,6 +117,9 @@ export const useAuthStore = defineStore('auth', () => {
       await apiRequest('/api/users/register/', { method: 'POST', auth: false, body: payload })
       // After register, log in by telegram username (backend-friendly).
       await logIn({ telegram_username: payload.telegram_username, password: payload.password })
+    } catch (e: any) {
+      error.value = errorMessage(e, 'Registration failed')
+      throw e
     } finally {
       isLoading.value = false
     }
@@ -104,6 +139,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     displayName,
     bootstrap,
+    refreshMe,
     logIn,
     register,
     logOut,

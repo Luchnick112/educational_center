@@ -1,7 +1,7 @@
 from django.db import models
 
 from academics.models import LessonParticipant
-from users.models import ParentProfile, StudentProfile, TeacherProfile
+from users.models import ParentProfile, StudentProfile, TeacherProfile, User
 
 
 class ChargeStatus(models.TextChoices):
@@ -42,3 +42,27 @@ class TeacherPayout(models.Model):
 
     def __str__(self) -> str:
         return f'{self.teacher} / {self.amount}'
+
+
+class StudentPayment(models.Model):
+    student = models.ForeignKey(StudentProfile, on_delete=models.PROTECT, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    paid_at = models.DateField()
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='student_payments_created')
+
+    def __str__(self) -> str:
+        return f'{self.student} / {self.amount} / {self.paid_at}'
+
+
+class TeacherPayment(models.Model):
+    teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    paid_at = models.DateField()
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='teacher_payments_created')
+
+    def __str__(self) -> str:
+        return f'{self.teacher} / {self.amount} / {self.paid_at}'

@@ -3,14 +3,16 @@ from rest_framework import decorators, permissions, response, viewsets
 from users.models import UserRole
 from users.permissions import IsAdminOrRelatedAcademicObject, StaffWritePermission
 
-from .models import ParentCharge, TeacherPayout
+from .models import ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
 from .serializers import (
     ParentChargeIssueSerializer,
     ParentChargeMarkPaidSerializer,
     ParentChargeSerializer,
+    StudentPaymentSerializer,
     TeacherPayoutApproveSerializer,
     TeacherPayoutMarkPaidSerializer,
     TeacherPayoutSerializer,
+    TeacherPaymentSerializer,
 )
 from .services import (
     approve_teacher_payout,
@@ -106,3 +108,39 @@ class TeacherPayoutViewSet(viewsets.ModelViewSet):
             paid_at=serializer.validated_data.get('paid_at'),
         )
         return response.Response(self.get_serializer(payout).data)
+
+
+class StudentPaymentViewSet(viewsets.ModelViewSet):
+    queryset = StudentPayment.objects.select_related('student__user', 'created_by').order_by('-paid_at', '-id')
+    serializer_class = StudentPaymentSerializer
+    permission_classes = (permissions.IsAuthenticated, StaffWritePermission)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.role == UserRole.ADMIN:
+            return self.queryset
+        if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
+            return self.queryset.filter(student=user.student_profile)
+        if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
+            return self.queryset.filter(student__parent_links__parent=user.parent_profile).distinct()
+        return self.queryset.none()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class TeacherPaymentViewSet(viewsets.ModelViewSet):
+    queryset = TeacherPayment.objects.select_related('teacher__user', 'created_by').order_by('-paid_at', '-id')
+    serializer_class = TeacherPaymentSerializer
+    permission_classes = (permissions.IsAuthenticated, StaffWritePermission)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.role == UserRole.ADMIN:
+            return self.queryset
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            return self.queryset.filter(teacher=user.teacher_profile)
+        return self.queryset.none()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)

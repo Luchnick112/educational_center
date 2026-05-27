@@ -63,8 +63,9 @@
                     v-for="item in notifications"
                     :key="item.id"
                     class="notification-item"
+                    :class="{ 'notification-item--read': isNotificationRead(item.id) }"
                     :to="item.url"
-                    @click="notificationsOpen = false"
+                    @click="markNotificationRead(item)"
                   >
                     <span class="notification-item__title">{{ item.title }}</span>
                     <span class="notification-item__message">{{ item.message }}</span>
@@ -121,6 +122,7 @@ const mobileNavOpen = ref(false)
 const notificationsOpen = ref(false)
 const notificationsLoading = ref(false)
 const notifications = ref<NotificationItem[]>([])
+const readNotificationIds = ref<Set<string>>(new Set())
 let notificationsTimer: number | undefined
 
 type NotificationItem = {
@@ -134,12 +136,38 @@ type NotificationItem = {
 
 const isStaffish = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
 const isAdmin = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
-const unreadCount = computed(() => notifications.value.length)
+const notificationStorageKey = computed(() => (auth.me ? `notifications:read:${auth.me.id}` : 'notifications:read:anonymous'))
+const unreadCount = computed(() => notifications.value.filter((item) => !isNotificationRead(item.id)).length)
+
+function loadReadNotifications() {
+  try {
+    const raw = localStorage.getItem(notificationStorageKey.value)
+    const ids = raw ? JSON.parse(raw) : []
+    readNotificationIds.value = new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : [])
+  } catch {
+    readNotificationIds.value = new Set()
+  }
+}
+
+function saveReadNotifications() {
+  localStorage.setItem(notificationStorageKey.value, JSON.stringify([...readNotificationIds.value]))
+}
+
+function isNotificationRead(id: string) {
+  return readNotificationIds.value.has(id)
+}
+
+function markNotificationRead(item: NotificationItem) {
+  readNotificationIds.value = new Set(readNotificationIds.value).add(item.id)
+  saveReadNotifications()
+  notificationsOpen.value = false
+}
 
 async function loadNotifications() {
   if (!auth.isAuthed) return
   notificationsLoading.value = true
   try {
+    loadReadNotifications()
     notifications.value = await apiRequest<NotificationItem[]>('/api/my/notifications/')
   } catch {
     notifications.value = []
@@ -156,6 +184,7 @@ function onLogout() {
   auth.logOut()
   closeMobileNav()
   notifications.value = []
+  readNotificationIds.value = new Set()
   notificationsOpen.value = false
   router.push({ name: 'login' })
 }
@@ -256,6 +285,13 @@ onUnmounted(() => {
 }
 .notification-item:hover {
   background: rgba(93, 120, 255, 0.1);
+}
+.notification-item--read {
+  opacity: 0.55;
+}
+.notification-item--read .notification-item__title,
+.notification-item--read .notification-item__message {
+  color: rgba(232, 238, 252, 0.46);
 }
 .notification-item__title {
   font-size: 13px;

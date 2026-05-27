@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from academics.serializers import LessonConfirmationSerializer, LessonSerializer
-from finance.serializers import ParentChargeSerializer, TeacherPayoutSerializer
+from finance.serializers import ParentChargeSerializer, StudentPaymentSerializer, TeacherPaymentSerializer, TeacherPayoutSerializer
 from users.serializers import ParentProfileSerializer, StudentProfileSerializer, UserSerializer
 
 
@@ -26,6 +26,11 @@ class MeSerializer(serializers.Serializer):
 class MyPaymentsSerializer(serializers.Serializer):
     charges = ParentChargeSerializer(many=True)
     payouts = TeacherPayoutSerializer(many=True)
+    student_payments = StudentPaymentSerializer(many=True, required=False)
+    teacher_payments = TeacherPaymentSerializer(many=True, required=False)
+    period = serializers.DictField(required=False)
+    student_summaries = serializers.ListField(child=serializers.DictField(), required=False)
+    teacher_summaries = serializers.ListField(child=serializers.DictField(), required=False)
 
 
 class NotificationSerializer(serializers.Serializer):

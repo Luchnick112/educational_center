@@ -40,7 +40,9 @@
         </label>
 
         <div class="row">
-          <button class="btn" type="submit" :disabled="auth.isLoading || !telegram || password.length < 8">Створити</button>
+          <button class="btn" type="submit" :disabled="auth.isLoading || !telegram || password.length < 8">
+            {{ auth.isLoading ? 'Створення...' : 'Створити' }}
+          </button>
           <RouterLink class="link" to="/login">Назад до входу</RouterLink>
         </div>
 
@@ -66,14 +68,18 @@ const phone = ref('')
 const password = ref('')
 
 async function onSubmit() {
-  await auth.register({
-    first_name: firstName.value.trim(),
-    last_name: lastName.value.trim(),
-    telegram_username: telegram.value.trim(),
-    role: role.value,
-    phone: phone.value.trim() || undefined,
-    password: password.value,
-  })
-  router.push({ name: 'dashboard' })
+  try {
+    await auth.register({
+      first_name: firstName.value.trim(),
+      last_name: lastName.value.trim(),
+      telegram_username: telegram.value.trim(),
+      role: role.value,
+      phone: phone.value.trim() || undefined,
+      password: password.value,
+    })
+    router.push({ name: 'dashboard' })
+  } catch {
+    // auth.error is shown below the form.
+  }
 }
 </script>
