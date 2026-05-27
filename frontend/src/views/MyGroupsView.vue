@@ -96,10 +96,6 @@
           </div>
         </div>
         <div v-if="isAdmin" class="field">
-          <div class="field__label">Місткість</div>
-          <input class="input" type="number" min="1" v-model.number="editForm.capacity" placeholder="Місткість" />
-        </div>
-        <div v-if="isAdmin" class="field">
           <div class="field__label">Ціна учня</div>
           <input class="input" type="number" min="0" step="0.01" v-model.number="editForm.student_price" placeholder="Ціна учня" />
         </div>
@@ -217,7 +213,7 @@ const enrollments = ref<Enrollment[]>([])
 const pricingRules = ref<GroupPricing[]>([])
 
 const createForm = ref({ subject: null as number | null, capacity: 1, students: [] as number[] })
-const editForm = ref({ subject: null as number | null, capacity: 1, student_price: 0, teacher_rate: 0, students: [] as number[] })
+const editForm = ref({ subject: null as number | null, student_price: 0, teacher_rate: 0, students: [] as number[] })
 const pricingForm = ref({ effective_from_date: '', student_price: 0, teacher_rate: 0 })
 
 const editableGroup = computed(() => groups.value.find((g) => g.id === selectedGroupId.value) || null)
@@ -443,7 +439,6 @@ function openEditForm() {
   showCreateForm.value = false
   showEditForm.value = true
   editForm.value.subject = g.subject || null
-  editForm.value.capacity = g.capacity || 1
   editForm.value.student_price = Number(g.student_price || 0)
   editForm.value.teacher_rate = Number(g.teacher_rate || 0)
   editForm.value.students = activeStudentIdsByGroup(g.id)
@@ -489,7 +484,6 @@ async function saveEditedGroup() {
       subject: editForm.value.subject,
     }
     if (isAdmin.value) {
-      body.capacity = editForm.value.capacity
       body.student_price = editForm.value.student_price
       body.teacher_rate = editForm.value.teacher_rate
     }

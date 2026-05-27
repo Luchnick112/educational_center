@@ -264,7 +264,7 @@ th {
 .dropdown-list option,
 select.input,
 select.input option {
-  background: rgba(133, 126, 126, 0.24);
+  background: #1b2233;
   color: #e8eefc;
 }
 

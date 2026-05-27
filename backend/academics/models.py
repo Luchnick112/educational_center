@@ -1,6 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -36,6 +37,13 @@ class ConfirmationRequester(models.TextChoices):
 class ConfirmationStatus(models.TextChoices):
     PENDING = 'pending', 'Pending'
     CONFIRMED = 'confirmed', 'Confirmed'
+    REJECTED = 'rejected', 'Rejected'
+
+
+class LessonRescheduleStatus(models.TextChoices):
+    PENDING_PARENT = 'pending_parent', 'Pending parent confirmation'
+    PARENT_CONFIRMED = 'parent_confirmed', 'Parent confirmed'
+    APPLIED = 'applied', 'Applied'
     REJECTED = 'rejected', 'Rejected'
 
 
@@ -191,6 +199,58 @@ class LessonConfirmation(models.Model):
 
     def __str__(self) -> str:
         return f'{self.participant} / {self.requested_from}'
+
+
+class LessonRescheduleRequest(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='reschedule_requests')
+    student = models.ForeignKey(StudentProfile, on_delete=models.PROTECT, related_name='lesson_reschedule_requests')
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='lesson_reschedule_requests',
+    )
+    requested_starts_at = models.DateTimeField(null=True, blank=True)
+    reason = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=24,
+        choices=LessonRescheduleStatus.choices,
+        default=LessonRescheduleStatus.PENDING_PARENT,
+    )
+    parent_confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='parent_confirmed_lesson_reschedules',
+        null=True,
+        blank=True,
+    )
+    parent_confirmed_at = models.DateTimeField(null=True, blank=True)
+    applied_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='applied_lesson_reschedules',
+        null=True,
+        blank=True,
+    )
+    applied_at = models.DateTimeField(null=True, blank=True)
+    new_starts_at = models.DateTimeField(null=True, blank=True)
+    teacher_comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('lesson', 'student'),
+                condition=models.Q(status__in=(
+                    LessonRescheduleStatus.PENDING_PARENT,
+                    LessonRescheduleStatus.PARENT_CONFIRMED,
+                )),
+                name='uniq_active_lesson_reschedule_request',
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'Reschedule {self.lesson_id} / {self.student_id} ({self.status})'
 
 
 class GroupPricing(models.Model):

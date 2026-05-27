@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -12,11 +12,13 @@ from .models import (
     Lesson,
     LessonConfirmation,
     LessonParticipant,
+    LessonRescheduleRequest,
     LessonStatus,
     StudentEnrollment,
     StudyGroup,
     Subject,
 )
+from .services import confirm_lesson_confirmations, reject_lesson_confirmations
 
 DATE_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DD'}
 DATETIME_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DDTHH:MM:SSZ'}
@@ -225,6 +227,7 @@ class LessonSerializer(serializers.ModelSerializer):
     participant_updates = LessonParticipantAmountUpdateSerializer(many=True, write_only=True, required=False)
     payroll_amount = serializers.SerializerMethodField()
     billed_amount = serializers.SerializerMethodField()
+    can_request_reschedule = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -258,20 +261,76 @@ class LessonSerializer(serializers.ModelSerializer):
             value = sum((participant.billed_amount for participant in instance.participants.all()), Decimal('0.00'))
         return f'{value:.2f}'
 
+    def get_can_request_reschedule(self, instance):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or getattr(user, 'role', None) != UserRole.STUDENT or not hasattr(user, 'student_profile'):
+            return False
+        if instance.status != LessonStatus.SCHEDULED:
+            return False
+        if not instance.participants.filter(student=user.student_profile).exists():
+            return False
+        if instance.group.enrollments.filter(status='active').count() != 1 or instance.participants.count() != 1:
+            return False
+        return not instance.reschedule_requests.filter(
+            status__in=('pending_parent', 'parent_confirmed'),
+        ).exists()
+
+    def _visible_participant_student_ids(self, user):
+        role = getattr(user, 'role', None)
+        if role == UserRole.STUDENT and hasattr(user, 'student_profile'):
+            return {user.student_profile.id}
+        if role == UserRole.PARENT and hasattr(user, 'parent_profile'):
+            return set(
+                StudentParentRelation.objects.filter(parent=user.parent_profile).values_list('student_id', flat=True)
+            )
+        return None
+
+    def _has_paid_financial_document(self, instance):
+        return instance.participants.filter(
+            models.Q(parent_charge__status='paid') | models.Q(teacher_payout__status='paid')
+        ).exists()
+
     def update(self, instance, validated_data):
         participant_updates = validated_data.pop('participant_updates', [])
         participants = {}
+        previous_status = instance.status
 
         if participant_updates:
             request = self.context.get('request')
             user = getattr(request, 'user', None)
-            if not user or not (getattr(user, 'is_staff', False) or getattr(user, 'role', None) == UserRole.ADMIN):
-                raise serializers.ValidationError({'participant_updates': 'Only admins can update participant amounts.'})
+            is_admin = bool(user and (getattr(user, 'is_staff', False) or getattr(user, 'role', None) == UserRole.ADMIN))
+            is_lesson_teacher = bool(
+                user
+                and getattr(user, 'role', None) == UserRole.TEACHER
+                and hasattr(user, 'teacher_profile')
+                and instance.group.teacher_id == user.teacher_profile.id
+            )
+            if not (is_admin or is_lesson_teacher):
+                raise serializers.ValidationError({'participant_updates': 'Only admins and lesson teachers can update participant amounts.'})
+            if not is_admin and any('billed_amount' in item for item in participant_updates):
+                raise serializers.ValidationError({'participant_updates': 'Only admins can update billed amounts.'})
 
             participants = {p.id: p for p in instance.participants.filter(id__in=[item['id'] for item in participant_updates])}
             for item in participant_updates:
                 if item['id'] not in participants:
                     raise serializers.ValidationError({'participant_updates': f'Participant {item["id"]} does not belong to this lesson.'})
+
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        is_teacher = bool(
+            user
+            and getattr(user, 'role', None) == UserRole.TEACHER
+            and hasattr(user, 'teacher_profile')
+            and instance.group.teacher_id == user.teacher_profile.id
+        )
+        if (
+            is_teacher
+            and 'status' in validated_data
+            and validated_data['status'] != instance.status
+            and self._has_paid_financial_document(instance)
+        ):
+            raise serializers.ValidationError({'status': 'Paid lessons cannot be changed by teachers.'})
 
         with transaction.atomic():
             if participant_updates:
@@ -288,6 +347,21 @@ class LessonSerializer(serializers.ModelSerializer):
                         participant.save(update_fields=update_fields)
 
             instance = super().update(instance, validated_data)
+
+            if (
+                previous_status != LessonStatus.COMPLETED
+                and instance.status == LessonStatus.COMPLETED
+                and user
+                and (getattr(user, 'is_staff', False) or getattr(user, 'role', None) in {UserRole.ADMIN, UserRole.TEACHER})
+            ):
+                confirm_lesson_confirmations(user=user, lesson=instance)
+            if (
+                previous_status != LessonStatus.CANCELLED
+                and instance.status == LessonStatus.CANCELLED
+                and user
+                and (getattr(user, 'is_staff', False) or getattr(user, 'role', None) in {UserRole.ADMIN, UserRole.TEACHER})
+            ):
+                reject_lesson_confirmations(user=user, lesson=instance)
 
             if hasattr(instance, '_prefetched_objects_cache'):
                 instance._prefetched_objects_cache.pop('participants', None)
@@ -310,6 +384,14 @@ class LessonSerializer(serializers.ModelSerializer):
         if not (user.is_staff or role == UserRole.ADMIN):
             rep.pop('billed_amount', None)
 
+        visible_student_ids = self._visible_participant_student_ids(user)
+        if visible_student_ids is not None:
+            rep['participants'] = [
+                participant
+                for participant in rep.get('participants', [])
+                if participant.get('student') in visible_student_ids
+            ]
+
         return rep
 
     class Meta:
@@ -320,6 +402,7 @@ class LessonSerializer(serializers.ModelSerializer):
             'starts_at',
             'payroll_amount',
             'billed_amount',
+            'can_request_reschedule',
             'status',
             'notes',
             'participants',
@@ -350,3 +433,50 @@ class LessonCancelSerializer(serializers.Serializer):
 
 class LessonConfirmSerializer(serializers.Serializer):
     comment = serializers.CharField(required=False, allow_blank=True)
+
+
+class LessonRescheduleRequestSerializer(serializers.ModelSerializer):
+    lesson_starts_at = serializers.DateTimeField(source='lesson.starts_at', read_only=True)
+    student_first_name = serializers.CharField(source='student.user.first_name', read_only=True)
+    student_last_name = serializers.CharField(source='student.user.last_name', read_only=True)
+
+    class Meta:
+        model = LessonRescheduleRequest
+        fields = (
+            'id',
+            'lesson',
+            'lesson_starts_at',
+            'student',
+            'student_first_name',
+            'student_last_name',
+            'requested_by',
+            'requested_starts_at',
+            'reason',
+            'status',
+            'parent_confirmed_by',
+            'parent_confirmed_at',
+            'applied_by',
+            'applied_at',
+            'new_starts_at',
+            'teacher_comment',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = (
+            'student',
+            'requested_by',
+            'status',
+            'parent_confirmed_by',
+            'parent_confirmed_at',
+            'applied_by',
+            'applied_at',
+            'new_starts_at',
+            'teacher_comment',
+            'created_at',
+            'updated_at',
+        )
+
+
+class LessonRescheduleApplySerializer(serializers.Serializer):
+    starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    teacher_comment = serializers.CharField(required=False, allow_blank=True)

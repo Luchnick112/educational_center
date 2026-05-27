@@ -4,9 +4,19 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from finance.models import ChargeStatus, ParentCharge, PayoutStatus, TeacherPayout
 from rest_framework.test import APIRequestFactory
-from users.models import ParentProfile, TeacherProfile, User, UserRole
+from users.models import ParentProfile, StudentProfile, TeacherProfile, User, UserRole
 
-from academics.models import AttendanceStatus, ConfirmationRequester, GroupPricing, Lesson, LessonStatus
+from academics.models import (
+    AttendanceStatus,
+    ConfirmationRequester,
+    ConfirmationStatus,
+    GroupPricing,
+    Lesson,
+    LessonParticipant,
+    LessonRescheduleStatus,
+    LessonStatus,
+    StudentEnrollment,
+)
 from academics.models import StudyGroup, Subject
 from academics.serializers import LessonSerializer
 from academics.tests.base import AcademicBaseTestCase
@@ -147,6 +157,13 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data['participants'][0]['payroll_amount'], '375.00')
         self.assertEqual(ParentCharge.objects.get(participant=participant).amount, Decimal('650.00'))
         self.assertEqual(TeacherPayout.objects.get(participant=participant).amount, Decimal('375.00'))
+        self.assertFalse(
+            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
+        )
+        self.assertEqual(
+            set(participant.confirmations.values_list('confirmer_id', flat=True)),
+            {admin_user.id},
+        )
 
     def test_student_my_lessons_hide_lesson_payroll_amount(self):
         self.client.force_authenticate(self.student_user)
@@ -156,6 +173,54 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('payroll_amount', response.data[0])
         self.assertNotIn('billed_amount', response.data[0])
+
+    def test_student_lesson_detail_includes_only_own_participant(self):
+        other_student_user = User.objects.create_user(
+            username='other_student_lesson_detail',
+            email='other_student_lesson_detail@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_enrollment = StudentEnrollment.objects.create(
+            group=self.group,
+            student=other_student,
+            start_date=timezone.localdate(),
+        )
+        LessonParticipant.objects.create(lesson=self.lesson, enrollment=other_enrollment)
+        self.client.force_authenticate(self.student_user)
+
+        response = self.client.get(f'/api/academics/lessons/{self.lesson.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['participants']), 1)
+        self.assertEqual(response.data['participants'][0]['student'], self.student.id)
+        self.assertIn('billed_amount', response.data['participants'][0])
+        self.assertNotIn('payroll_amount', response.data['participants'][0])
+
+    def test_parent_lesson_detail_includes_only_child_participants(self):
+        other_student_user = User.objects.create_user(
+            username='other_child_lesson_detail',
+            email='other_child_lesson_detail@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_enrollment = StudentEnrollment.objects.create(
+            group=self.group,
+            student=other_student,
+            start_date=timezone.localdate(),
+        )
+        LessonParticipant.objects.create(lesson=self.lesson, enrollment=other_enrollment)
+        self.client.force_authenticate(self.parent_user)
+
+        response = self.client.get(f'/api/academics/lessons/{self.lesson.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['participants']), 1)
+        self.assertEqual(response.data['participants'][0]['student'], self.student.id)
+        self.assertIn('billed_amount', response.data['participants'][0])
+        self.assertNotIn('payroll_amount', response.data['participants'][0])
 
     def test_my_lessons_can_be_filtered_by_date_interval(self):
         self.lesson.starts_at = timezone.make_aware(datetime(2026, 5, 10, 10, 0))
@@ -223,6 +288,36 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(len(children_response.data), 1)
         self.assertEqual(children_response.data[0]['id'], self.student.id)
         self.assertEqual(confirmations_response.status_code, 200)
+
+    def test_teacher_notifications_are_grouped_by_lesson(self):
+        other_student_user = User.objects.create_user(
+            username='other_notification_student',
+            email='other_notification_student@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_enrollment = StudentEnrollment.objects.create(
+            group=self.group,
+            student=other_student,
+            start_date=timezone.localdate(),
+        )
+        LessonParticipant.objects.create(lesson=self.lesson, enrollment=other_enrollment)
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(response.status_code, 200)
+        confirmation_notifications = [
+            item for item in response.data
+            if item['kind'] == 'confirmation'
+        ]
+        self.assertEqual(len(confirmation_notifications), 1)
+        self.assertEqual(confirmation_notifications[0]['id'], f'confirmation:lesson:{self.lesson.id}')
+        self.assertEqual(
+            confirmation_notifications[0]['message'],
+            f'Урок #{self.lesson.id} очікує підтвердження вчителя.',
+        )
 
     def test_lessons_browsable_api_page_renders_for_html_requests(self):
         self.client.force_authenticate(self.teacher_user)
@@ -312,6 +407,13 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(self.lesson.status, LessonStatus.COMPLETED)
         self.assertTrue(ParentCharge.objects.filter(participant=participant).exists())
         self.assertTrue(TeacherPayout.objects.filter(participant=participant).exists())
+        self.assertFalse(
+            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
+        )
+        self.assertEqual(
+            set(participant.confirmations.values_list('confirmer_id', flat=True)),
+            {self.teacher_user.id},
+        )
 
     def test_teacher_can_create_and_update_own_schedule(self):
         self.client.force_authenticate(self.teacher_user)
@@ -340,6 +442,133 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         )
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.data['notes'], 'Updated notes')
+
+    def test_teacher_can_update_lesson_status_and_payroll_amount(self):
+        participant = self.lesson.participants.get()
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {
+                'status': LessonStatus.COMPLETED,
+                'participant_updates': [
+                    {
+                        'id': participant.id,
+                        'payroll_amount': '410.00',
+                    }
+                ],
+            },
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+        participant.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.lesson.status, LessonStatus.COMPLETED)
+        self.assertEqual(participant.payroll_amount, Decimal('410.00'))
+        self.assertEqual(participant.billed_amount, Decimal('600.00'))
+        self.assertEqual(response.data['participants'][0]['payroll_amount'], '410.00')
+        self.assertNotIn('billed_amount', response.data['participants'][0])
+        self.assertFalse(
+            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
+        )
+        self.assertEqual(
+            set(participant.confirmations.values_list('confirmer_id', flat=True)),
+            {self.teacher_user.id},
+        )
+
+    def test_teacher_can_cancel_unpaid_lesson_and_clear_confirmations(self):
+        participant = self.lesson.participants.get()
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.CANCELLED},
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.lesson.status, LessonStatus.CANCELLED)
+        self.assertFalse(
+            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
+        )
+        self.assertEqual(
+            set(participant.confirmations.values_list('status', flat=True)),
+            {ConfirmationStatus.REJECTED},
+        )
+
+    def test_teacher_cannot_change_paid_lesson_status(self):
+        participant = self.lesson.participants.get()
+        self.client.force_authenticate(self.teacher_user)
+        self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.COMPLETED},
+            format='json',
+        )
+        charge = ParentCharge.objects.get(participant=participant)
+        charge.status = ChargeStatus.PAID
+        charge.paid_at = timezone.now()
+        charge.save(update_fields=['status', 'paid_at'])
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.CANCELLED},
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.lesson.status, LessonStatus.COMPLETED)
+
+    def test_teacher_notifications_ignore_draft_payouts(self):
+        self.client.force_authenticate(self.teacher_user)
+        self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.COMPLETED},
+            format='json',
+        )
+
+        response = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(any(item['kind'] == 'payout' for item in response.data))
+
+    def test_teacher_cannot_update_billed_amount(self):
+        participant = self.lesson.participants.get()
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {
+                'participant_updates': [
+                    {
+                        'id': participant.id,
+                        'billed_amount': '999.00',
+                    }
+                ],
+            },
+            format='json',
+        )
+
+        participant.refresh_from_db()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(participant.billed_amount, Decimal('600.00'))
+
+    def test_teacher_cannot_directly_reschedule_lesson(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'starts_at': (timezone.now() + timedelta(days=2)).isoformat()},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_admin_can_manage_group_pricing_rules(self):
         admin_user = User.objects.create_user(
@@ -475,6 +704,135 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(ok_response.status_code, 200)
         self.assertEqual(student_confirmation.status, 'confirmed')
         self.assertEqual(forbidden_response.status_code, 404)
+
+    def test_student_parent_teacher_lesson_reschedule_workflow(self):
+        requested_starts_at = timezone.now() + timedelta(days=2)
+        applied_starts_at = timezone.now() + timedelta(days=3)
+        self.client.force_authenticate(self.student_user)
+
+        create_response = self.client.post(
+            '/api/academics/reschedule-requests/',
+            {
+                'lesson': self.lesson.id,
+                'requested_starts_at': requested_starts_at.isoformat(),
+                'reason': 'Need another time',
+            },
+            format='json',
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(create_response.data['status'], LessonRescheduleStatus.PENDING_PARENT)
+        self.assertEqual(create_response.data['student'], self.student.id)
+
+        request_id = create_response.data['id']
+        self.client.force_authenticate(self.parent_user)
+        confirm_response = self.client.post(
+            f'/api/academics/reschedule-requests/{request_id}/confirm-parent/',
+            {},
+            format='json',
+        )
+
+        self.assertEqual(confirm_response.status_code, 200)
+        self.assertEqual(confirm_response.data['status'], LessonRescheduleStatus.PARENT_CONFIRMED)
+        self.assertEqual(confirm_response.data['parent_confirmed_by'], self.parent_user.id)
+
+        self.client.force_authenticate(self.teacher_user)
+        apply_response = self.client.post(
+            f'/api/academics/reschedule-requests/{request_id}/apply/',
+            {
+                'starts_at': applied_starts_at.isoformat(),
+                'teacher_comment': 'Moved',
+            },
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+
+        self.assertEqual(apply_response.status_code, 200)
+        self.assertEqual(apply_response.data['status'], LessonRescheduleStatus.APPLIED)
+        self.assertEqual(apply_response.data['applied_by'], self.teacher_user.id)
+        self.assertEqual(apply_response.data['teacher_comment'], 'Moved')
+        self.assertEqual(self.lesson.starts_at, applied_starts_at)
+
+    def test_reschedule_notifications_route_to_lesson_detail(self):
+        self.client.force_authenticate(self.student_user)
+        create_response = self.client.post(
+            '/api/academics/reschedule-requests/',
+            {'lesson': self.lesson.id, 'reason': 'Need another time'},
+            format='json',
+        )
+        request_id = create_response.data['id']
+
+        self.client.force_authenticate(self.parent_user)
+        parent_notifications = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(parent_notifications.status_code, 200)
+        parent_reschedule = next(item for item in parent_notifications.data if item['id'] == f'reschedule:{request_id}')
+        self.assertEqual(parent_reschedule['kind'], 'reschedule')
+        self.assertEqual(parent_reschedule['title'], 'Підтвердіть перенесення уроку')
+        self.assertEqual(parent_reschedule['message'], f'Учень запросив перенесення уроку #{self.lesson.id}.')
+        self.assertEqual(parent_reschedule['url'], f'/my/lessons?lesson={self.lesson.id}')
+
+        self.client.post(
+            f'/api/academics/reschedule-requests/{request_id}/confirm-parent/',
+            {},
+            format='json',
+        )
+
+        self.client.force_authenticate(self.teacher_user)
+        teacher_notifications = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(teacher_notifications.status_code, 200)
+        teacher_reschedule = next(item for item in teacher_notifications.data if item['id'] == f'reschedule:{request_id}')
+        self.assertEqual(teacher_reschedule['kind'], 'reschedule')
+        self.assertEqual(teacher_reschedule['title'], 'Потрібно перенести урок')
+        self.assertEqual(teacher_reschedule['message'], f'Батьки підтвердили перенесення уроку #{self.lesson.id}.')
+        self.assertEqual(teacher_reschedule['url'], f'/my/lessons?lesson={self.lesson.id}')
+
+    def test_teacher_cannot_apply_reschedule_before_parent_confirmation(self):
+        self.client.force_authenticate(self.student_user)
+        create_response = self.client.post(
+            '/api/academics/reschedule-requests/',
+            {
+                'lesson': self.lesson.id,
+                'reason': 'Need another time',
+            },
+            format='json',
+        )
+        request_id = create_response.data['id']
+
+        self.client.force_authenticate(self.teacher_user)
+        response = self.client.post(
+            f'/api/academics/reschedule-requests/{request_id}/apply/',
+            {'starts_at': (timezone.now() + timedelta(days=2)).isoformat()},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_reschedule_request_is_only_for_individual_scheduled_lessons(self):
+        other_student_user = User.objects.create_user(
+            username='reschedule_other_student',
+            email='reschedule_other_student@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_enrollment = StudentEnrollment.objects.create(
+            group=self.group,
+            student=other_student,
+            start_date=timezone.localdate(),
+        )
+        LessonParticipant.objects.create(lesson=self.lesson, enrollment=other_enrollment)
+        self.client.force_authenticate(self.student_user)
+
+        response = self.client.post(
+            '/api/academics/reschedule-requests/',
+            {'lesson': self.lesson.id, 'reason': 'Need another time'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_admin_can_cancel_scheduled_lesson(self):
         admin_user = User.objects.create_user(

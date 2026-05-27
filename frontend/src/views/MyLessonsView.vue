@@ -53,7 +53,7 @@
       <DataTable v-else :columns="columns" :rows="filteredRows" :onRowClick="onLessonClick" />
     </div>
 
-    <div v-if="selectedLesson" class="panel form">
+    <div v-if="selectedLesson" ref="lessonDetailPanel" class="panel form">
       <div class="panel__title">Деталізація уроку #{{ selectedLesson.id }}</div>
       <div v-if="detailError" class="error">{{ detailError }}</div>
       <div v-else-if="detailLoading" class="muted">Завантаження...</div>
@@ -69,7 +69,7 @@
           </label>
           <label class="field">
             <span class="field__label">Статус</span>
-            <select class="input dropdown-list" v-model="editLessonForm.status" :disabled="savingLesson || !isAdmin">
+            <select class="input dropdown-list" v-model="editLessonForm.status" :disabled="savingLesson || !canManageLessons">
               <option value="scheduled">Заплановано</option>
               <option value="completed">Завершено</option>
               <option value="cancelled">Скасовано</option>
@@ -77,7 +77,7 @@
           </label>
           <label class="field">
             <span class="field__label">Початок заняття</span>
-            <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" :disabled="savingLesson || !canManageLessons" />
+            <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" :disabled="savingLesson || !isAdmin" />
           </label>
         </div>
 
@@ -86,25 +86,69 @@
           <thead>
             <tr>
               <th>Учень</th>
-              <th>Вартість заняття</th>
-              <th>Винагорода викладача</th>
+              <th v-if="canSeeLessonBilledAmount">Вартість заняття</th>
+              <th v-if="canSeeLessonPayrollAmount">Винагорода викладача</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="participantForms.length === 0">
-              <td class="muted" colspan="3">Немає учнів</td>
+              <td class="muted" :colspan="participantColumnCount">Немає учнів</td>
             </tr>
             <tr v-for="participant in participantForms" :key="participant.id">
               <td>{{ participant.studentLabel }}</td>
-              <td>
+              <td v-if="canSeeLessonBilledAmount">
                 <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.billed_amount" :disabled="savingLesson || !isAdmin" />
               </td>
-              <td>
-                <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.payroll_amount" :disabled="savingLesson || !isAdmin" />
+              <td v-if="canSeeLessonPayrollAmount">
+                <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.payroll_amount" :disabled="savingLesson || !canManageLessons" />
               </td>
             </tr>
           </tbody>
         </table>
+
+        <div class="section-title">Перенесення</div>
+        <div class="reschedule-panel">
+          <div v-if="rescheduleError" class="error">{{ rescheduleError }}</div>
+          <div v-if="activeRescheduleRequest" class="reschedule-status">
+            <div>Статус: {{ rescheduleStatusLabel(activeRescheduleRequest.status) }}</div>
+            <div v-if="activeRescheduleRequest.requested_starts_at">Бажаний час: {{ formatLessonDateTime(activeRescheduleRequest.requested_starts_at) }}</div>
+            <div v-if="activeRescheduleRequest.reason">Причина: {{ activeRescheduleRequest.reason }}</div>
+          </div>
+
+          <div v-if="canCreateRescheduleRequest" class="reschedule-form">
+            <label class="field">
+              <span class="field__label">Бажаний час</span>
+              <input class="input" type="datetime-local" step="900" v-model="rescheduleForm.requested_starts_at_local" :disabled="savingReschedule" />
+            </label>
+            <label class="field">
+              <span class="field__label">Причина</span>
+              <textarea class="input ta" v-model="rescheduleForm.reason" :disabled="savingReschedule"></textarea>
+            </label>
+            <button class="btn save-detail" type="button" :disabled="savingReschedule" @click="createRescheduleRequest">
+              {{ savingReschedule ? 'Збереження...' : 'Запросити перенесення' }}
+            </button>
+          </div>
+
+          <button v-else-if="canConfirmRescheduleRequest" class="btn save-detail" type="button" :disabled="savingReschedule" @click="confirmRescheduleRequest">
+            {{ savingReschedule ? 'Збереження...' : 'Підтвердити перенесення' }}
+          </button>
+
+          <div v-else-if="canApplyRescheduleRequest" class="reschedule-form">
+            <label class="field">
+              <span class="field__label">Новий час уроку</span>
+              <input class="input" type="datetime-local" step="900" v-model="applyRescheduleForm.starts_at_local" :disabled="savingReschedule" />
+            </label>
+            <label class="field">
+              <span class="field__label">Коментар вчителя</span>
+              <textarea class="input ta" v-model="applyRescheduleForm.teacher_comment" :disabled="savingReschedule"></textarea>
+            </label>
+            <button class="btn save-detail" type="button" :disabled="savingReschedule || !applyRescheduleForm.starts_at_local" @click="applyRescheduleRequest">
+              {{ savingReschedule ? 'Збереження...' : 'Перенести урок' }}
+            </button>
+          </div>
+
+          <div v-else-if="rescheduleRequests.length === 0" class="muted">Запитів на перенесення немає</div>
+        </div>
 
         <label class="field">
           <span class="field__label">Нотатки</span>
@@ -120,13 +164,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import { apiRequest } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { useRoute } from 'vue-router'
 
-type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number }
+type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number; can_request_reschedule?: boolean }
 type LessonParticipant = {
   id: number
   student: number
@@ -139,8 +184,22 @@ type LessonDetail = Lesson & { participants?: LessonParticipant[] }
 type ParticipantForm = { id: number; studentLabel: string; billed_amount: string; payroll_amount: string }
 type Group = { id: number; name?: string; teacher?: number | null }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
+type LessonRescheduleRequest = {
+  id: number
+  lesson: number
+  requested_starts_at?: string | null
+  reason?: string
+  status: string
+  parent_confirmed_by?: number | null
+  parent_confirmed_at?: string | null
+  applied_by?: number | null
+  applied_at?: string | null
+  new_starts_at?: string | null
+  teacher_comment?: string
+}
 
 const auth = useAuthStore()
+const route = useRoute()
 const canManageLessons = ref(false)
 const isAdmin = ref(false)
 const loading = ref(true)
@@ -148,6 +207,8 @@ const savingLesson = ref(false)
 const error = ref<string | null>(null)
 const detailLoading = ref(false)
 const detailError = ref<string | null>(null)
+const rescheduleError = ref<string | null>(null)
+const savingReschedule = ref(false)
 const lessonGroupOpen = ref(false)
 const createLessonFormOpen = ref(false)
 const dateFilterFrom = ref('')
@@ -155,13 +216,17 @@ const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
 const rows = ref<Lesson[]>([])
 const selectedLesson = ref<Lesson | null>(null)
+const lessonDetailPanel = ref<HTMLElement | null>(null)
 const groups = ref<Group[]>([])
 const teachers = ref<Teacher[]>([])
 const participantForms = ref<ParticipantForm[]>([])
+const rescheduleRequests = ref<LessonRescheduleRequest[]>([])
 let detailRequestSeq = 0
 
 const lessonForm = ref({ group: null as number | null, starts_at_local: '', notes: '' })
 const editLessonForm = ref({ group: null as number | null, status: 'scheduled', starts_at_local: '', notes: '' })
+const rescheduleForm = ref({ requested_starts_at_local: '', reason: '' })
+const applyRescheduleForm = ref({ starts_at_local: '', teacher_comment: '' })
 
 const columns = computed(() => {
   const items = [
@@ -186,6 +251,22 @@ const columns = computed(() => {
 const hasDateInterval = computed(() => Boolean(dateFilterFrom.value || dateFilterTo.value))
 const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null)
 const canSeePayroll = computed(() => canManageLessons.value)
+const canSeeLessonBilledAmount = computed(() => isAdmin.value || !canManageLessons.value)
+const canSeeLessonPayrollAmount = computed(() => canManageLessons.value)
+const participantColumnCount = computed(() => 1 + Number(canSeeLessonBilledAmount.value) + Number(canSeeLessonPayrollAmount.value))
+const activeRescheduleRequest = computed(() =>
+  rescheduleRequests.value.find((item) => item.status === 'pending_parent' || item.status === 'parent_confirmed') || null,
+)
+const currentRole = computed(() => auth.me?.role || '')
+const canCreateRescheduleRequest = computed(() =>
+  currentRole.value === 'student' && Boolean(selectedLesson.value?.can_request_reschedule) && !activeRescheduleRequest.value,
+)
+const canConfirmRescheduleRequest = computed(() =>
+  currentRole.value === 'parent' && activeRescheduleRequest.value?.status === 'pending_parent',
+)
+const canApplyRescheduleRequest = computed(() =>
+  canManageLessons.value && activeRescheduleRequest.value?.status === 'parent_confirmed',
+)
 const filteredRows = computed(() => {
   if (!isAdmin.value || teacherFilter.value === null) return rows.value
   return rows.value.filter((lesson) => groupTeacherId(lesson.group) === teacherFilter.value)
@@ -217,6 +298,13 @@ function formatLessonDateTime(iso: string) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function isoFromLocal(localDateTime: string) {
+  if (!localDateTime) return null
+  const d = new Date(localDateTime)
+  if (isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
 function payrollAmountValue(value: string | number | null | undefined) {
   const amount = Number(value ?? 0)
   return Number.isFinite(amount) ? amount : 0
@@ -234,6 +322,27 @@ function lessonStatusLabel(status: string) {
     cancelled: 'Скасовано',
   }
   return map[status] || status
+}
+
+function rescheduleStatusLabel(status: string) {
+  const map: Record<string, string> = {
+    pending_parent: 'Очікує підтвердження батьків',
+    parent_confirmed: 'Підтверджено батьками',
+    applied: 'Перенесено',
+    rejected: 'Відхилено',
+  }
+  return map[status] || status
+}
+
+function apiErrorMessage(e: any, fallback: string) {
+  const detail = e?.payload?.detail
+  if (typeof detail === 'string') return detail
+  if (e?.payload && typeof e.payload === 'object') {
+    const first = Object.values(e.payload)[0]
+    if (Array.isArray(first) && first.length > 0) return String(first[0])
+    if (typeof first === 'string') return first
+  }
+  return e?.message || fallback
 }
 
 function groupLabel(groupId: number | null) {
@@ -279,6 +388,69 @@ function fillLessonDetailForm(lesson: LessonDetail) {
   }))
 }
 
+function syncApplyRescheduleForm() {
+  const request = activeRescheduleRequest.value
+  applyRescheduleForm.value = {
+    starts_at_local: request?.requested_starts_at ? localFromIso(request.requested_starts_at) : editLessonForm.value.starts_at_local,
+    teacher_comment: request?.teacher_comment || '',
+  }
+}
+
+async function loadRescheduleRequests(lessonId: number) {
+  try {
+    rescheduleRequests.value = await apiRequest<LessonRescheduleRequest[]>(`/api/academics/reschedule-requests/?lesson=${lessonId}`)
+    syncApplyRescheduleForm()
+  } catch (e: any) {
+    rescheduleError.value = apiErrorMessage(e, 'Не вдалося завантажити запити на перенесення')
+  }
+}
+
+async function reloadSelectedLessonDetail() {
+  if (!selectedLesson.value) return
+  const detail = await apiRequest<LessonDetail>(`/api/academics/lessons/${selectedLesson.value.id}/`)
+  selectedLesson.value = detail
+  fillLessonDetailForm(detail)
+  await loadRescheduleRequests(detail.id)
+}
+
+async function openLessonById(lessonId: number) {
+  if (!lessonId) return
+  const row = rows.value.find((lesson) => lesson.id === lessonId)
+  if (row) {
+    await onLessonClick(row)
+    return
+  }
+
+  const requestSeq = ++detailRequestSeq
+  detailLoading.value = true
+  detailError.value = null
+  rescheduleError.value = null
+  try {
+    const detail = await apiRequest<LessonDetail>(`/api/academics/lessons/${lessonId}/`)
+    if (requestSeq !== detailRequestSeq) return
+    selectedLesson.value = detail
+    fillLessonDetailForm(detail)
+    rescheduleRequests.value = []
+    rescheduleForm.value = { requested_starts_at_local: '', reason: '' }
+    applyRescheduleForm.value = { starts_at_local: localFromIso(detail.starts_at), teacher_comment: '' }
+    await nextTick()
+    lessonDetailPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    await loadRescheduleRequests(detail.id)
+  } finally {
+    if (requestSeq === detailRequestSeq) detailLoading.value = false
+  }
+}
+
+async function openLessonFromRoute() {
+  const lessonId = Number(route.query.lesson)
+  if (!Number.isFinite(lessonId) || lessonId <= 0) return
+  try {
+    await openLessonById(lessonId)
+  } catch (e: any) {
+    detailError.value = apiErrorMessage(e, 'Не вдалося завантажити деталізацію уроку')
+  }
+}
+
 function normalizeToQuarterHour(localDateTime: string) {
   if (!localDateTime) return localDateTime
   const d = new Date(localDateTime)
@@ -295,13 +467,20 @@ async function onLessonClick(lesson: Lesson) {
   const requestSeq = ++detailRequestSeq
   selectedLesson.value = lesson
   fillLessonDetailForm({ ...lesson, participants: [] })
+  rescheduleRequests.value = []
+  rescheduleForm.value = { requested_starts_at_local: '', reason: '' }
+  applyRescheduleForm.value = { starts_at_local: localFromIso(lesson.starts_at), teacher_comment: '' }
   detailLoading.value = true
   detailError.value = null
+  rescheduleError.value = null
+  await nextTick()
+  lessonDetailPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   try {
     const detail = await apiRequest<LessonDetail>(`/api/academics/lessons/${lesson.id}/`)
     if (requestSeq !== detailRequestSeq) return
     selectedLesson.value = detail
     fillLessonDetailForm(detail)
+    await loadRescheduleRequests(lesson.id)
   } catch (e: any) {
     if (requestSeq !== detailRequestSeq) return
     detailError.value = e?.payload?.detail || e?.message || 'Не вдалося завантажити деталізацію уроку'
@@ -380,15 +559,22 @@ async function updateLesson() {
   error.value = null
   detailError.value = null
   try {
-    const body: Record<string, unknown> = {
-      starts_at: new Date(editLessonForm.value.starts_at_local).toISOString(),
-      notes: editLessonForm.value.notes,
+    const body: Record<string, unknown> = { notes: editLessonForm.value.notes }
+    if (isAdmin.value) {
+      body.starts_at = new Date(editLessonForm.value.starts_at_local).toISOString()
+    }
+    if (canManageLessons.value) {
+      body.status = editLessonForm.value.status
     }
     if (isAdmin.value) {
-      body.status = editLessonForm.value.status
       body.participant_updates = participantForms.value.map((participant) => ({
         id: participant.id,
         billed_amount: participant.billed_amount,
+        payroll_amount: participant.payroll_amount,
+      }))
+    } else if (canManageLessons.value) {
+      body.participant_updates = participantForms.value.map((participant) => ({
+        id: participant.id,
         payroll_amount: participant.payroll_amount,
       }))
     }
@@ -406,6 +592,69 @@ async function updateLesson() {
   }
 }
 
+async function createRescheduleRequest() {
+  if (!selectedLesson.value) return
+  savingReschedule.value = true
+  rescheduleError.value = null
+  try {
+    await apiRequest('/api/academics/reschedule-requests/', {
+      method: 'POST',
+      body: {
+        lesson: selectedLesson.value.id,
+        requested_starts_at: isoFromLocal(rescheduleForm.value.requested_starts_at_local),
+        reason: rescheduleForm.value.reason,
+      },
+    })
+    rescheduleForm.value = { requested_starts_at_local: '', reason: '' }
+    await loadRescheduleRequests(selectedLesson.value.id)
+  } catch (e: any) {
+    rescheduleError.value = apiErrorMessage(e, 'Не вдалося створити запит на перенесення')
+  } finally {
+    savingReschedule.value = false
+  }
+}
+
+async function confirmRescheduleRequest() {
+  const request = activeRescheduleRequest.value
+  if (!request || !selectedLesson.value) return
+  savingReschedule.value = true
+  rescheduleError.value = null
+  try {
+    await apiRequest(`/api/academics/reschedule-requests/${request.id}/confirm-parent/`, {
+      method: 'POST',
+      body: {},
+    })
+    await loadRescheduleRequests(selectedLesson.value.id)
+  } catch (e: any) {
+    rescheduleError.value = apiErrorMessage(e, 'Не вдалося підтвердити перенесення')
+  } finally {
+    savingReschedule.value = false
+  }
+}
+
+async function applyRescheduleRequest() {
+  const request = activeRescheduleRequest.value
+  const startsAt = isoFromLocal(applyRescheduleForm.value.starts_at_local)
+  if (!request || !selectedLesson.value || !startsAt) return
+  savingReschedule.value = true
+  rescheduleError.value = null
+  try {
+    await apiRequest(`/api/academics/reschedule-requests/${request.id}/apply/`, {
+      method: 'POST',
+      body: {
+        starts_at: startsAt,
+        teacher_comment: applyRescheduleForm.value.teacher_comment,
+      },
+    })
+    await reloadSelectedLessonDetail()
+    await reloadLessons()
+  } catch (e: any) {
+    rescheduleError.value = apiErrorMessage(e, 'Не вдалося перенести урок')
+  } finally {
+    savingReschedule.value = false
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -414,12 +663,20 @@ onMounted(async () => {
     isAdmin.value = auth.me?.role === 'admin' || !!auth.me?.is_staff
     await loadTeacherGroups()
     await loadLessons()
+    await openLessonFromRoute()
   } catch (e: any) {
     error.value = e?.payload?.detail || e?.message || 'Не вдалося завантажити дані'
   } finally {
     loading.value = false
   }
 })
+
+watch(
+  () => route.query.lesson,
+  () => {
+    if (!loading.value) void openLessonFromRoute()
+  },
+)
 
 watch(
   () => lessonForm.value.starts_at_local,
@@ -434,6 +691,22 @@ watch(
   (value) => {
     const normalized = normalizeToQuarterHour(value)
     if (normalized !== value) editLessonForm.value.starts_at_local = normalized
+  },
+)
+
+watch(
+  () => rescheduleForm.value.requested_starts_at_local,
+  (value) => {
+    const normalized = normalizeToQuarterHour(value)
+    if (normalized !== value) rescheduleForm.value.requested_starts_at_local = normalized
+  },
+)
+
+watch(
+  () => applyRescheduleForm.value.starts_at_local,
+  (value) => {
+    const normalized = normalizeToQuarterHour(value)
+    if (normalized !== value) applyRescheduleForm.value.starts_at_local = normalized
   },
 )
 </script>
@@ -494,6 +767,23 @@ watch(
 }
 .amount-input {
   min-width: 120px;
+}
+.reschedule-panel {
+  display: grid;
+  gap: 10px;
+}
+.reschedule-panel .btn {
+  border-color: rgba(255, 199, 95, 0.85);
+}
+.reschedule-form {
+  display: grid;
+  gap: 10px;
+}
+.reschedule-status {
+  display: grid;
+  gap: 4px;
+  color: rgba(232, 238, 252, 0.85);
+  font-size: 13px;
 }
 .save-detail {
   justify-self: start;

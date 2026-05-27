@@ -5,6 +5,7 @@ from .views import (
     MyChildrenView,
     MyConfirmationsView,
     MyLessonsView,
+    MyNotificationsView,
     MyPaymentsView,
 )
 
@@ -14,5 +15,5 @@ urlpatterns = [
     path('children-summary/', MyChildrenSummaryView.as_view(), name='children-summary'),
     path('payments/', MyPaymentsView.as_view(), name='payments'),
     path('confirmations/', MyConfirmationsView.as_view(), name='confirmations'),
+    path('notifications/', MyNotificationsView.as_view(), name='notifications'),
 ]
-

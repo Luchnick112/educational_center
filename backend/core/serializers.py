@@ -28,6 +28,15 @@ class MyPaymentsSerializer(serializers.Serializer):
     payouts = TeacherPayoutSerializer(many=True)
 
 
+class NotificationSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    kind = serializers.CharField()
+    title = serializers.CharField()
+    message = serializers.CharField()
+    url = serializers.CharField()
+    created_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
 class EmptyObjectSerializer(serializers.Serializer):
     pass
 

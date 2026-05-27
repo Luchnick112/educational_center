@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import GroupPricing, Lesson, LessonConfirmation, LessonParticipant, StudentEnrollment, StudyGroup, Subject
+from .models import (
+    GroupPricing,
+    Lesson,
+    LessonConfirmation,
+    LessonParticipant,
+    LessonRescheduleRequest,
+    StudentEnrollment,
+    StudyGroup,
+    Subject,
+)
 
 
 @admin.register(Subject)
@@ -37,6 +46,13 @@ class LessonAdmin(admin.ModelAdmin):
 class LessonConfirmationAdmin(admin.ModelAdmin):
     list_display = ('participant', 'requested_from', 'status', 'confirmer', 'confirmed_at')
     list_filter = ('requested_from', 'status')
+
+
+@admin.register(LessonRescheduleRequest)
+class LessonRescheduleRequestAdmin(admin.ModelAdmin):
+    list_display = ('lesson', 'student', 'status', 'requested_starts_at', 'parent_confirmed_at', 'applied_at')
+    list_filter = ('status',)
+    search_fields = ('student__user__first_name', 'student__user__last_name', 'lesson__group__name')
 
 
 @admin.register(GroupPricing)

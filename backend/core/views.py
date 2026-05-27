@@ -6,13 +6,13 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from academics.models import Lesson, LessonConfirmation
+from academics.models import Lesson, LessonConfirmation, LessonRescheduleRequest, LessonRescheduleStatus
 from academics.serializers import LessonConfirmationSerializer, LessonSerializer
-from finance.models import ParentCharge, TeacherPayout
+from finance.models import ChargeStatus, ParentCharge, PayoutStatus, TeacherPayout
 from finance.serializers import ParentChargeSerializer, TeacherPayoutSerializer
 from users.models import StudentProfile, UserRole
 from users.serializers import ParentProfileSerializer, StudentProfileSerializer
-from .serializers import EmptyObjectSerializer, MeSerializer, MyPaymentsSerializer
+from .serializers import EmptyObjectSerializer, MeSerializer, MyPaymentsSerializer, NotificationSerializer
 
 
 class MeView(APIView):
@@ -179,6 +179,157 @@ class MyConfirmationsView(APIView):
             queryset = LessonConfirmation.objects.all()
 
         serializer = LessonConfirmationSerializer(queryset.order_by('-id')[:50], many=True)
+        return Response(serializer.data)
+
+
+class MyNotificationsView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @extend_schema(responses=NotificationSerializer(many=True))
+    def get(self, request):
+        user = request.user
+        notifications = []
+
+        def add(kind, item_id, title, message, url, created_at=None):
+            notifications.append(
+                {
+                    'id': f'{kind}:{item_id}',
+                    'kind': kind,
+                    'title': title,
+                    'message': message,
+                    'url': url,
+                    'created_at': created_at,
+                }
+            )
+
+        if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
+            confirmations = LessonConfirmation.objects.filter(
+                participant__student=user.student_profile,
+                requested_from='student',
+                status='pending',
+            ).select_related('participant__lesson')
+            for confirmation in confirmations:
+                add(
+                    'confirmation',
+                    confirmation.id,
+                    'Потрібне підтвердження уроку',
+                    f'Урок #{confirmation.participant.lesson_id} очікує вашого підтвердження.',
+                    '/my/confirmations',
+                    confirmation.participant.lesson.starts_at,
+                )
+
+            charges = ParentCharge.objects.filter(student=user.student_profile).exclude(status=ChargeStatus.PAID)
+            for charge in charges:
+                add(
+                    'payment',
+                    charge.id,
+                    'Є неоплачений платіж',
+                    f'Платіж на суму {charge.amount} очікує оплати.',
+                    '/my/payments',
+                    charge.issued_at,
+                )
+
+        elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
+            confirmations = LessonConfirmation.objects.filter(
+                participant__student__parent_links__parent=user.parent_profile,
+                requested_from='parent',
+                status='pending',
+            ).select_related('participant__lesson').distinct()
+            for confirmation in confirmations:
+                add(
+                    'confirmation',
+                    confirmation.id,
+                    'Потрібне підтвердження уроку',
+                    f'Урок #{confirmation.participant.lesson_id} очікує підтвердження батьків.',
+                    '/my/confirmations',
+                    confirmation.participant.lesson.starts_at,
+                )
+
+            reschedules = LessonRescheduleRequest.objects.filter(
+                student__parent_links__parent=user.parent_profile,
+                status=LessonRescheduleStatus.PENDING_PARENT,
+            ).select_related('lesson').distinct()
+            for reschedule in reschedules:
+                add(
+                    'reschedule',
+                    reschedule.id,
+                    'Підтвердіть перенесення уроку',
+                    f'Учень запросив перенесення уроку #{reschedule.lesson_id}.',
+                    f'/my/lessons?lesson={reschedule.lesson_id}',
+                    reschedule.created_at,
+                )
+
+            charges = ParentCharge.objects.filter(parent=user.parent_profile).exclude(status=ChargeStatus.PAID)
+            for charge in charges:
+                add(
+                    'payment',
+                    charge.id,
+                    'Є неоплачений платіж',
+                    f'Платіж на суму {charge.amount} очікує оплати.',
+                    '/my/payments',
+                    charge.issued_at,
+                )
+
+        elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            confirmation_lessons = Lesson.objects.filter(
+                group__teacher=user.teacher_profile,
+                participants__confirmations__requested_from='teacher',
+                participants__confirmations__status='pending',
+            ).distinct()
+            for lesson in confirmation_lessons:
+                add(
+                    'confirmation',
+                    f'lesson:{lesson.id}',
+                    'Потрібне підтвердження уроку',
+                    f'Урок #{lesson.id} очікує підтвердження вчителя.',
+                    '/my/confirmations',
+                    lesson.starts_at,
+                )
+
+            reschedules = LessonRescheduleRequest.objects.filter(
+                lesson__group__teacher=user.teacher_profile,
+                status=LessonRescheduleStatus.PARENT_CONFIRMED,
+            ).select_related('lesson')
+            for reschedule in reschedules:
+                add(
+                    'reschedule',
+                    reschedule.id,
+                    'Потрібно перенести урок',
+                    f'Батьки підтвердили перенесення уроку #{reschedule.lesson_id}.',
+                    f'/my/lessons?lesson={reschedule.lesson_id}',
+                    reschedule.parent_confirmed_at or reschedule.created_at,
+                )
+
+            payouts = TeacherPayout.objects.filter(
+                teacher=user.teacher_profile,
+                status=PayoutStatus.APPROVED,
+            )
+            for payout in payouts:
+                add(
+                    'payout',
+                    payout.id,
+                    'Є виплата в обробці',
+                    f'Виплата на суму {payout.amount} має статус {payout.status}.',
+                    '/my/payments',
+                    payout.approved_at,
+                )
+
+        elif user.is_staff or user.role == UserRole.ADMIN:
+            reschedules = LessonRescheduleRequest.objects.filter(
+                status__in=(LessonRescheduleStatus.PENDING_PARENT, LessonRescheduleStatus.PARENT_CONFIRMED),
+            ).select_related('lesson')
+            for reschedule in reschedules:
+                add(
+                    'reschedule',
+                    reschedule.id,
+                    'Активний запит на перенесення',
+                    f'Урок #{reschedule.lesson_id}: {reschedule.status}.',
+                    f'/my/lessons?lesson={reschedule.lesson_id}',
+                    reschedule.updated_at,
+                )
+
+        notifications.sort(key=lambda item: str(item.get('created_at') or ''), reverse=True)
+        serializer = NotificationSerializer(notifications[:20], many=True)
         return Response(serializer.data)
 
 

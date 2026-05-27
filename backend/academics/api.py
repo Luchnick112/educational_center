@@ -11,6 +11,7 @@ from .models import (
     Lesson,
     LessonConfirmation,
     LessonParticipant,
+    LessonRescheduleRequest,
     LessonStatus,
     StudentEnrollment,
     StudyGroup,
@@ -24,12 +25,22 @@ from .serializers import (
     LessonCompletionSerializer,
     LessonConfirmSerializer,
     LessonConfirmationSerializer,
+    LessonRescheduleApplySerializer,
+    LessonRescheduleRequestSerializer,
     LessonSerializer,
     StudentEnrollmentSerializer,
     StudyGroupSerializer,
     SubjectSerializer,
 )
-from .services import cancel_lesson, complete_lesson, confirm_lesson, mark_lesson_attendance
+from .services import (
+    apply_lesson_reschedule,
+    cancel_lesson,
+    complete_lesson,
+    confirm_lesson,
+    confirm_lesson_reschedule_by_parent,
+    create_lesson_reschedule_request,
+    mark_lesson_attendance,
+)
 
 
 class StaffOrTeacherScheduleWritePermission(permissions.BasePermission):
@@ -286,10 +297,8 @@ class LessonViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         if not (user.is_staff or user.role == UserRole.ADMIN):
-            if instance.status != LessonStatus.SCHEDULED:
-                raise exceptions.ValidationError({'detail': 'Only scheduled lessons can be updated.'})
-            if 'status' in serializer.validated_data and serializer.validated_data['status'] != instance.status:
-                raise exceptions.ValidationError({'status': 'Status cannot be changed here.'})
+            if 'starts_at' in serializer.validated_data and serializer.validated_data['starts_at'] != instance.starts_at:
+                raise exceptions.ValidationError({'starts_at': 'Use the reschedule request workflow to change lesson time.'})
             if 'group' in serializer.validated_data and serializer.validated_data['group'].id != instance.group_id:
                 raise exceptions.ValidationError({'group': 'Lesson group cannot be changed.'})
 
@@ -368,3 +377,70 @@ class LessonConfirmationViewSet(viewsets.ModelViewSet):
             comment=serializer.validated_data.get('comment', ''),
         )
         return response.Response(self.get_serializer(confirmation).data)
+
+
+class LessonRescheduleRequestViewSet(viewsets.ModelViewSet):
+    queryset = (
+        LessonRescheduleRequest.objects.select_related(
+            'lesson',
+            'lesson__group',
+            'lesson__group__teacher',
+            'student',
+            'student__user',
+            'requested_by',
+            'parent_confirmed_by',
+            'applied_by',
+        )
+        .all()
+    )
+    serializer_class = LessonRescheduleRequestSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = self.queryset
+
+        if user.is_staff or user.role == UserRole.ADMIN:
+            pass
+        elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            queryset = queryset.filter(lesson__group__teacher=user.teacher_profile)
+        elif user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
+            queryset = queryset.filter(student=user.student_profile)
+        elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
+            queryset = queryset.filter(student__parent_links__parent=user.parent_profile).distinct()
+        else:
+            queryset = queryset.none()
+
+        lesson_id = self.request.query_params.get('lesson')
+        if lesson_id:
+            queryset = queryset.filter(lesson_id=lesson_id)
+        return queryset.order_by('-created_at', '-id')
+
+    def perform_create(self, serializer):
+        reschedule_request = create_lesson_reschedule_request(
+            user=self.request.user,
+            lesson=serializer.validated_data['lesson'],
+            requested_starts_at=serializer.validated_data.get('requested_starts_at'),
+            reason=serializer.validated_data.get('reason', ''),
+        )
+        serializer.instance = reschedule_request
+
+    @decorators.action(detail=True, methods=['post'], url_path='confirm-parent')
+    def confirm_parent(self, request, pk=None):
+        reschedule_request = confirm_lesson_reschedule_by_parent(
+            user=request.user,
+            reschedule_request=self.get_object(),
+        )
+        return response.Response(self.get_serializer(reschedule_request).data)
+
+    @decorators.action(detail=True, methods=['post'], url_path='apply')
+    def apply(self, request, pk=None):
+        serializer = LessonRescheduleApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reschedule_request = apply_lesson_reschedule(
+            user=request.user,
+            reschedule_request=self.get_object(),
+            starts_at=serializer.validated_data['starts_at'],
+            teacher_comment=serializer.validated_data.get('teacher_comment', ''),
+        )
+        return response.Response(self.get_serializer(reschedule_request).data)
