@@ -46,8 +46,17 @@ def mark_lesson_attendance(*, user, lesson: Lesson, participant_id: int, attenda
         raise exceptions.NotFound('Participant does not belong to this lesson.')
 
     participant.attendance_status = attendance_status
-    participant.save(update_fields=['attendance_status'])
-    return {'participant_id': participant.id, 'attendance_status': participant.attendance_status}
+    if attendance_status == AttendanceStatus.PRESENT:
+        _, base_teacher_rate = participant.lesson.group.get_effective_pricing(participant.lesson.starts_at)
+        participant.payroll_amount = participant.enrollment.teacher_rate_override or base_teacher_rate
+    else:
+        participant.payroll_amount = 0
+    participant.save(update_fields=['attendance_status', 'payroll_amount'])
+    return {
+        'participant_id': participant.id,
+        'attendance_status': participant.attendance_status,
+        'payroll_amount': participant.payroll_amount,
+    }
 
 
 def complete_lesson(*, user, lesson: Lesson, notes: str = '') -> Lesson:

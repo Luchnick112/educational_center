@@ -13,7 +13,6 @@
         <div class="nav__section">Моє</div>
         <RouterLink class="nav__link" to="/my/lessons">Уроки</RouterLink>
         <RouterLink class="nav__link" to="/my/groups">Групи</RouterLink>
-        <RouterLink class="nav__link" to="/my/confirmations">Підтвердження</RouterLink>
         <RouterLink class="nav__link" to="/my/payments">Платежі</RouterLink>
 
         <template v-if="isAdmin">
@@ -85,7 +84,6 @@
         <div class="nav__section">Моє</div>
         <RouterLink class="nav__link" to="/my/lessons" @click="closeMobileNav">Уроки</RouterLink>
         <RouterLink class="nav__link" to="/my/groups" @click="closeMobileNav">Групи</RouterLink>
-        <RouterLink class="nav__link" to="/my/confirmations" @click="closeMobileNav">Підтвердження</RouterLink>
         <RouterLink class="nav__link" to="/my/payments" @click="closeMobileNav">Платежі</RouterLink>
 
         <template v-if="isAdmin">

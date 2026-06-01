@@ -9,7 +9,7 @@ from rest_framework import decorators, permissions, response, status, viewsets
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from academics.models import Lesson, LessonConfirmation, LessonParticipant, StudentEnrollment
+from academics.models import Lesson, LessonParticipant, StudentEnrollment
 from core.serializers import DashboardSerializer
 from finance.models import ParentCharge, TeacherPayout
 
@@ -79,22 +79,12 @@ class UserViewSet(viewsets.ModelViewSet):
                     student=student,
                     lesson__status='scheduled',
                 ).count(),
-                'pending_confirmations': LessonConfirmation.objects.filter(
-                    participant__student=student,
-                    requested_from=UserRole.STUDENT,
-                    status='pending',
-                ).count(),
             }
         elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
             parent = user.parent_profile
             data['stats'] = {
                 'children': parent.student_links.count(),
                 'open_charges': ParentCharge.objects.filter(parent=parent).exclude(status='paid').count(),
-                'pending_confirmations': LessonConfirmation.objects.filter(
-                    participant__student__parent_links__parent=parent,
-                    requested_from=UserRole.PARENT,
-                    status='pending',
-                ).distinct().count(),
             }
         elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             teacher = user.teacher_profile

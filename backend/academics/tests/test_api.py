@@ -9,9 +9,9 @@ from users.models import ParentProfile, StudentProfile, TeacherProfile, User, Us
 from academics.models import (
     AttendanceStatus,
     ConfirmationRequester,
-    ConfirmationStatus,
     GroupPricing,
     Lesson,
+    LessonConfirmation,
     LessonParticipant,
     LessonRescheduleStatus,
     LessonStatus,
@@ -66,7 +66,25 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(create_response.status_code, 201)
         created_id = create_response.data['id']
-        self.assertEqual(create_response.data['name'], f'{self.subject.name}+{self.teacher.id}+{created_id}')
+        self.assertEqual(create_response.data['name'], f'{self.subject.name}{self.teacher.id}{created_id}')
+
+    def test_teacher_can_create_group_without_teacher_or_prices(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.post(
+            '/api/academics/groups/',
+            {
+                'subject': self.subject.id,
+                'capacity': 5,
+                'is_active': True,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['teacher'], self.teacher.id)
+        self.assertEqual(response.data['teacher_rate'], '0.00')
+        self.assertNotIn('student_price', response.data)
 
     def test_teacher_sees_only_teacher_rate_in_group_detail(self):
         self.client.force_authenticate(self.teacher_user)
@@ -90,6 +108,9 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertIn('payroll_amount', participant)
 
     def test_teacher_my_lessons_include_lesson_payroll_amount(self):
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
         self.client.force_authenticate(self.teacher_user)
 
         response = self.client.get('/api/my/lessons/')
@@ -100,6 +121,9 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertNotIn('billed_amount', response.data[0])
 
     def test_admin_my_lessons_include_lesson_billed_amount(self):
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
         admin_user = User.objects.create_user(
             username='lesson_amount_admin',
             email='lesson_amount_admin@example.com',
@@ -125,6 +149,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             is_staff=True,
         )
         participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
         starts_at = timezone.make_aware(datetime(2026, 5, 19, 12, 30))
         self.client.force_authenticate(admin_user)
 
@@ -157,13 +183,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data['participants'][0]['payroll_amount'], '375.00')
         self.assertEqual(ParentCharge.objects.get(participant=participant).amount, Decimal('650.00'))
         self.assertEqual(TeacherPayout.objects.get(participant=participant).amount, Decimal('375.00'))
-        self.assertFalse(
-            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
-        )
-        self.assertEqual(
-            set(participant.confirmations.values_list('confirmer_id', flat=True)),
-            {admin_user.id},
-        )
 
     def test_student_my_lessons_hide_lesson_payroll_amount(self):
         self.client.force_authenticate(self.student_user)
@@ -272,7 +291,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         keys = {item['key'] for item in me_response.data['my']}
         self.assertEqual(
             keys,
-            {'lessons', 'children', 'children_summary', 'payments', 'confirmations'},
+            {'lessons', 'children', 'children_summary', 'payments', 'confirmations', 'notifications'},
         )
         self.assertEqual(lessons_response.status_code, 200)
         self.assertEqual(len(lessons_response.data), 1)
@@ -289,7 +308,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(children_response.data[0]['id'], self.student.id)
         self.assertEqual(confirmations_response.status_code, 200)
 
-    def test_teacher_notifications_are_grouped_by_lesson(self):
+    def test_teacher_notifications_do_not_include_lesson_confirmations(self):
         other_student_user = User.objects.create_user(
             username='other_notification_student',
             email='other_notification_student@example.com',
@@ -312,12 +331,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             item for item in response.data
             if item['kind'] == 'confirmation'
         ]
-        self.assertEqual(len(confirmation_notifications), 1)
-        self.assertEqual(confirmation_notifications[0]['id'], f'confirmation:lesson:{self.lesson.id}')
-        self.assertEqual(
-            confirmation_notifications[0]['message'],
-            f'Урок #{self.lesson.id} очікує підтвердження вчителя.',
-        )
+        self.assertEqual(confirmation_notifications, [])
 
     def test_lessons_browsable_api_page_renders_for_html_requests(self):
         self.client.force_authenticate(self.teacher_user)
@@ -407,13 +421,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(self.lesson.status, LessonStatus.COMPLETED)
         self.assertTrue(ParentCharge.objects.filter(participant=participant).exists())
         self.assertTrue(TeacherPayout.objects.filter(participant=participant).exists())
-        self.assertFalse(
-            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
-        )
-        self.assertEqual(
-            set(participant.confirmations.values_list('confirmer_id', flat=True)),
-            {self.teacher_user.id},
-        )
 
     def test_teacher_can_create_and_update_own_schedule(self):
         self.client.force_authenticate(self.teacher_user)
@@ -445,6 +452,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
     def test_teacher_can_update_lesson_status_and_payroll_amount(self):
         participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
         self.client.force_authenticate(self.teacher_user)
 
         response = self.client.patch(
@@ -470,16 +479,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(participant.billed_amount, Decimal('600.00'))
         self.assertEqual(response.data['participants'][0]['payroll_amount'], '410.00')
         self.assertNotIn('billed_amount', response.data['participants'][0])
-        self.assertFalse(
-            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
-        )
-        self.assertEqual(
-            set(participant.confirmations.values_list('confirmer_id', flat=True)),
-            {self.teacher_user.id},
-        )
 
-    def test_teacher_can_cancel_unpaid_lesson_and_clear_confirmations(self):
-        participant = self.lesson.participants.get()
+    def test_teacher_can_cancel_unpaid_lesson(self):
         self.client.force_authenticate(self.teacher_user)
 
         response = self.client.patch(
@@ -492,13 +493,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.lesson.status, LessonStatus.CANCELLED)
-        self.assertFalse(
-            participant.confirmations.filter(status=ConfirmationStatus.PENDING).exists()
-        )
-        self.assertEqual(
-            set(participant.confirmations.values_list('status', flat=True)),
-            {ConfirmationStatus.REJECTED},
-        )
 
     def test_teacher_cannot_change_paid_lesson_status(self):
         participant = self.lesson.participants.get()
@@ -684,8 +678,14 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
     def test_student_can_confirm_own_confirmation_only(self):
         participant = self.lesson.participants.get()
-        student_confirmation = participant.confirmations.get(requested_from=ConfirmationRequester.STUDENT)
-        parent_confirmation = participant.confirmations.get(requested_from=ConfirmationRequester.PARENT)
+        student_confirmation = LessonConfirmation.objects.create(
+            participant=participant,
+            requested_from=ConfirmationRequester.STUDENT,
+        )
+        parent_confirmation = LessonConfirmation.objects.create(
+            participant=participant,
+            requested_from=ConfirmationRequester.PARENT,
+        )
         self.client.force_authenticate(self.student_user)
 
         ok_response = self.client.post(

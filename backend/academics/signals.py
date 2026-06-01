@@ -5,9 +5,8 @@ from finance.models import ParentCharge, TeacherPayout
 from users.models import StudentParentRelation
 
 from .models import (
-    ConfirmationRequester,
+    AttendanceStatus,
     Lesson,
-    LessonConfirmation,
     LessonParticipant,
     LessonStatus,
     StudentEnrollment,
@@ -29,31 +28,6 @@ def create_lesson_participants(sender, instance: Lesson, created: bool, **kwargs
             lesson=instance,
             student=enrollment.student,
             defaults={'enrollment': enrollment},
-        )
-
-
-@receiver(post_save, sender=LessonParticipant)
-def create_confirmation_requests(sender, instance: LessonParticipant, created: bool, **kwargs):
-    if kwargs.get('raw') or not created:
-        return
-
-    LessonConfirmation.objects.get_or_create(
-        participant=instance,
-        requested_from=ConfirmationRequester.STUDENT,
-    )
-    LessonConfirmation.objects.get_or_create(
-        participant=instance,
-        requested_from=ConfirmationRequester.TEACHER,
-    )
-
-    has_financial_parent = StudentParentRelation.objects.filter(
-        student=instance.student,
-        is_financial_contact=True,
-    ).exists()
-    if has_financial_parent:
-        LessonConfirmation.objects.get_or_create(
-            participant=instance,
-            requested_from=ConfirmationRequester.PARENT,
         )
 
 
@@ -92,6 +66,6 @@ def create_financial_documents(sender, instance: Lesson, created: bool, **kwargs
             participant=participant,
             defaults={
                 'teacher': participant.enrollment.group.teacher,
-                'amount': participant.payroll_amount,
+                'amount': participant.payroll_amount if participant.attendance_status == AttendanceStatus.PRESENT else 0,
             },
         )

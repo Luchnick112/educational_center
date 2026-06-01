@@ -6,7 +6,7 @@ from django.utils import timezone
 from finance.models import ParentCharge, TeacherPayout
 from users.models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, User, UserRole
 
-from academics.models import ConfirmationRequester, Lesson, LessonStatus, StudentEnrollment, StudyGroup, Subject
+from academics.models import AttendanceStatus, Lesson, LessonStatus, StudentEnrollment, StudyGroup, Subject
 
 
 class LessonSignalsTestCase(TestCase):
@@ -56,32 +56,29 @@ class LessonSignalsTestCase(TestCase):
             start_date=date.today(),
         )
 
-    def test_lesson_creation_builds_participants_and_confirmations(self):
+    def test_lesson_creation_builds_participants_without_confirmation_requests(self):
         lesson = Lesson.objects.create(
             group=self.group,
             starts_at=timezone.now(),
         )
 
         participant = lesson.participants.get()
-        confirmations = set(participant.confirmations.values_list('requested_from', flat=True))
 
         self.assertEqual(participant.student, self.student)
-        self.assertEqual(confirmations, {
-            ConfirmationRequester.STUDENT,
-            ConfirmationRequester.PARENT,
-            ConfirmationRequester.TEACHER,
-        })
+        self.assertFalse(participant.confirmations.exists())
 
     def test_completed_lesson_creates_parent_charge_and_teacher_payout(self):
         lesson = Lesson.objects.create(
             group=self.group,
             starts_at=timezone.now(),
         )
+        participant = lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
 
         lesson.status = LessonStatus.COMPLETED
         lesson.save()
 
-        participant = lesson.participants.get()
         charge = ParentCharge.objects.get(participant=participant)
         payout = TeacherPayout.objects.get(participant=participant)
 

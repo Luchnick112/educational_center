@@ -166,12 +166,13 @@ class LessonParticipant(models.Model):
         unique_together = ('lesson', 'student')
 
     def save(self, *args, **kwargs):
+        is_new = self._state.adding
         base_student_price, base_teacher_rate = self.lesson.group.get_effective_pricing(self.lesson.starts_at)
         student_price = self.enrollment.student_price_override or base_student_price
         teacher_rate = self.enrollment.teacher_rate_override or base_teacher_rate
-        if not self.billed_amount:
+        if is_new and not self.billed_amount:
             self.billed_amount = student_price
-        if not self.payroll_amount:
+        if is_new and not self.payroll_amount:
             self.payroll_amount = teacher_rate
         self.student = self.enrollment.student
         super().save(*args, **kwargs)

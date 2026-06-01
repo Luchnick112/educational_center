@@ -3,7 +3,7 @@ from rest_framework import exceptions
 from finance.models import ParentCharge, TeacherPayout
 from users.models import ParentProfile, TeacherProfile, User, UserRole
 
-from academics.models import AttendanceStatus, ConfirmationRequester, ConfirmationStatus, LessonStatus
+from academics.models import AttendanceStatus, ConfirmationRequester, ConfirmationStatus, LessonConfirmation, LessonStatus
 from academics.services import cancel_lesson, complete_lesson, confirm_lesson, mark_lesson_attendance
 from academics.tests.base import AcademicBaseTestCase
 
@@ -23,6 +23,20 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
 
         self.assertEqual(result['participant_id'], participant.id)
         self.assertEqual(participant.attendance_status, AttendanceStatus.PRESENT)
+        self.assertEqual(participant.payroll_amount, participant.enrollment.teacher_rate)
+
+        result = mark_lesson_attendance(
+            user=self.teacher_user,
+            lesson=self.lesson,
+            participant_id=participant.id,
+            attendance_status=AttendanceStatus.ABSENT,
+        )
+
+        participant.refresh_from_db()
+
+        self.assertEqual(result['attendance_status'], AttendanceStatus.ABSENT)
+        self.assertEqual(participant.attendance_status, AttendanceStatus.ABSENT)
+        self.assertEqual(participant.payroll_amount, 0)
 
     def test_mark_lesson_attendance_denies_unrelated_parent(self):
         other_parent_user = User.objects.create_user(
@@ -68,7 +82,10 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
 
     def test_confirm_lesson_marks_expected_confirmation(self):
         participant = self.lesson.participants.get()
-        confirmation = participant.confirmations.get(requested_from=ConfirmationRequester.STUDENT)
+        confirmation = LessonConfirmation.objects.create(
+            participant=participant,
+            requested_from=ConfirmationRequester.STUDENT,
+        )
 
         result = confirm_lesson(
             user=self.student_user,
@@ -84,7 +101,10 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
 
     def test_confirm_lesson_rejects_wrong_role(self):
         participant = self.lesson.participants.get()
-        confirmation = participant.confirmations.get(requested_from=ConfirmationRequester.PARENT)
+        confirmation = LessonConfirmation.objects.create(
+            participant=participant,
+            requested_from=ConfirmationRequester.PARENT,
+        )
 
         with self.assertRaises(exceptions.ValidationError):
             confirm_lesson(

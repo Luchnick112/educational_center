@@ -31,6 +31,13 @@ class SubjectSerializer(serializers.ModelSerializer):
 
 
 class StudyGroupSerializer(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and getattr(user, 'role', None) == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            self.fields['teacher'].required = False
+
     def _get_effective_student_price_for_student_ids(self, group: StudyGroup, student_ids: list[int]):
         if not student_ids:
             student_price, _ = group.get_effective_pricing(timezone.now())
@@ -169,6 +176,8 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
+        if instance.attendance_status != AttendanceStatus.PRESENT and 'payroll_amount' in rep:
+            rep['payroll_amount'] = '0.00'
 
         request = self.context.get('request')
         user = getattr(request, 'user', None)
@@ -193,8 +202,9 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 
         rep.pop('teacher_id', None)
         rep.pop('teacher_last_name', None)
-        rep.pop('student_first_name', None)
-        rep.pop('student_last_name', None)
+        if role != UserRole.TEACHER:
+            rep.pop('student_first_name', None)
+            rep.pop('student_last_name', None)
         return rep
 
     class Meta:
@@ -252,7 +262,14 @@ class LessonSerializer(serializers.ModelSerializer):
     def get_payroll_amount(self, instance):
         value = getattr(instance, 'payroll_amount_total', None)
         if value is None:
-            value = sum((participant.payroll_amount for participant in instance.participants.all()), Decimal('0.00'))
+            value = sum(
+                (
+                    participant.payroll_amount
+                    for participant in instance.participants.all()
+                    if participant.attendance_status == AttendanceStatus.PRESENT
+                ),
+                Decimal('0.00'),
+            )
         return f'{value:.2f}'
 
     def get_billed_amount(self, instance):

@@ -49,7 +49,6 @@ class EmptyObjectSerializer(serializers.Serializer):
 class DashboardStatsSerializer(serializers.Serializer):
     active_enrollments = serializers.IntegerField(required=False)
     upcoming_lessons = serializers.IntegerField(required=False)
-    pending_confirmations = serializers.IntegerField(required=False)
     children = serializers.IntegerField(required=False)
     open_charges = serializers.IntegerField(required=False)
     groups = serializers.IntegerField(required=False)

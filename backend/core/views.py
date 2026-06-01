@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema
@@ -8,7 +8,7 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from academics.models import Lesson, LessonConfirmation, LessonRescheduleRequest, LessonRescheduleStatus
+from academics.models import AttendanceStatus, Lesson, LessonConfirmation, LessonRescheduleRequest, LessonRescheduleStatus
 from academics.serializers import LessonConfirmationSerializer, LessonSerializer
 from finance.models import ChargeStatus, ParentCharge, PayoutStatus, StudentPayment, TeacherPayment, TeacherPayout
 from finance.serializers import ParentChargeSerializer, StudentPaymentSerializer, TeacherPaymentSerializer, TeacherPayoutSerializer
@@ -93,7 +93,10 @@ class MyLessonsView(APIView):
             queryset = queryset.filter(starts_at__date__lte=date_to)
 
         queryset = queryset.annotate(
-            payroll_amount_total=Sum('participants__payroll_amount'),
+            payroll_amount_total=Sum(
+                'participants__payroll_amount',
+                filter=Q(participants__attendance_status=AttendanceStatus.PRESENT),
+            ),
             billed_amount_total=Sum('participants__billed_amount'),
         ).order_by('starts_at')
         if not has_date_filter:
@@ -479,21 +482,6 @@ class MyNotificationsView(APIView):
             return uncovered
 
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
-            confirmations = LessonConfirmation.objects.filter(
-                participant__student=user.student_profile,
-                requested_from='student',
-                status='pending',
-            ).select_related('participant__lesson')
-            for confirmation in confirmations:
-                add(
-                    'confirmation',
-                    confirmation.id,
-                    'Потрібне підтвердження уроку',
-                    f'Урок #{confirmation.participant.lesson_id} очікує вашого підтвердження.',
-                    '/my/confirmations',
-                    confirmation.participant.lesson.starts_at,
-                )
-
             charges = ParentCharge.objects.select_related('participant__lesson').filter(student=user.student_profile)
             payments = StudentPayment.objects.filter(student=user.student_profile)
             for charge in uncovered_student_charges(charges, payments):
@@ -507,21 +495,6 @@ class MyNotificationsView(APIView):
                 )
 
         elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
-            confirmations = LessonConfirmation.objects.filter(
-                participant__student__parent_links__parent=user.parent_profile,
-                requested_from='parent',
-                status='pending',
-            ).select_related('participant__lesson').distinct()
-            for confirmation in confirmations:
-                add(
-                    'confirmation',
-                    confirmation.id,
-                    'Потрібне підтвердження уроку',
-                    f'Урок #{confirmation.participant.lesson_id} очікує підтвердження батьків.',
-                    '/my/confirmations',
-                    confirmation.participant.lesson.starts_at,
-                )
-
             reschedules = LessonRescheduleRequest.objects.filter(
                 student__parent_links__parent=user.parent_profile,
                 status=LessonRescheduleStatus.PENDING_PARENT,
@@ -551,21 +524,6 @@ class MyNotificationsView(APIView):
                 )
 
         elif user.role == UserRole.TEACHER and not user.is_staff and hasattr(user, 'teacher_profile'):
-            confirmation_lessons = Lesson.objects.filter(
-                group__teacher=user.teacher_profile,
-                participants__confirmations__requested_from='teacher',
-                participants__confirmations__status='pending',
-            ).distinct()
-            for lesson in confirmation_lessons:
-                add(
-                    'confirmation',
-                    f'lesson:{lesson.id}',
-                    'Потрібне підтвердження уроку',
-                    f'Урок #{lesson.id} очікує підтвердження вчителя.',
-                    '/my/confirmations',
-                    lesson.starts_at,
-                )
-
             reschedules = LessonRescheduleRequest.objects.filter(
                 lesson__group__teacher=user.teacher_profile,
                 status=LessonRescheduleStatus.PARENT_CONFIRMED,

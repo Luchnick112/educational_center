@@ -86,6 +86,7 @@
           <thead>
             <tr>
               <th>Учень</th>
+              <th>Присутній</th>
               <th v-if="canSeeLessonBilledAmount">Вартість заняття</th>
               <th v-if="canSeeLessonPayrollAmount">Винагорода викладача</th>
             </tr>
@@ -96,11 +97,20 @@
             </tr>
             <tr v-for="participant in participantForms" :key="participant.id">
               <td>{{ participant.studentLabel }}</td>
+              <td>
+                <input
+                  class="presence-checkbox"
+                  type="checkbox"
+                  :checked="isParticipantPresent(participant)"
+                  :disabled="savingLesson || !canMarkAttendance"
+                  @change="toggleParticipantPresence(participant, $event)"
+                />
+              </td>
               <td v-if="canSeeLessonBilledAmount">
                 <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.billed_amount" :disabled="savingLesson || !isAdmin" />
               </td>
               <td v-if="canSeeLessonPayrollAmount">
-                <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.payroll_amount" :disabled="savingLesson || !canManageLessons" />
+                <input class="input amount-input" type="number" min="0" step="0.01" :value="participantPayrollAmount(participant)" disabled />
               </td>
             </tr>
           </tbody>
@@ -177,11 +187,12 @@ type LessonParticipant = {
   student: number
   student_first_name?: string
   student_last_name?: string
+  attendance_status?: string
   billed_amount?: string | number
   payroll_amount?: string | number
 }
 type LessonDetail = Lesson & { participants?: LessonParticipant[] }
-type ParticipantForm = { id: number; studentLabel: string; billed_amount: string; payroll_amount: string }
+type ParticipantForm = { id: number; studentLabel: string; attendance_status: string; billed_amount: string; payroll_amount: string }
 type Group = { id: number; name?: string; teacher?: number | null }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type LessonRescheduleRequest = {
@@ -253,7 +264,8 @@ const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !
 const canSeePayroll = computed(() => canManageLessons.value)
 const canSeeLessonBilledAmount = computed(() => isAdmin.value || !canManageLessons.value)
 const canSeeLessonPayrollAmount = computed(() => canManageLessons.value)
-const participantColumnCount = computed(() => 1 + Number(canSeeLessonBilledAmount.value) + Number(canSeeLessonPayrollAmount.value))
+const canMarkAttendance = computed(() => canManageLessons.value && selectedLesson.value?.status === 'scheduled')
+const participantColumnCount = computed(() => 2 + Number(canSeeLessonBilledAmount.value) + Number(canSeeLessonPayrollAmount.value))
 const activeRescheduleRequest = computed(() =>
   rescheduleRequests.value.find((item) => item.status === 'pending_parent' || item.status === 'parent_confirmed') || null,
 )
@@ -370,7 +382,15 @@ function teacherLabel(teacher: Teacher) {
 }
 
 function studentLabel(participant: LessonParticipant) {
-  return [participant.student_first_name, participant.student_last_name].filter(Boolean).join(' ') || `Учень #${participant.student}`
+  return [participant.student_last_name, participant.student_first_name].filter(Boolean).join(' ') || `Учень #${participant.student}`
+}
+
+function isParticipantPresent(participant: ParticipantForm) {
+  return participant.attendance_status === 'present'
+}
+
+function participantPayrollAmount(participant: ParticipantForm) {
+  return isParticipantPresent(participant) ? participant.payroll_amount : '0.00'
 }
 
 function fillLessonDetailForm(lesson: LessonDetail) {
@@ -383,9 +403,47 @@ function fillLessonDetailForm(lesson: LessonDetail) {
   participantForms.value = (lesson.participants || []).map((participant) => ({
     id: participant.id,
     studentLabel: studentLabel(participant),
+    attendance_status: participant.attendance_status || 'pending',
     billed_amount: String(participant.billed_amount ?? '0.00'),
     payroll_amount: String(participant.payroll_amount ?? '0.00'),
   }))
+}
+
+async function toggleParticipantPresence(participant: ParticipantForm, event: Event) {
+  if (!selectedLesson.value) return
+  const checkbox = event.target as HTMLInputElement
+  const nextStatus = checkbox.checked ? 'present' : 'absent'
+  const previousStatus = participant.attendance_status
+  const previousPayrollAmount = participant.payroll_amount
+
+  participant.attendance_status = nextStatus
+  if (nextStatus !== 'present') participant.payroll_amount = '0.00'
+  savingLesson.value = true
+  detailError.value = null
+
+  try {
+    const result = await apiRequest<{ attendance_status: string; payroll_amount?: string | number }>(
+      `/api/academics/lessons/${selectedLesson.value.id}/mark-attendance/`,
+      {
+        method: 'POST',
+        body: {
+          participant_id: participant.id,
+          attendance_status: nextStatus,
+        },
+      },
+    )
+    participant.attendance_status = result.attendance_status
+    participant.payroll_amount = String(result.payroll_amount ?? participant.payroll_amount)
+    await reloadSelectedLessonDetail()
+    await reloadLessons()
+  } catch (e: any) {
+    participant.attendance_status = previousStatus
+    participant.payroll_amount = previousPayrollAmount
+    checkbox.checked = previousStatus === 'present'
+    detailError.value = apiErrorMessage(e, 'Не вдалося оновити присутність')
+  } finally {
+    savingLesson.value = false
+  }
 }
 
 function syncApplyRescheduleForm() {
@@ -570,12 +628,6 @@ async function updateLesson() {
       body.participant_updates = participantForms.value.map((participant) => ({
         id: participant.id,
         billed_amount: participant.billed_amount,
-        payroll_amount: participant.payroll_amount,
-      }))
-    } else if (canManageLessons.value) {
-      body.participant_updates = participantForms.value.map((participant) => ({
-        id: participant.id,
-        payroll_amount: participant.payroll_amount,
       }))
     }
     const updated = await apiRequest<LessonDetail>(`/api/academics/lessons/${selectedLesson.value.id}/`, {
@@ -767,6 +819,14 @@ watch(
 }
 .amount-input {
   min-width: 120px;
+}
+.presence-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+.presence-checkbox:disabled {
+  cursor: default;
 }
 .reschedule-panel {
   display: grid;
