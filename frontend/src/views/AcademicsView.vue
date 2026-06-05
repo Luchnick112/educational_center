@@ -919,7 +919,7 @@ watch(
   gap: 8px;
   align-items: center;
   font-size: 13px;
-  color: rgba(232, 238, 252, 0.9);
+  color: var(--text-soft);
 }
 
 .tabs {
@@ -929,9 +929,9 @@ watch(
 }
 
 .tab {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(232, 238, 252, 0.9);
+  border: 1px solid var(--border-strong);
+  background: var(--button-ghost-bg);
+  color: var(--text-soft);
   border-radius: 6px;
   padding: 8px 10px;
   cursor: pointer;
@@ -939,8 +939,8 @@ watch(
 }
 
 .tab--active {
-  border-color: rgba(93, 120, 255, 0.7);
-  background: rgba(93, 120, 255, 0.18);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
 }
 
 @media (max-width: 980px) {

@@ -40,6 +40,6 @@ defineProps<{
   cursor: pointer;
 }
 .clickable:hover td {
-  background: rgba(93, 120, 255, 0.07);
+  background: var(--accent-hover);
 }
 </style>

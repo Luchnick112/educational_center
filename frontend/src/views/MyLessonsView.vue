@@ -791,7 +791,7 @@ watch(
   display: grid;
   gap: 4px;
   margin-bottom: 10px;
-  color: rgba(232, 238, 252, 0.85);
+  color: var(--text-soft);
   font-size: 13px;
   font-weight: 650;
 }
@@ -815,7 +815,7 @@ watch(
 .participants-table td {
   text-align: left;
   padding: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 }
 .amount-input {
   min-width: 120px;
@@ -833,7 +833,7 @@ watch(
   gap: 10px;
 }
 .reschedule-panel .btn {
-  border-color: rgba(255, 199, 95, 0.85);
+  border-color: var(--warning-border);
 }
 .reschedule-form {
   display: grid;
@@ -842,7 +842,7 @@ watch(
 .reschedule-status {
   display: grid;
   gap: 4px;
-  color: rgba(232, 238, 252, 0.85);
+  color: var(--text-soft);
   font-size: 13px;
 }
 .save-detail {
@@ -867,9 +867,11 @@ watch(
   right: 0;
   max-height: 220px;
   overflow: auto;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
 }
 .dropdown__option {
   width: 100%;
@@ -882,7 +884,7 @@ watch(
   cursor: pointer;
 }
 .dropdown__option:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-hover);
 }
 @media (max-width: 640px) {
   .filters {

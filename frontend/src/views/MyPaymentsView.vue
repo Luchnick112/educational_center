@@ -877,17 +877,17 @@ onMounted(async () => {
 }
 
 .tab {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(232, 238, 252, 0.9);
+  border: 1px solid var(--border-strong);
+  background: var(--button-ghost-bg);
+  color: var(--text-soft);
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
 }
 
 .tab--active {
-  border-color: rgba(93, 120, 255, 0.7);
-  background: rgba(93, 120, 255, 0.18);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
 }
 
 .admin-grid {
@@ -900,7 +900,7 @@ onMounted(async () => {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
-  color: rgba(232, 238, 252, 0.78);
+  color: var(--text-soft);
   font-size: 13px;
 }
 
@@ -921,19 +921,19 @@ onMounted(async () => {
 .summary-strip div {
   display: grid;
   gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-soft);
 }
 
 .summary-strip span {
-  color: rgba(232, 238, 252, 0.65);
+  color: var(--muted);
   font-size: 12px;
 }
 
 .summary-strip strong {
-  color: #e8eefc;
+  color: var(--text);
   font-size: 18px;
 }
 

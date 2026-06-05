@@ -556,9 +556,11 @@ onMounted(async () => {
   right: 0;
   max-height: 240px;
   overflow: auto;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
 }
 .dropdown__menu--static {
   position: static;
@@ -574,17 +576,17 @@ onMounted(async () => {
   background: transparent;
   cursor: pointer;
 }
-.dropdown__option:hover { background: rgba(255, 255, 255, 0.08); }
+.dropdown__option:hover { background: var(--surface-hover); }
 .dropdown__item { display: flex; align-items: center; gap: 8px; padding: 6px; }
-.notice { color: #b8f7c4; font-size: 13px; margin-bottom: 10px; }
+.notice { color: var(--success); font-size: 13px; margin-bottom: 10px; }
 .groups-table { width: 100%; border-collapse: collapse; }
 .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-.groups-table th, .groups-table td, .pricing-table th, .pricing-table td { text-align: left; padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.groups-table th, .groups-table td, .pricing-table th, .pricing-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
 .groups-table tbody tr { cursor: pointer; }
-.groups-table tbody tr:hover { background: rgba(255, 255, 255, 0.05); }
+.groups-table tbody tr:hover { background: var(--surface-hover); }
 .groups-table tbody tr.selected {
-  background: rgba(93, 120, 255, 0.28);
-  box-shadow: inset 3px 0 0 rgba(147, 170, 255, 0.95);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .pricing-block {
   margin-top: 16px;

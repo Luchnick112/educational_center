@@ -69,7 +69,6 @@ defineProps<{
 }
 .field__label {
   font-size: 12px;
-  color: rgba(232, 238, 252, 0.65);
+  color: var(--muted);
 }
 </style>
-

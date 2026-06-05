@@ -38,6 +38,18 @@
         </div>
         <div class="topbar__right">
           <div class="user">
+            <label class="theme-switch" :title="themeTitle">
+              <input
+                class="theme-switch__input"
+                type="checkbox"
+                :checked="currentTheme === 'light'"
+                @change="toggleTheme"
+              />
+              <span class="theme-switch__track" aria-hidden="true">
+                <span class="theme-switch__thumb"></span>
+              </span>
+              <span class="theme-switch__text">{{ currentTheme === 'light' ? 'Світла' : 'Темна' }}</span>
+            </label>
             <div class="notifications">
               <button
                 class="notification-button"
@@ -108,6 +120,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { apiRequest } from '@/lib/api'
+import { currentTheme, toggleTheme } from '@/lib/theme'
 
 defineProps<{ title: string }>()
 
@@ -134,6 +147,7 @@ const isStaffish = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role
 const isAdmin = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
 const notificationStorageKey = computed(() => (auth.me ? `notifications:read:${auth.me.id}` : 'notifications:read:anonymous'))
 const unreadCount = computed(() => notifications.value.filter((item) => !isNotificationRead(item.id)).length)
+const themeTitle = computed(() => (currentTheme.value === 'light' ? 'Увімкнути темний інтерфейс' : 'Увімкнути світлий інтерфейс'))
 
 function loadReadNotifications() {
   try {
@@ -205,6 +219,56 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.theme-switch__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.theme-switch__track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+.theme-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--text);
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease;
+}
+.theme-switch__input:checked + .theme-switch__track {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.theme-switch__input:checked + .theme-switch__track .theme-switch__thumb {
+  transform: translateX(18px);
+  background: var(--accent);
+}
+.theme-switch__input:focus-visible + .theme-switch__track {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 .notifications {
   position: relative;
 }
@@ -214,15 +278,15 @@ onUnmounted(() => {
   place-items: center;
   width: 38px;
   height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #e8eefc;
+  background: var(--button-ghost-bg);
+  color: var(--text);
   cursor: pointer;
 }
 .notification-button--active {
-  border-color: rgba(255, 199, 95, 0.85);
-  background: rgba(255, 199, 95, 0.16);
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
 }
 .notification-button__icon {
   width: 18px;
@@ -241,8 +305,8 @@ onUnmounted(() => {
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #ffbf47;
-  color: #101828;
+  background: var(--warning);
+  color: var(--warning-text);
   font-size: 11px;
   font-weight: 800;
   line-height: 18px;
@@ -255,21 +319,21 @@ onUnmounted(() => {
   width: min(360px, calc(100vw - 24px));
   max-height: 420px;
   overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #0f1629;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
   padding: 8px;
 }
 .notifications-menu__title {
   padding: 7px 8px 9px;
   font-size: 12px;
   font-weight: 750;
-  color: rgba(232, 238, 252, 0.72);
+  color: var(--text-soft);
 }
 .notifications-menu__empty {
   padding: 10px 8px;
-  color: rgba(232, 238, 252, 0.6);
+  color: var(--muted);
   font-size: 13px;
 }
 .notification-item {
@@ -280,25 +344,28 @@ onUnmounted(() => {
   text-decoration: none;
 }
 .notification-item:hover {
-  background: rgba(93, 120, 255, 0.1);
+  background: var(--hover-bg);
 }
 .notification-item--read {
   opacity: 0.55;
 }
 .notification-item--read .notification-item__title,
 .notification-item--read .notification-item__message {
-  color: rgba(232, 238, 252, 0.46);
+  color: var(--muted-subtle);
 }
 .notification-item__title {
   font-size: 13px;
   font-weight: 750;
 }
 .notification-item__message {
-  color: rgba(232, 238, 252, 0.68);
+  color: var(--text-soft);
   font-size: 12px;
   line-height: 1.35;
 }
 @media (max-width: 560px) {
+  .theme-switch__text {
+    display: none;
+  }
   .notifications-menu {
     right: -92px;
   }

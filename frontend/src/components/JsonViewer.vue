@@ -48,9 +48,9 @@ async function copy() {
 .json__pre {
   margin: 0;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--surface-soft);
   overflow: auto;
   max-height: 70vh;
   font-size: 12px;
