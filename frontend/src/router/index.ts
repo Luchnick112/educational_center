@@ -6,8 +6,8 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
     { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue') },
+    { path: '/', name: 'dashboard', redirect: '/me' },
     { path: '/me', name: 'me', component: () => import('@/views/MeView.vue'), meta: { requiresAuth: true } },
-    { path: '/', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { requiresAuth: true } },
     { path: '/my/lessons', name: 'my-lessons', component: () => import('@/views/MyLessonsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/groups', name: 'my-groups', component: () => import('@/views/MyGroupsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/confirmations', name: 'my-confirmations', component: () => import('@/views/MyConfirmationsView.vue'), meta: { requiresAuth: true } },

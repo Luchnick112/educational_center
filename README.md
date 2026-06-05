@@ -8,7 +8,7 @@ School CRM / electronic diary backend on Django + DRF.
 - Django REST Framework
 - SimpleJWT
 - drf-spectacular
-- SQLite for local development
+- PostgreSQL for development and production
 
 ## What Is Implemented
 
@@ -21,10 +21,37 @@ School CRM / electronic diary backend on Django + DRF.
 
 ## Local Run
 
+Start the development PostgreSQL database:
+
 ```bash
+docker compose -f docker-compose.dev.yml up -d db
+```
+
+Install backend dependencies and run migrations:
+
+```bash
+pip install -r backend/requirements.txt
 python backend/manage.py migrate
 python backend/manage.py runserver
 ```
+
+`educational_center.settings` imports `educational_center.settings_dev` by default. The dev settings use PostgreSQL with these defaults:
+
+```text
+POSTGRES_DB=educational_center
+POSTGRES_USER=educational_center
+POSTGRES_PASSWORD=educational_center
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+```
+
+For production, run Django with:
+
+```text
+DJANGO_SETTINGS_MODULE=educational_center.settings_prod
+```
+
+Use `.env.example` and `.env.prod.example` as templates for environment variables.
 
 ## Demo Fixture
 

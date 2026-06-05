@@ -15,35 +15,37 @@
     </div>
 
     <div class="panel">
-      <div class="panel__title">Мої посилання</div>
-      <div v-if="!auth.me" class="muted">Завантаження...</div>
-      <div v-else class="links">
-        <RouterLink
-          v-for="item in auth.me.my"
-          :key="item.key"
-          class="linkrow"
-          :to="linkTo(item.url)"
-        >
-          <span class="linkrow__k">{{ item.key }}</span>
-          <span class="linkrow__v">{{ item.url }}</span>
-        </RouterLink>
+      <div class="panel__title">Статистика</div>
+      <div v-if="loading" class="muted">Завантаження...</div>
+      <div v-else class="cards">
+        <div v-for="(value, key) in stats" :key="key" class="card">
+          <div class="card__k">{{ key }}</div>
+          <div class="card__v">{{ value }}</div>
+        </div>
       </div>
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import { useAuthStore } from '@/stores/auth'
+import { apiRequest } from '@/lib/api'
 
 const auth = useAuthStore()
+const loading = ref(true)
+const stats = ref<Record<string, number>>({})
 
-function linkTo(url: string) {
-  // url is an API path (e.g. "/api/my/lessons/"). Map to an app route where possible.
-  if (url.includes('/api/my/lessons/')) return '/my/lessons'
-  if (url.includes('/api/my/confirmations/')) return '/my/confirmations'
-  if (url.includes('/api/my/payments/')) return '/my/payments'
-  if (url.includes('/api/my/children/')) return '/my/children'
-  return '/me'
-}
+type DashboardResponse = { user: unknown; role: string; stats: Record<string, number> }
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    const res = await apiRequest<DashboardResponse>('/api/users/dashboard/')
+    stats.value = res.stats ?? {}
+  } finally {
+    loading.value = false
+  }
+})
 </script>

@@ -8,7 +8,6 @@
 
       <nav class="nav">
         <RouterLink class="nav__link" to="/me">Профіль</RouterLink>
-        <RouterLink class="nav__link" to="/">Панель</RouterLink>
 
         <div class="nav__section">Моє</div>
         <RouterLink class="nav__link" to="/my/lessons">Уроки</RouterLink>
@@ -79,7 +78,6 @@
       </header>
       <nav v-if="mobileNavOpen" class="mobile-nav">
         <RouterLink class="nav__link" to="/me" @click="closeMobileNav">Профіль</RouterLink>
-        <RouterLink class="nav__link" to="/" @click="closeMobileNav">Панель</RouterLink>
 
         <div class="nav__section">Моє</div>
         <RouterLink class="nav__link" to="/my/lessons" @click="closeMobileNav">Уроки</RouterLink>
