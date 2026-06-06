@@ -1,0 +1,3456 @@
+openapi: 3.0.3
+info:
+  title: Educational Center API
+  version: 1.0.0
+  description: School CRM / electronic diary API with roles, lesson workflow and finance
+    workflow.
+paths:
+  /api/academics/confirmations/:
+    get:
+      operationId: api_academics_confirmations_list
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+    post:
+      operationId: api_academics_confirmations_create
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+  /api/academics/confirmations/{id}/:
+    get:
+      operationId: api_academics_confirmations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson confirmation.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+    put:
+      operationId: api_academics_confirmations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson confirmation.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+    patch:
+      operationId: api_academics_confirmations_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson confirmation.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedLessonConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedLessonConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedLessonConfirmationRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+    delete:
+      operationId: api_academics_confirmations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson confirmation.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/academics/confirmations/{id}/confirm/:
+    post:
+      operationId: api_academics_confirmations_confirm_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson confirmation.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonConfirmationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+  /api/academics/enrollments/:
+    get:
+      operationId: api_academics_enrollments_list
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentEnrollment'
+          description: ''
+    post:
+      operationId: api_academics_enrollments_create
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentEnrollmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentEnrollmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentEnrollmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentEnrollment'
+          description: ''
+  /api/academics/enrollments/{id}/:
+    get:
+      operationId: api_academics_enrollments_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student enrollment.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentEnrollment'
+          description: ''
+    put:
+      operationId: api_academics_enrollments_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student enrollment.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentEnrollmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentEnrollmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentEnrollmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentEnrollment'
+          description: ''
+    patch:
+      operationId: api_academics_enrollments_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student enrollment.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentEnrollmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentEnrollmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentEnrollmentRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentEnrollment'
+          description: ''
+    delete:
+      operationId: api_academics_enrollments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student enrollment.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/academics/groups/:
+    get:
+      operationId: api_academics_groups_list
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudyGroup'
+          description: ''
+    post:
+      operationId: api_academics_groups_create
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyGroup'
+          description: ''
+  /api/academics/groups/{id}/:
+    get:
+      operationId: api_academics_groups_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this study group.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyGroup'
+          description: ''
+    put:
+      operationId: api_academics_groups_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this study group.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudyGroupRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyGroup'
+          description: ''
+    patch:
+      operationId: api_academics_groups_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this study group.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudyGroupRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudyGroupRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudyGroupRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyGroup'
+          description: ''
+    delete:
+      operationId: api_academics_groups_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this study group.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/academics/lessons/:
+    get:
+      operationId: api_academics_lessons_list
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lesson'
+          description: ''
+    post:
+      operationId: api_academics_lessons_create
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+  /api/academics/lessons/{id}/:
+    get:
+      operationId: api_academics_lessons_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+    put:
+      operationId: api_academics_lessons_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+    patch:
+      operationId: api_academics_lessons_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedLessonRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedLessonRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedLessonRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+    delete:
+      operationId: api_academics_lessons_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/academics/lessons/{id}/cancel/:
+    post:
+      operationId: api_academics_lessons_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+  /api/academics/lessons/{id}/complete/:
+    post:
+      operationId: api_academics_lessons_complete_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+  /api/academics/lessons/{id}/mark-attendance/:
+    post:
+      operationId: api_academics_lessons_mark_attendance_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lesson.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LessonRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+          description: ''
+  /api/academics/subjects/:
+    get:
+      operationId: api_academics_subjects_list
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subject'
+          description: ''
+    post:
+      operationId: api_academics_subjects_create
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+          description: ''
+  /api/academics/subjects/{id}/:
+    get:
+      operationId: api_academics_subjects_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this subject.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+          description: ''
+    put:
+      operationId: api_academics_subjects_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this subject.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+          description: ''
+    patch:
+      operationId: api_academics_subjects_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this subject.
+        required: true
+      tags:
+      - Academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSubjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSubjectRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+          description: ''
+    delete:
+      operationId: api_academics_subjects_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this subject.
+        required: true
+      tags:
+      - Academics
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/finance/parent-charges/:
+    get:
+      operationId: api_finance_parent_charges_list
+      tags:
+      - Finance
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParentCharge'
+          description: ''
+    post:
+      operationId: api_finance_parent_charges_create
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentCharge'
+          description: ''
+  /api/finance/parent-charges/{id}/:
+    get:
+      operationId: api_finance_parent_charges_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent charge.
+        required: true
+      tags:
+      - Finance
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentCharge'
+          description: ''
+    put:
+      operationId: api_finance_parent_charges_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent charge.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentCharge'
+          description: ''
+    patch:
+      operationId: api_finance_parent_charges_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent charge.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedParentChargeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedParentChargeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedParentChargeRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentCharge'
+          description: ''
+    delete:
+      operationId: api_finance_parent_charges_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent charge.
+        required: true
+      tags:
+      - Finance
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/finance/parent-charges/{id}/issue/:
+    post:
+      operationId: api_finance_parent_charges_issue_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent charge.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentCharge'
+          description: ''
+  /api/finance/parent-charges/{id}/mark-paid/:
+    post:
+      operationId: api_finance_parent_charges_mark_paid_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent charge.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ParentChargeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentCharge'
+          description: ''
+  /api/finance/teacher-payouts/:
+    get:
+      operationId: api_finance_teacher_payouts_list
+      tags:
+      - Finance
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+    post:
+      operationId: api_finance_teacher_payouts_create
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+  /api/finance/teacher-payouts/{id}/:
+    get:
+      operationId: api_finance_teacher_payouts_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher payout.
+        required: true
+      tags:
+      - Finance
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+    put:
+      operationId: api_finance_teacher_payouts_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher payout.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+    patch:
+      operationId: api_finance_teacher_payouts_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher payout.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTeacherPayoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTeacherPayoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTeacherPayoutRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+    delete:
+      operationId: api_finance_teacher_payouts_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher payout.
+        required: true
+      tags:
+      - Finance
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/finance/teacher-payouts/{id}/approve/:
+    post:
+      operationId: api_finance_teacher_payouts_approve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher payout.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+  /api/finance/teacher-payouts/{id}/mark-paid/:
+    post:
+      operationId: api_finance_teacher_payouts_mark_paid_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher payout.
+        required: true
+      tags:
+      - Finance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeacherPayoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherPayout'
+          description: ''
+  /api/me/:
+    get:
+      operationId: api_me_retrieve
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+          description: ''
+  /api/my/children/:
+    get:
+      operationId: api_my_children_list
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentProfile'
+          description: ''
+  /api/my/children-summary/:
+    get:
+      operationId: api_my_children_summary_retrieve
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentProfile'
+          description: ''
+        '204':
+          description: No response body
+  /api/my/confirmations/:
+    get:
+      operationId: api_my_confirmations_list
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LessonConfirmation'
+          description: ''
+  /api/my/lessons/:
+    get:
+      operationId: api_my_lessons_list
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lesson'
+          description: ''
+  /api/my/payments/:
+    get:
+      operationId: api_my_payments_retrieve
+      tags:
+      - Core
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPayments'
+          description: ''
+  /api/users/:
+    get:
+      operationId: api_users_list
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
+    post:
+      operationId: api_users_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/{id}/:
+    get:
+      operationId: api_users_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: api_users_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    patch:
+      operationId: api_users_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    delete:
+      operationId: api_users_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/users/dashboard/:
+    get:
+      operationId: api_users_dashboard_retrieve
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: ''
+  /api/users/me/:
+    get:
+      operationId: api_users_me_retrieve
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/parents/:
+    get:
+      operationId: api_users_parents_list
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParentProfile'
+          description: ''
+    post:
+      operationId: api_users_parents_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParentProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParentProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ParentProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentProfile'
+          description: ''
+  /api/users/parents/{id}/:
+    get:
+      operationId: api_users_parents_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent profile.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentProfile'
+          description: ''
+    put:
+      operationId: api_users_parents_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent profile.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParentProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ParentProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ParentProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentProfile'
+          description: ''
+    patch:
+      operationId: api_users_parents_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent profile.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedParentProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedParentProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedParentProfileRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParentProfile'
+          description: ''
+    delete:
+      operationId: api_users_parents_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this parent profile.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/users/register/:
+    post:
+      operationId: api_users_register_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/student-parent-relations/:
+    get:
+      operationId: api_users_student_parent_relations_list
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    post:
+      operationId: api_users_student_parent_relations_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+  /api/users/student-parent-relations/{id}/:
+    get:
+      operationId: api_users_student_parent_relations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    put:
+      operationId: api_users_student_parent_relations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentParentRelationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    patch:
+      operationId: api_users_student_parent_relations_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentParentRelationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentParentRelationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentParentRelationRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentParentRelation'
+          description: ''
+    delete:
+      operationId: api_users_student_parent_relations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student parent relation.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/users/students/:
+    get:
+      operationId: api_users_students_list
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentProfile'
+          description: ''
+    post:
+      operationId: api_users_students_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+          description: ''
+  /api/users/students/{id}/:
+    get:
+      operationId: api_users_students_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student profile.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+          description: ''
+    put:
+      operationId: api_users_students_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student profile.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudentProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudentProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+          description: ''
+    patch:
+      operationId: api_users_students_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student profile.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudentProfileRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+          description: ''
+    delete:
+      operationId: api_users_students_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this student profile.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/users/teachers/:
+    get:
+      operationId: api_users_teachers_list
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeacherProfile'
+          description: ''
+    post:
+      operationId: api_users_teachers_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeacherProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeacherProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherProfile'
+          description: ''
+  /api/users/teachers/{id}/:
+    get:
+      operationId: api_users_teachers_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher profile.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherProfile'
+          description: ''
+    put:
+      operationId: api_users_teachers_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher profile.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TeacherProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TeacherProfileRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherProfile'
+          description: ''
+    patch:
+      operationId: api_users_teachers_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher profile.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTeacherProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTeacherProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTeacherProfileRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherProfile'
+          description: ''
+    delete:
+      operationId: api_users_teachers_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this teacher profile.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/users/telegram/link-token/:
+    post:
+      operationId: api_users_telegram_link_token_create
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelegramLinkTokenResponse'
+          description: ''
+  /api/users/telegram/webhook/:
+    post:
+      operationId: api_users_telegram_webhook_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TelegramWebhookRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/users/token/:
+    post:
+      operationId: api_users_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramUsernameTokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TelegramUsernameTokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TelegramUsernameTokenObtainPairRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelegramUsernameTokenObtainPair'
+          description: ''
+  /api/users/token/refresh/:
+    post:
+      operationId: api_users_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailTokenRefreshRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailTokenRefresh'
+          description: ''
+components:
+  schemas:
+    AttendanceStatusEnum:
+      enum:
+      - pending
+      - present
+      - absent
+      - excused
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `present` - Present
+        * `absent` - Absent
+        * `excused` - Excused
+    Dashboard:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        role:
+          type: string
+        stats:
+          $ref: '#/components/schemas/DashboardStats'
+      required:
+      - role
+      - stats
+      - user
+    DashboardStats:
+      type: object
+      properties:
+        active_enrollments:
+          type: integer
+        upcoming_lessons:
+          type: integer
+        pending_confirmations:
+          type: integer
+        children:
+          type: integer
+        open_charges:
+          type: integer
+        groups:
+          type: integer
+        scheduled_lessons:
+          type: integer
+        pending_payouts:
+          type: integer
+        users:
+          type: integer
+    EmailTokenRefresh:
+      type: object
+      properties:
+        refresh:
+          type: string
+        access:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    EmailTokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    FormatEnum:
+      enum:
+      - group
+      - individual
+      type: string
+      description: |-
+        * `group` - Group
+        * `individual` - Individual
+    Lesson:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        group:
+          type: integer
+        starts_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/LessonStatusEnum'
+        notes:
+          type: string
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonParticipant'
+          readOnly: true
+      required:
+      - group
+      - id
+      - participants
+      - starts_at
+    LessonConfirmation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        participant:
+          type: integer
+        requested_from:
+          $ref: '#/components/schemas/RequestedFromEnum'
+        confirmer:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/LessonConfirmationStatusEnum'
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        comment:
+          type: string
+      required:
+      - id
+      - participant
+      - requested_from
+    LessonConfirmationRequest:
+      type: object
+      properties:
+        participant:
+          type: integer
+        requested_from:
+          $ref: '#/components/schemas/RequestedFromEnum'
+        confirmer:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/LessonConfirmationStatusEnum'
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        comment:
+          type: string
+      required:
+      - participant
+      - requested_from
+    LessonConfirmationStatusEnum:
+      enum:
+      - pending
+      - confirmed
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `confirmed` - Confirmed
+        * `rejected` - Rejected
+    LessonParticipant:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        lesson:
+          type: integer
+        enrollment:
+          type: integer
+        student:
+          type: integer
+          readOnly: true
+        teacher_id:
+          type: integer
+          readOnly: true
+        teacher_last_name:
+          type: string
+          readOnly: true
+        student_last_name:
+          type: string
+          readOnly: true
+        attendance_status:
+          $ref: '#/components/schemas/AttendanceStatusEnum'
+        billed_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        payroll_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - billed_amount
+      - enrollment
+      - id
+      - lesson
+      - payroll_amount
+      - student
+      - student_last_name
+      - teacher_id
+      - teacher_last_name
+    LessonParticipantRequest:
+      type: object
+      properties:
+        lesson:
+          type: integer
+        enrollment:
+          type: integer
+        attendance_status:
+          $ref: '#/components/schemas/AttendanceStatusEnum'
+      required:
+      - enrollment
+      - lesson
+    LessonRequest:
+      type: object
+      properties:
+        group:
+          type: integer
+        starts_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/LessonStatusEnum'
+        notes:
+          type: string
+      required:
+      - group
+      - starts_at
+    LessonStatusEnum:
+      enum:
+      - scheduled
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `scheduled` - Scheduled
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    Me:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        last_name:
+          type: string
+        telegram_username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        is_staff:
+          type: boolean
+        my:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyLink'
+      required:
+      - email
+      - first_name
+      - id
+      - is_staff
+      - last_name
+      - role
+    MyLink:
+      type: object
+      properties:
+        key:
+          type: string
+        url:
+          type: string
+          format: uri
+      required:
+      - key
+      - url
+    MyPayments:
+      type: object
+      properties:
+        charges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParentCharge'
+        payouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeacherPayout'
+      required:
+      - charges
+      - payouts
+    ParentCharge:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        participant:
+          type: integer
+        parent:
+          type: integer
+        student:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/ParentChargeStatusEnum'
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        issued_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - amount
+      - id
+      - parent
+      - participant
+      - student
+    ParentChargeRequest:
+      type: object
+      properties:
+        participant:
+          type: integer
+        parent:
+          type: integer
+        student:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/ParentChargeStatusEnum'
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        issued_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - amount
+      - parent
+      - participant
+      - student
+    ParentChargeStatusEnum:
+      enum:
+      - draft
+      - issued
+      - paid
+      - cancelled
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `issued` - Issued
+        * `paid` - Paid
+        * `cancelled` - Cancelled
+    ParentProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+        user_detail:
+          type: string
+          readOnly: true
+        billing_notes:
+          type: string
+      required:
+      - id
+      - user
+      - user_detail
+    ParentProfileRequest:
+      type: object
+      properties:
+        user:
+          type: integer
+        billing_notes:
+          type: string
+      required:
+      - user
+    PatchedLessonConfirmationRequest:
+      type: object
+      properties:
+        participant:
+          type: integer
+        requested_from:
+          $ref: '#/components/schemas/RequestedFromEnum'
+        confirmer:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/LessonConfirmationStatusEnum'
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        comment:
+          type: string
+    PatchedLessonRequest:
+      type: object
+      properties:
+        group:
+          type: integer
+        starts_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/LessonStatusEnum'
+        notes:
+          type: string
+    PatchedParentChargeRequest:
+      type: object
+      properties:
+        participant:
+          type: integer
+        parent:
+          type: integer
+        student:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/ParentChargeStatusEnum'
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        issued_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+    PatchedParentProfileRequest:
+      type: object
+      properties:
+        user:
+          type: integer
+        billing_notes:
+          type: string
+    PatchedStudentEnrollmentRequest:
+      type: object
+      properties:
+        group:
+          type: integer
+        student:
+          type: integer
+        status:
+          $ref: '#/components/schemas/StudentEnrollmentStatusEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        student_price_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        teacher_rate_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+    PatchedStudentParentRelationRequest:
+      type: object
+      properties:
+        parent:
+          type: integer
+        student:
+          type: integer
+        is_primary:
+          type: boolean
+        is_financial_contact:
+          type: boolean
+    PatchedStudentProfileRequest:
+      type: object
+      properties:
+        user:
+          type: integer
+        grade:
+          type: string
+          maxLength: 32
+        notes:
+          type: string
+    PatchedStudyGroupRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        teacher:
+          type: integer
+        format:
+          $ref: '#/components/schemas/FormatEnum'
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        student_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        teacher_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+    PatchedSubjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+    PatchedTeacherPayoutRequest:
+      type: object
+      properties:
+        participant:
+          type: integer
+        teacher:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/TeacherPayoutStatusEnum'
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+    PatchedTeacherProfileRequest:
+      type: object
+      properties:
+        user:
+          type: integer
+        hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        bio:
+          type: string
+    PatchedUserRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        telegram_username:
+          type: string
+          nullable: true
+          maxLength: 33
+        telegram_chat_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        telegram_user_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          maxLength: 32
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+    RegisterRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        telegram_username:
+          type: string
+          minLength: 1
+          maxLength: 33
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          maxLength: 32
+      required:
+      - password
+      - role
+      - telegram_username
+    RequestedFromEnum:
+      enum:
+      - student
+      - parent
+      - teacher
+      type: string
+      description: |-
+        * `student` - Student
+        * `parent` - Parent
+        * `teacher` - Teacher
+    RoleEnum:
+      enum:
+      - admin
+      - teacher
+      - parent
+      - student
+      type: string
+      description: |-
+        * `admin` - Admin
+        * `teacher` - Teacher
+        * `parent` - Parent
+        * `student` - Student
+    StudentEnrollment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        group:
+          type: integer
+        student:
+          type: integer
+        status:
+          $ref: '#/components/schemas/StudentEnrollmentStatusEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        student_price_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        teacher_rate_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+      required:
+      - group
+      - id
+      - start_date
+      - student
+    StudentEnrollmentRequest:
+      type: object
+      properties:
+        group:
+          type: integer
+        student:
+          type: integer
+        status:
+          $ref: '#/components/schemas/StudentEnrollmentStatusEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        student_price_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        teacher_rate_override:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+      required:
+      - group
+      - start_date
+      - student
+    StudentEnrollmentStatusEnum:
+      enum:
+      - active
+      - paused
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `active` - Active
+        * `paused` - Paused
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    StudentParentRelation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        parent:
+          type: integer
+        student:
+          type: integer
+        is_primary:
+          type: boolean
+        is_financial_contact:
+          type: boolean
+      required:
+      - id
+      - parent
+      - student
+    StudentParentRelationRequest:
+      type: object
+      properties:
+        parent:
+          type: integer
+        student:
+          type: integer
+        is_primary:
+          type: boolean
+        is_financial_contact:
+          type: boolean
+      required:
+      - parent
+      - student
+    StudentProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+        user_detail:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        grade:
+          type: string
+          maxLength: 32
+        notes:
+          type: string
+        parent_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentParentRelation'
+          readOnly: true
+      required:
+      - id
+      - parent_links
+      - user
+      - user_detail
+    StudentProfileRequest:
+      type: object
+      properties:
+        user:
+          type: integer
+        grade:
+          type: string
+          maxLength: 32
+        notes:
+          type: string
+      required:
+      - user
+    StudyGroup:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        subject:
+          type: integer
+        teacher:
+          type: integer
+        format:
+          $ref: '#/components/schemas/FormatEnum'
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        student_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        teacher_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+      required:
+      - format
+      - id
+      - name
+      - student_price
+      - subject
+      - teacher
+      - teacher_rate
+    StudyGroupRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        teacher:
+          type: integer
+        format:
+          $ref: '#/components/schemas/FormatEnum'
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        student_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        teacher_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+      required:
+      - format
+      - student_price
+      - subject
+      - teacher
+      - teacher_rate
+    Subject:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 128
+        description:
+          type: string
+      required:
+      - id
+      - name
+    SubjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+      required:
+      - name
+    TeacherPayout:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        participant:
+          type: integer
+        teacher:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/TeacherPayoutStatusEnum'
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - amount
+      - id
+      - participant
+      - teacher
+    TeacherPayoutRequest:
+      type: object
+      properties:
+        participant:
+          type: integer
+        teacher:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/TeacherPayoutStatusEnum'
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - amount
+      - participant
+      - teacher
+    TeacherPayoutStatusEnum:
+      enum:
+      - draft
+      - approved
+      - paid
+      - cancelled
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `approved` - Approved
+        * `paid` - Paid
+        * `cancelled` - Cancelled
+    TeacherProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+        user_detail:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        bio:
+          type: string
+      required:
+      - id
+      - user
+      - user_detail
+    TeacherProfileRequest:
+      type: object
+      properties:
+        user:
+          type: integer
+        hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        bio:
+          type: string
+      required:
+      - user
+    TelegramLinkTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        deep_link_url:
+          type: string
+          format: uri
+      required:
+      - deep_link_url
+      - expires_at
+      - token
+    TelegramUsernameTokenObtainPair:
+      type: object
+      properties:
+        telegram_username:
+          type: string
+        email:
+          type: string
+          format: email
+    TelegramUsernameTokenObtainPairRequest:
+      type: object
+      properties:
+        telegram_username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - password
+    TelegramWebhookRequest:
+      type: object
+      properties:
+        update_id:
+          type: integer
+        message:
+          type: object
+          additionalProperties: {}
+        edited_message:
+          type: object
+          additionalProperties: {}
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        telegram_username:
+          type: string
+          nullable: true
+          maxLength: 33
+        telegram_chat_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        telegram_user_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          maxLength: 32
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+      required:
+      - id
+      - role
+    UserRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        telegram_username:
+          type: string
+          nullable: true
+          maxLength: 33
+        telegram_chat_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        telegram_user_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          maxLength: 32
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+      required:
+      - role
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Users
+  description: Authentication, profiles and user resources.
+- name: Academics
+  description: Subjects, groups, lessons, enrollments and confirmations.
+- name: Finance
+  description: Charges and teacher payouts.
+- name: Core
+  description: Cross-cutting endpoints like /api/me and /api/my/*.
