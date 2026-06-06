@@ -53,6 +53,56 @@ DJANGO_SETTINGS_MODULE=educational_center.settings_prod
 
 Use `.env.example` and `.env.prod.example` as templates for environment variables.
 
+## Production Docker Deploy
+
+Create the production environment file:
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+Edit `.env.prod` and set real values for:
+
+- `SECRET_KEY`
+- `POSTGRES_PASSWORD`
+- `ALLOWED_HOSTS`
+- `CSRF_TRUSTED_ORIGINS`
+- `APP_PORT` if the app should not listen on port `80`
+
+Build and start the production stack:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+The stack contains:
+
+- `db`: PostgreSQL
+- `backend`: Django + Gunicorn
+- `frontend`: nginx serving Vue and proxying `/api/` and `/admin/`
+
+The backend entrypoint waits for PostgreSQL, runs migrations, collects static files, then starts Gunicorn.
+
+Create an admin user:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend python manage.py createsuperuser
+```
+
+Import transferred data after first deploy, if needed:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend python manage.py loaddata fixtures/postgres_transfer_dump.json
+```
+
+Useful operations:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f backend
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps
+docker compose --env-file .env.prod -f docker-compose.prod.yml down
+```
+
 ## Demo Fixture
 
 Load demo data into the local database:
