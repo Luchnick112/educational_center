@@ -6,12 +6,12 @@ from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 
 
-class DevCorsMiddleware:
+class CorsMiddleware:
     """
-    Minimal CORS middleware for local development.
+    Minimal CORS middleware.
 
-    This repo runs the frontend on a different origin (Vite, e.g. :5190) than
-    the Django API (:8000). Without CORS headers, browsers will block responses.
+    This project intentionally avoids an extra dependency for a small CORS use
+    case: the Vue app calls the API from a different subdomain in production.
     """
 
     def __init__(self, get_response):
@@ -19,7 +19,10 @@ class DevCorsMiddleware:
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         origin = request.headers.get("Origin")
-        allowed: Iterable[str] = getattr(settings, "DEV_CORS_ALLOWED_ORIGINS", ())
+        allowed: Iterable[str] = (
+            *getattr(settings, "CORS_ALLOWED_ORIGINS", ()),
+            *getattr(settings, "DEV_CORS_ALLOWED_ORIGINS", ()),
+        )
 
         # Handle preflight early.
         if request.method == "OPTIONS" and origin and origin in allowed:
@@ -36,5 +39,7 @@ class DevCorsMiddleware:
         resp["Access-Control-Allow-Origin"] = origin
         resp["Vary"] = "Origin"
         resp["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-        resp["Access-Control-Allow-Headers"] = "Authorization,Content-Type"
+        resp["Access-Control-Allow-Headers"] = "Accept,Authorization,Content-Type,X-CSRFToken"
 
+
+DevCorsMiddleware = CorsMiddleware
