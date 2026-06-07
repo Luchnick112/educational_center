@@ -17,10 +17,7 @@ DATABASES = {
     "default": postgres_database_config(host_default="db"),  # noqa: F405
 }
 
-MIDDLEWARE = [
-    item for item in MIDDLEWARE  # noqa: F405
-    if item != "core.middleware.DevCorsMiddleware"
-]
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")  # noqa: F405
 
 REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
     "rest_framework.renderers.JSONRenderer",

@@ -1,0 +1,40 @@
+www.helper-lesson.net {
+    redir https://helper-lesson.net{uri} permanent
+}
+
+helper-lesson.net {
+    encode gzip
+    reverse_proxy marketing:80
+}
+
+app.helper-lesson.net {
+    encode gzip
+
+    handle /api/* {
+        respond "Not found" 404
+    }
+
+    handle /admin/* {
+        respond "Not found" 404
+    }
+
+    reverse_proxy frontend:80
+}
+
+api.helper-lesson.net {
+    encode gzip
+
+    handle / {
+        redir /api/docs/ 302
+    }
+
+    handle_path /static/* {
+        root * /staticfiles
+        file_server
+    }
+
+    reverse_proxy backend:8000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Real-IP {remote_host}
+    }
+}
