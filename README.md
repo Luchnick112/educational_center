@@ -67,7 +67,37 @@ Edit `.env.prod` and set real values for:
 - `POSTGRES_PASSWORD`
 - `ALLOWED_HOSTS`
 - `CSRF_TRUSTED_ORIGINS`
+- `CORS_ALLOWED_ORIGINS`
+- `VITE_API_URL`
 - `APP_PORT` if the app should not listen on port `80`
+- `HTTPS_PORT` if the app should not listen on port `443`
+
+Default production host layout:
+
+```text
+helper-lesson.net      -> marketing landing
+www.helper-lesson.net  -> redirect to helper-lesson.net
+app.helper-lesson.net  -> Vue CRM / user cabinet
+api.helper-lesson.net  -> Django API and admin
+```
+
+Point these DNS records to the server:
+
+```text
+A  helper-lesson.net      -> SERVER_IP
+A  www.helper-lesson.net  -> SERVER_IP
+A  app.helper-lesson.net  -> SERVER_IP
+A  api.helper-lesson.net  -> SERVER_IP
+```
+
+Recommended production values:
+
+```text
+ALLOWED_HOSTS=api.helper-lesson.net
+CSRF_TRUSTED_ORIGINS=https://api.helper-lesson.net,https://app.helper-lesson.net
+CORS_ALLOWED_ORIGINS=https://app.helper-lesson.net
+VITE_API_URL=https://api.helper-lesson.net
+```
 
 Build and start the production stack:
 
@@ -79,7 +109,9 @@ The stack contains:
 
 - `db`: PostgreSQL
 - `backend`: Django + Gunicorn
-- `frontend`: nginx serving Vue and proxying `/api/` and `/admin/`
+- `frontend`: nginx serving the Vue CRM app
+- `marketing`: nginx serving the marketing landing
+- `proxy`: public Caddy reverse proxy routing domains to `marketing`, `frontend` and `backend`, with automatic HTTPS
 
 The backend entrypoint waits for PostgreSQL, runs migrations, collects static files, then starts Gunicorn.
 
