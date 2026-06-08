@@ -1,5 +1,8 @@
 .idea/
 .env
+.env.*
+!.env.example
+!.env.prod.example
 .venv/
 venv/
 *env/
