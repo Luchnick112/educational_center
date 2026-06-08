@@ -267,6 +267,17 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertNotIn('teacher_rate', response.data)
         self.assertEqual(response.data['student_price'], '123.45')
 
+    def test_student_group_detail_uses_student_lesson_price(self):
+        self.student.lesson_price = Decimal('345.67')
+        self.student.save(update_fields=['lesson_price'])
+        self.client.force_authenticate(self.student_user)
+
+        response = self.client.get(f'/api/academics/groups/{self.group.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('teacher_rate', response.data)
+        self.assertEqual(response.data['student_price'], '345.67')
+
     def test_parent_sees_only_child_price_in_group_detail(self):
         self.enrollment.student_price_override = Decimal('234.56')
         self.enrollment.save(update_fields=['student_price_override'])

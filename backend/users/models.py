@@ -54,7 +54,7 @@ class TelegramLinkToken(models.Model):
 
 class StudentProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='student_profile')
-    grade = models.CharField(max_length=32, blank=True)
+    lesson_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
 
     def clean(self) -> None:

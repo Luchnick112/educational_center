@@ -28,7 +28,7 @@ class DemoFixtureTestCase(TestCase):
         student = User.objects.get(email='student@example.com')
 
         self.assertEqual(teacher.role, 'teacher')
-        self.assertEqual(student.student_profile.grade, '8')
+        self.assertTrue(hasattr(student, 'student_profile'))
 
 
 class TelegramLinkFlowTestCase(TestCase):
@@ -67,6 +67,154 @@ class TelegramLinkFlowTestCase(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.telegram_chat_id, 123456)
         self.assertEqual(self.user.telegram_user_id, 654321)
+
+
+class RegisterApiTestCase(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = User.objects.create_user(
+            username='staff_user',
+            telegram_username='@staff_user',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+
+    def test_staff_can_create_student_without_password(self):
+        self.client.force_authenticate(self.staff)
+
+        resp = self.client.post(
+            '/api/users/register/',
+            {
+                'first_name': 'Ivan',
+                'last_name': 'Student',
+                'telegram_username': '@ivan_student',
+                'email': 'ivan.student@example.com',
+                'role': UserRole.STUDENT,
+                'phone': '+380000000010',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        user = User.objects.get(pk=resp.data['id'])
+        self.assertEqual(user.role, UserRole.STUDENT)
+        self.assertFalse(user.has_usable_password())
+        self.assertTrue(hasattr(user, 'student_profile'))
+
+    def test_staff_can_update_student_lesson_price(self):
+        self.client.force_authenticate(self.staff)
+        student_user = User.objects.create_user(
+            username='priced_student',
+            telegram_username='@priced_student',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        student = StudentProfile.objects.create(user=student_user)
+
+        resp = self.client.patch(
+            f'/api/users/students/{student.id}/',
+            {
+                'lesson_price': '750.00',
+                'notes': 'Individual lesson price',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        student.refresh_from_db()
+        self.assertEqual(student.lesson_price, 750)
+        self.assertEqual(student.notes, 'Individual lesson price')
+
+    def test_student_can_claim_staff_created_account_by_telegram(self):
+        student = User.objects.create(
+            username='@claim_student',
+            telegram_username='@claim_student',
+            email='claim.student@example.com',
+            role=UserRole.STUDENT,
+        )
+        student.set_unusable_password()
+        student.save()
+        StudentProfile.objects.create(user=student)
+
+        resp = self.client.post(
+            '/api/users/register/',
+            {
+                'first_name': 'Claimed',
+                'last_name': 'Student',
+                'telegram_username': '@claim_student',
+                'role': UserRole.STUDENT,
+                'password': 'newpass123',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data['id'], student.id)
+
+        student.refresh_from_db()
+        self.assertTrue(student.has_usable_password())
+        self.assertTrue(student.check_password('newpass123'))
+        self.assertEqual(student.first_name, 'Claimed')
+
+        token_resp = self.client.post(
+            '/api/users/token/',
+            {'telegram_username': '@claim_student', 'password': 'newpass123'},
+            format='json',
+        )
+        self.assertEqual(token_resp.status_code, 200, token_resp.data)
+
+    def test_public_registration_rejects_existing_usable_account(self):
+        User.objects.create_user(
+            username='@existing_student',
+            telegram_username='@existing_student',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+
+        resp = self.client.post(
+            '/api/users/register/',
+            {
+                'first_name': 'Existing',
+                'last_name': 'Student',
+                'telegram_username': '@existing_student',
+                'role': UserRole.STUDENT,
+                'password': 'newpass123',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 400)
+
+    def test_staff_can_update_user_account_fields(self):
+        self.client.force_authenticate(self.staff)
+        student = User.objects.create_user(
+            username='student_user',
+            telegram_username='@student_user',
+            email='old.student@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+
+        resp = self.client.patch(
+            f'/api/users/{student.id}/',
+            {
+                'first_name': 'Updated',
+                'last_name': 'Student',
+                'telegram_username': 'UpdatedStudent',
+                'email': 'UPDATED.STUDENT@EXAMPLE.COM',
+                'phone': '+380000000011',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        student.refresh_from_db()
+        self.assertEqual(student.first_name, 'Updated')
+        self.assertEqual(student.last_name, 'Student')
+        self.assertEqual(student.telegram_username, '@updatedstudent')
+        self.assertEqual(student.email, 'updated.student@example.com')
+        self.assertEqual(student.phone, '+380000000011')
 
 
 class StudentParentRelationApiTestCase(TestCase):

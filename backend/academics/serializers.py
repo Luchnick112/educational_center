@@ -49,6 +49,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         )
         if enrollment and enrollment.student_price_override is not None:
             return enrollment.student_price_override
+        if enrollment and enrollment.student.lesson_price is not None:
+            return enrollment.student.lesson_price
         student_price, _ = group.get_effective_pricing(timezone.now())
         return student_price
 

@@ -12,7 +12,7 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(StudentProfile)
 class StudentProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'grade')
+    list_display = ('user', 'lesson_price')
     search_fields = ('user__username', 'user__first_name', 'user__last_name')
 
 

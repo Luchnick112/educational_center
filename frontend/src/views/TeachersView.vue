@@ -48,8 +48,7 @@
             v-else-if="selectedUserDetail"
             title="Акаунт"
             :model="selectedUserDetail"
-            :disabled="true"
-            hint="Редагування полів акаунта у цьому інтерфейсі не реалізовано."
+            :disabled="mode === 'view'"
           />
 
           <div class="field">
@@ -112,6 +111,20 @@ const selectedUserDetail = computed(() => {
     phone: (u as any).phone || '',
   }
 })
+
+async function updateSelectedUserAccount() {
+  if (!detail.value || !selectedUserDetail.value) return
+  await apiRequest(`/api/users/${detail.value.user}/`, {
+    method: 'PATCH',
+    body: {
+      first_name: selectedUserDetail.value.first_name,
+      last_name: selectedUserDetail.value.last_name,
+      telegram_username: selectedUserDetail.value.telegram_username || null,
+      email: selectedUserDetail.value.email || '',
+      phone: selectedUserDetail.value.phone || '',
+    },
+  })
+}
 
 const hourly_rate = ref('')
 const bio = ref('')
@@ -201,6 +214,7 @@ async function submitForm() {
           first_name: createUser.value.first_name,
           last_name: createUser.value.last_name,
           telegram_username: createUser.value.telegram_username,
+          email: createUser.value.email || undefined,
           role: 'teacher',
           phone: createUser.value.phone || undefined,
           password: createUser.value.password,
@@ -220,10 +234,12 @@ async function submitForm() {
     }
 
     if (mode.value === 'edit' && selectedId.value) {
+      await updateSelectedUserAccount()
       await apiRequest(`/api/users/teachers/${selectedId.value}/`, {
         method: 'PATCH',
         body: { hourly_rate: hourly_rate.value === '' ? null : hourly_rate.value, bio: bio.value || '' },
       })
+      await reload()
       await loadDetail(selectedId.value)
       mode.value = 'view'
     }

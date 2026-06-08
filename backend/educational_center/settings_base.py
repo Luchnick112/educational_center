@@ -19,12 +19,12 @@ REPO_ROOT = BASE_DIR.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
 
 
-def _load_dotenv(path: Path) -> None:
+def _load_dotenv(path: Path, *, override: bool = False) -> None:
     """
     Minimal .env loader (no external deps).
 
     - Supports KEY=VALUE lines, optional quotes, ignores comments/blank lines.
-    - Does not override already defined environment variables.
+    - Does not override already defined environment variables unless requested.
     """
     if not path.exists() or not path.is_file():
         return
@@ -41,7 +41,7 @@ def _load_dotenv(path: Path) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
-        if not key or key in os.environ:
+        if not key or (key in os.environ and not override):
             continue
 
         if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
@@ -50,8 +50,18 @@ def _load_dotenv(path: Path) -> None:
         os.environ[key] = value
 
 
-# Allow local development to use a repo-root .env file.
-_load_dotenv(REPO_ROOT / ".env")
+def _should_override_with_local_dotenv() -> bool:
+    settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "")
+    return settings_module in {
+        "",
+        "educational_center.settings",
+        "educational_center.settings_dev",
+    }
+
+
+# Allow local development to use a repo-root .env file. In dev, the repo .env is
+# the source of truth so stale global/IDE variables do not shadow it.
+_load_dotenv(REPO_ROOT / ".env", override=_should_override_with_local_dotenv())
 
 
 def env_bool(name: str, default: bool = False) -> bool:

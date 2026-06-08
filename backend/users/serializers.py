@@ -28,10 +28,47 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active',
         )
 
+    def validate_telegram_username(self, value):
+        normalized = (value or '').strip().lower()
+        if not normalized:
+            return None
+        if not normalized.startswith('@'):
+            normalized = f'@{normalized}'
+
+        if not re.fullmatch(TELEGRAM_USERNAME_RE, normalized):
+            raise serializers.ValidationError(
+                'Invalid Telegram username. Use 5-32 characters: letters, numbers, underscore.'
+            )
+
+        legacy_without_at = normalized[1:]
+        queryset = User.objects.filter(telegram_username__iexact=normalized) | User.objects.filter(
+            telegram_username__iexact=legacy_without_at
+        )
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('User with this Telegram username already exists.')
+
+        return normalized
+
+    def validate_email(self, value):
+        email = (value or '').strip().lower()
+        if not email:
+            return ''
+
+        queryset = User.objects.filter(email__iexact=email)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('User with this email already exists.')
+
+        return email
+
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-    telegram_username = serializers.CharField(required=True, max_length=33)
+    password = serializers.CharField(write_only=True, min_length=8, required=False, allow_blank=False)
+    telegram_username = serializers.CharField(required=False, allow_blank=True, max_length=33)
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -41,6 +78,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'telegram_username',
+            'email',
             'role',
             'phone',
         )
@@ -53,43 +91,105 @@ class RegisterSerializer(serializers.ModelSerializer):
             normalized = f'@{normalized}'
 
         if not normalized:
-            raise serializers.ValidationError('Telegram username is required.')
+            return ''
 
         if not re.fullmatch(TELEGRAM_USERNAME_RE, normalized):
             raise serializers.ValidationError(
                 'Invalid Telegram username. Use 5-32 characters: letters, numbers, underscore.'
             )
 
-        legacy_without_at = normalized[1:] if normalized.startswith('@') else normalized
-
-        if User.objects.filter(telegram_username__iexact=normalized).exists() or User.objects.filter(
-            telegram_username__iexact=legacy_without_at
-        ).exists():
-            raise serializers.ValidationError('User with this Telegram username already exists.')
-
-        # Ensure we can also safely use it as Django "username" for admin/browsable auth if needed.
-        if User.objects.filter(username__iexact=normalized).exists() or User.objects.filter(
-            username__iexact=legacy_without_at
-        ).exists():
-            raise serializers.ValidationError('User with this username already exists.')
-
         return normalized
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def _is_staff_request(self) -> bool:
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        return bool(user and user.is_authenticated and (user.is_staff or user.role == UserRole.ADMIN))
+
+    def _existing_user_for_identity(self, *, telegram_username: str = '', email: str = '') -> User | None:
+        matches = []
+
+        if telegram_username:
+            legacy_without_at = telegram_username[1:] if telegram_username.startswith('@') else telegram_username
+            matches.extend(
+                User.objects.filter(telegram_username__iexact=telegram_username)
+                | User.objects.filter(telegram_username__iexact=legacy_without_at)
+                | User.objects.filter(username__iexact=telegram_username)
+                | User.objects.filter(username__iexact=legacy_without_at)
+            )
+
+        if email:
+            matches.extend(User.objects.filter(email__iexact=email) | User.objects.filter(username__iexact=email))
+
+        unique_matches = {user.pk: user for user in matches}
+        if len(unique_matches) > 1:
+            raise serializers.ValidationError(
+                'Telegram username and email belong to different existing users.'
+            )
+
+        return next(iter(unique_matches.values()), None)
+
+    def validate(self, attrs):
+        role = attrs.get('role')
+        password = attrs.get('password', '')
+        telegram_username = attrs.get('telegram_username', '')
+        email = attrs.get('email', '')
+
+        if not telegram_username and not email:
+            raise serializers.ValidationError('Telegram username or email is required.')
+
+        staff_creating_student = self._is_staff_request() and role == UserRole.STUDENT
+        if not password and not staff_creating_student:
+            raise serializers.ValidationError({'password': 'Password is required.'})
+
+        existing_user = self._existing_user_for_identity(telegram_username=telegram_username, email=email)
+        if existing_user:
+            can_claim_student = (
+                bool(password)
+                and role == UserRole.STUDENT
+                and existing_user.role == UserRole.STUDENT
+                and not existing_user.has_usable_password()
+            )
+            if not can_claim_student:
+                raise serializers.ValidationError('User with this Telegram username or email already exists.')
+
+            attrs['_claim_user'] = existing_user
+
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):
-        password = validated_data.pop('password')
-        telegram_username = validated_data['telegram_username']
+        password = validated_data.pop('password', '')
+        claim_user = validated_data.pop('_claim_user', None)
 
-        # Keep a stable identifier for Django auth/admin. We enforce uniqueness in validate_telegram_username.
-        user = User(username=telegram_username, **validated_data)
-        user.set_password(password)
-        user.save()
+        if claim_user:
+            user = claim_user
+            for field in ('first_name', 'last_name', 'telegram_username', 'email', 'phone'):
+                value = validated_data.get(field)
+                if value:
+                    setattr(user, field, value)
+            user.set_password(password)
+            user.save()
+        else:
+            telegram_username = validated_data.get('telegram_username', '')
+            email = validated_data.get('email', '')
+            username = telegram_username or email
 
-        if user.role == UserRole.STUDENT:
+            # Keep a stable identifier for Django auth/admin.
+            user = User(username=username, **validated_data)
+            if password:
+                user.set_password(password)
+            else:
+                user.set_unusable_password()
+            user.save()
+
+        if user.role == UserRole.STUDENT and not hasattr(user, 'student_profile'):
             StudentProfile.objects.create(user=user)
-        elif user.role == UserRole.PARENT:
+        elif user.role == UserRole.PARENT and not hasattr(user, 'parent_profile'):
             ParentProfile.objects.create(user=user)
-        elif user.role == UserRole.TEACHER:
+        elif user.role == UserRole.TEACHER and not hasattr(user, 'teacher_profile'):
             TeacherProfile.objects.create(user=user)
 
         return user
@@ -176,9 +276,18 @@ class StudentProfileSerializer(serializers.ModelSerializer):
     user_detail = UserSerializer(source='user', read_only=True)
     parent_links = StudentParentRelationSerializer(many=True, read_only=True)
 
+    def validate(self, attrs):
+        if 'lesson_price' in attrs:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            is_admin = bool(user and user.is_authenticated and (user.is_staff or user.role == UserRole.ADMIN))
+            if not is_admin:
+                raise serializers.ValidationError({'lesson_price': 'Only admins can update lesson price.'})
+        return attrs
+
     class Meta:
         model = StudentProfile
-        fields = ('id', 'user', 'user_detail', 'grade', 'notes', 'parent_links')
+        fields = ('id', 'user', 'user_detail', 'lesson_price', 'notes', 'parent_links')
 
 
 class ParentProfileSerializer(serializers.ModelSerializer):
