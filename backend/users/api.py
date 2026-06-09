@@ -181,7 +181,7 @@ class RegisterView(APIView):
 
     @extend_schema(request=RegisterSerializer, responses={201: UserSerializer})
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
+        serializer = RegisterSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return response.Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)

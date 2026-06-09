@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from django.test import TestCase
 from django.utils import timezone
@@ -25,7 +26,7 @@ class LessonSignalsTestCase(TestCase):
             password='pass12345',
             role=UserRole.STUDENT,
         )
-        self.student = StudentProfile.objects.create(user=self.student_user, grade='7')
+        self.student = StudentProfile.objects.create(user=self.student_user)
 
         self.parent_user = User.objects.create_user(
             username='parent1',
@@ -66,6 +67,19 @@ class LessonSignalsTestCase(TestCase):
 
         self.assertEqual(participant.student, self.student)
         self.assertFalse(participant.confirmations.exists())
+
+    def test_lesson_creation_uses_student_lesson_price(self):
+        self.student.lesson_price = Decimal('725.00')
+        self.student.save(update_fields=['lesson_price'])
+
+        lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now(),
+        )
+
+        participant = lesson.participants.get()
+
+        self.assertEqual(participant.billed_amount, self.student.lesson_price)
 
     def test_completed_lesson_creates_parent_charge_and_teacher_payout(self):
         lesson = Lesson.objects.create(

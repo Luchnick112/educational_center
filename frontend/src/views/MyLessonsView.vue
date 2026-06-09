@@ -16,7 +16,7 @@
             </button>
           </div>
         </div>
-        <input class="input" type="datetime-local" step="900" v-model="lessonForm.starts_at_local" />
+        <input class="input" type="datetime-local" v-model="lessonForm.starts_at_local" />
         <textarea class="input ta" v-model="lessonForm.notes" placeholder="Нотатки"></textarea>
         <button class="btn" type="button" :disabled="savingLesson" @click="createLesson">{{ savingLesson ? 'Збереження...' : 'Створити урок' }}</button>
       </div>
@@ -727,14 +727,6 @@ watch(
   () => route.query.lesson,
   () => {
     if (!loading.value) void openLessonFromRoute()
-  },
-)
-
-watch(
-  () => lessonForm.value.starts_at_local,
-  (value) => {
-    const normalized = normalizeToQuarterHour(value)
-    if (normalized !== value) lessonForm.value.starts_at_local = normalized
   },
 )
 

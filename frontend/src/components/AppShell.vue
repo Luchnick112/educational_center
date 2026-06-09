@@ -2,7 +2,7 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand__title">Educational Center</div>
+        <div class="brand__title">Освітній Центр HELPER</div>
         <div class="brand__sub">{{ auth.me?.role ?? '...' }}</div>
       </div>
 

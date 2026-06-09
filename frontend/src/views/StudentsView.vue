@@ -42,19 +42,17 @@
             v-if="mode === 'create'"
             title="Акаунт"
             :model="createUser"
-            :showPassword="true"
+            :showPassword="false"
           />
           <UserAccountForm
             v-else-if="selectedUserDetail"
             title="Акаунт"
             :model="selectedUserDetail"
-            :disabled="true"
-            hint="Редагування полів акаунта у цьому інтерфейсі не реалізовано."
+            :disabled="mode === 'view'"
           />
-
           <div class="field">
-            <div class="field__label">Клас</div>
-            <input class="input" v-model="grade" :disabled="mode === 'view'" placeholder="Напр. 7-A" />
+            <div class="field__label">Ціна заняття</div>
+            <input class="input" type="number" min="0" step="0.01" v-model="lesson_price" :disabled="mode === 'view'" />
           </div>
           <div class="field">
             <div class="field__label">Нотатки</div>
@@ -75,7 +73,7 @@ import { apiRequest } from '@/lib/api'
 
 type Student = {
   id: number
-  grade: string | null
+  lesson_price?: string | number | null
   notes?: string | null
   user: number
   user_detail?: { id: number; first_name?: string; last_name?: string; telegram_username?: string; role?: string; phone?: string | null; email?: string }
@@ -113,8 +111,22 @@ const selectedUserDetail = computed(() => {
   }
 })
 
-const grade = ref('')
+async function updateSelectedUserAccount() {
+  if (!detail.value || !selectedUserDetail.value) return
+  await apiRequest(`/api/users/${detail.value.user}/`, {
+    method: 'PATCH',
+    body: {
+      first_name: selectedUserDetail.value.first_name,
+      last_name: selectedUserDetail.value.last_name,
+      telegram_username: selectedUserDetail.value.telegram_username || null,
+      email: selectedUserDetail.value.email || '',
+      phone: selectedUserDetail.value.phone || '',
+    },
+  })
+}
+
 const notes = ref('')
+const lesson_price = ref('')
 
 const formTitle = computed(() => {
   if (mode.value === 'create') return 'Створити'
@@ -133,8 +145,8 @@ const columns = [
       return `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_username || `User #${u.id}`
     },
   },
-  { key: 'grade', label: 'Клас', render: (r: Student) => r.grade || '-' },
   { key: 'telegram', label: 'Telegram', render: (r: Student) => r.user_detail?.telegram_username || '-' },
+  { key: 'lesson_price', label: 'Ціна заняття', render: (r: Student) => r.lesson_price == null ? '-' : String(r.lesson_price) },
 ]
 
 async function reload() {
@@ -156,7 +168,7 @@ async function loadDetail(id: number) {
   formError.value = null
   try {
     detail.value = await apiRequest<Student>(`/api/users/students/${id}/`)
-    grade.value = detail.value?.grade || ''
+    lesson_price.value = detail.value?.lesson_price == null ? '' : String(detail.value.lesson_price)
     notes.value = (detail.value as any)?.notes || ''
   } catch (e: any) {
     formError.value = e?.payload?.detail || e?.message || 'Не вдалося завантажити деталі'
@@ -169,7 +181,7 @@ function startCreate() {
   detail.value = null
   formError.value = null
   createUser.value = { first_name: '', last_name: '', telegram_username: '', email: '', phone: '', password: '' }
-  grade.value = ''
+  lesson_price.value = ''
   notes.value = ''
 }
 
@@ -183,7 +195,7 @@ function cancelEdit() {
   mode.value = 'view'
   formError.value = null
   if (detail.value) {
-    grade.value = detail.value.grade || ''
+    lesson_price.value = detail.value.lesson_price == null ? '' : String(detail.value.lesson_price)
     notes.value = (detail.value as any)?.notes || ''
   }
 }
@@ -201,15 +213,21 @@ async function submitForm() {
           first_name: createUser.value.first_name,
           last_name: createUser.value.last_name,
           telegram_username: createUser.value.telegram_username,
+          email: createUser.value.email || undefined,
           role: 'student',
           phone: createUser.value.phone || undefined,
-          password: createUser.value.password,
         },
       })
       await reload()
       const student = rows.value.find((s) => s.user === createdUser.id)
       if (student) {
-        await apiRequest(`/api/users/students/${student.id}/`, { method: 'PATCH', body: { grade: grade.value || null, notes: notes.value || '' } })
+        await apiRequest(`/api/users/students/${student.id}/`, {
+          method: 'PATCH',
+          body: {
+            lesson_price: lesson_price.value === '' ? null : lesson_price.value,
+            notes: notes.value || '',
+          },
+        })
         await loadDetail(student.id)
       }
       mode.value = 'view'
@@ -217,7 +235,15 @@ async function submitForm() {
     }
 
     if (mode.value === 'edit' && selectedId.value) {
-      await apiRequest(`/api/users/students/${selectedId.value}/`, { method: 'PATCH', body: { grade: grade.value || null, notes: notes.value || '' } })
+      await updateSelectedUserAccount()
+      await apiRequest(`/api/users/students/${selectedId.value}/`, {
+        method: 'PATCH',
+        body: {
+          lesson_price: lesson_price.value === '' ? null : lesson_price.value,
+          notes: notes.value || '',
+        },
+      })
+      await reload()
       await loadDetail(selectedId.value)
       mode.value = 'view'
     }
@@ -240,7 +266,7 @@ async function onDelete() {
     await reload()
     selectedId.value = null
     detail.value = null
-    grade.value = ''
+    lesson_price.value = ''
     notes.value = ''
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося видалити'

@@ -49,6 +49,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         )
         if enrollment and enrollment.student_price_override is not None:
             return enrollment.student_price_override
+        if enrollment and enrollment.student.lesson_price is not None:
+            return enrollment.student.lesson_price
         student_price, _ = group.get_effective_pricing(timezone.now())
         return student_price
 
@@ -348,6 +350,15 @@ class LessonSerializer(serializers.ModelSerializer):
             and self._has_paid_financial_document(instance)
         ):
             raise serializers.ValidationError({'status': 'Paid lessons cannot be changed by teachers.'})
+
+        if (
+            'status' in validated_data
+            and validated_data['status'] == LessonStatus.COMPLETED
+            and instance.status != LessonStatus.COMPLETED
+        ):
+            requested_starts_at = validated_data.get('starts_at', instance.starts_at)
+            if requested_starts_at + instance.DEFAULT_DURATION > timezone.now():
+                raise serializers.ValidationError({'status': 'Lesson cannot be completed before its scheduled end time.'})
 
         with transaction.atomic():
             if participant_updates:

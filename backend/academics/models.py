@@ -118,7 +118,11 @@ class StudentEnrollment(models.Model):
     @property
     def student_price(self) -> Decimal:
         base_student_price, _ = self.group.get_effective_pricing()
-        return self.student_price_override or base_student_price
+        if self.student_price_override is not None:
+            return self.student_price_override
+        if self.student.lesson_price is not None:
+            return self.student.lesson_price
+        return base_student_price
 
     @property
     def teacher_rate(self) -> Decimal:
@@ -167,8 +171,8 @@ class LessonParticipant(models.Model):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        base_student_price, base_teacher_rate = self.lesson.group.get_effective_pricing(self.lesson.starts_at)
-        student_price = self.enrollment.student_price_override or base_student_price
+        _, base_teacher_rate = self.lesson.group.get_effective_pricing(self.lesson.starts_at)
+        student_price = self.enrollment.student_price
         teacher_rate = self.enrollment.teacher_rate_override or base_teacher_rate
         if is_new and not self.billed_amount:
             self.billed_amount = student_price

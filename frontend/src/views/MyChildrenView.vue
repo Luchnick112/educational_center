@@ -16,7 +16,6 @@ import { apiRequest } from '@/lib/api'
 
 type StudentProfile = {
   id: number
-  grade: string | null
   notes: string | null
   user_detail?: { first_name: string; last_name: string; telegram_username: string }
 }
@@ -35,7 +34,6 @@ const columns = [
       return `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_username || '-'
     },
   },
-  { key: 'grade', label: 'Клас', render: (r: StudentProfile) => r.grade || '-' },
 ]
 
 onMounted(async () => {

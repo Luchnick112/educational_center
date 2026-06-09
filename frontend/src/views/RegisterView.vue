@@ -21,6 +21,11 @@
         </label>
 
         <label class="field">
+          <span class="field__label">Email</span>
+          <input v-model.trim="email" class="input" type="email" autocomplete="email" />
+        </label>
+
+        <label class="field">
           <span class="field__label">Роль</span>
           <select v-model="role" class="input">
             <option value="student">Учень</option>
@@ -40,7 +45,7 @@
         </label>
 
         <div class="row">
-          <button class="btn" type="submit" :disabled="auth.isLoading || !telegram || password.length < 8">
+          <button class="btn" type="submit" :disabled="auth.isLoading || (!telegram && !email) || password.length < 8">
             {{ auth.isLoading ? 'Створення...' : 'Створити' }}
           </button>
           <RouterLink class="link" to="/login">Назад до входу</RouterLink>
@@ -63,6 +68,7 @@ const router = useRouter()
 const firstName = ref('')
 const lastName = ref('')
 const telegram = ref('')
+const email = ref('')
 const role = ref<'student' | 'parent' | 'teacher'>('student')
 const phone = ref('')
 const password = ref('')
@@ -73,6 +79,7 @@ async function onSubmit() {
       first_name: firstName.value.trim(),
       last_name: lastName.value.trim(),
       telegram_username: telegram.value.trim(),
+      email: email.value.trim() || undefined,
       role: role.value,
       phone: phone.value.trim() || undefined,
       password: password.value,

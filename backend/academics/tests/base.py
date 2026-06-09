@@ -29,7 +29,7 @@ class AcademicBaseTestCase(TestCase):
             password='pass12345',
             role=UserRole.STUDENT,
         )
-        self.student = StudentProfile.objects.create(user=self.student_user, grade='8')
+        self.student = StudentProfile.objects.create(user=self.student_user)
 
         self.parent_user = User.objects.create_user(
             username='parent_api',

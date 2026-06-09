@@ -107,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
     first_name: string
     last_name: string
     telegram_username: string
+    email?: string
     role: Role
     phone?: string
     password: string
@@ -115,8 +116,12 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     try {
       await apiRequest('/api/users/register/', { method: 'POST', auth: false, body: payload })
-      // After register, log in by telegram username (backend-friendly).
-      await logIn({ telegram_username: payload.telegram_username, password: payload.password })
+      // After register, log in by the available identifier.
+      if (payload.telegram_username) {
+        await logIn({ telegram_username: payload.telegram_username, password: payload.password })
+      } else {
+        await logIn({ email: payload.email, password: payload.password })
+      }
     } catch (e: any) {
       error.value = errorMessage(e, 'Registration failed')
       throw e
