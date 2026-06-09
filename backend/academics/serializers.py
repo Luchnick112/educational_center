@@ -351,6 +351,15 @@ class LessonSerializer(serializers.ModelSerializer):
         ):
             raise serializers.ValidationError({'status': 'Paid lessons cannot be changed by teachers.'})
 
+        if (
+            'status' in validated_data
+            and validated_data['status'] == LessonStatus.COMPLETED
+            and instance.status != LessonStatus.COMPLETED
+        ):
+            requested_starts_at = validated_data.get('starts_at', instance.starts_at)
+            if requested_starts_at + instance.DEFAULT_DURATION > timezone.now():
+                raise serializers.ValidationError({'status': 'Lesson cannot be completed before its scheduled end time.'})
+
         with transaction.atomic():
             if participant_updates:
                 for item in participant_updates:

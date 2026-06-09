@@ -23,6 +23,10 @@ from academics.tests.base import AcademicBaseTestCase
 
 
 class RoleAwareApiTestCase(AcademicBaseTestCase):
+    def move_lesson_after_end_time(self):
+        self.lesson.starts_at = timezone.now() - self.lesson.DEFAULT_DURATION - timedelta(minutes=1)
+        self.lesson.save(update_fields=['starts_at'])
+
     def test_register_page_is_available_in_browser(self):
         response = self.client.get('/api/users/register/')
 
@@ -152,6 +156,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])
         starts_at = timezone.make_aware(datetime(2026, 5, 19, 12, 30))
+        self.move_lesson_after_end_time()
         self.client.force_authenticate(admin_user)
 
         response = self.client.patch(
@@ -184,6 +189,23 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(ParentCharge.objects.get(participant=participant).amount, Decimal('650.00'))
         self.assertEqual(TeacherPayout.objects.get(participant=participant).amount, Decimal('375.00'))
 
+    def test_cannot_complete_lesson_before_scheduled_end_time(self):
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.COMPLETED},
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.lesson.status, LessonStatus.SCHEDULED)
+
     def test_student_my_lessons_hide_lesson_payroll_amount(self):
         self.client.force_authenticate(self.student_user)
 
@@ -200,7 +222,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             password='pass12345',
             role=UserRole.STUDENT,
         )
-        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_student = StudentProfile.objects.create(user=other_student_user)
         other_enrollment = StudentEnrollment.objects.create(
             group=self.group,
             student=other_student,
@@ -224,7 +246,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             password='pass12345',
             role=UserRole.STUDENT,
         )
-        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_student = StudentProfile.objects.create(user=other_student_user)
         other_enrollment = StudentEnrollment.objects.create(
             group=self.group,
             student=other_student,
@@ -326,7 +348,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             password='pass12345',
             role=UserRole.STUDENT,
         )
-        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_student = StudentProfile.objects.create(user=other_student_user)
         other_enrollment = StudentEnrollment.objects.create(
             group=self.group,
             student=other_student,
@@ -417,6 +439,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             },
             format='json',
         )
+        self.move_lesson_after_end_time()
         complete_response = self.client.post(
             f'/api/academics/lessons/{self.lesson.id}/complete/',
             {'notes': 'Completed on time'},
@@ -465,6 +488,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])
+        self.move_lesson_after_end_time()
         self.client.force_authenticate(self.teacher_user)
 
         response = self.client.patch(
@@ -507,6 +531,9 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
     def test_teacher_cannot_change_paid_lesson_status(self):
         participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
+        self.move_lesson_after_end_time()
         self.client.force_authenticate(self.teacher_user)
         self.client.patch(
             f'/api/academics/lessons/{self.lesson.id}/',
@@ -530,6 +557,10 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(self.lesson.status, LessonStatus.COMPLETED)
 
     def test_teacher_notifications_ignore_draft_payouts(self):
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
+        self.move_lesson_after_end_time()
         self.client.force_authenticate(self.teacher_user)
         self.client.patch(
             f'/api/academics/lessons/{self.lesson.id}/',
@@ -828,7 +859,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             password='pass12345',
             role=UserRole.STUDENT,
         )
-        other_student = StudentProfile.objects.create(user=other_student_user, grade='8')
+        other_student = StudentProfile.objects.create(user=other_student_user)
         other_enrollment = StudentEnrollment.objects.create(
             group=self.group,
             student=other_student,

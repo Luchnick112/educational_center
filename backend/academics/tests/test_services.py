@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import exceptions
 
 from finance.models import ParentCharge, TeacherPayout
@@ -9,6 +12,10 @@ from academics.tests.base import AcademicBaseTestCase
 
 
 class AcademicServicesTestCase(AcademicBaseTestCase):
+    def move_lesson_after_end_time(self):
+        self.lesson.starts_at = timezone.now() - self.lesson.DEFAULT_DURATION - timedelta(minutes=1)
+        self.lesson.save(update_fields=['starts_at'])
+
     def test_mark_lesson_attendance_updates_participant(self):
         participant = self.lesson.participants.get()
 
@@ -60,6 +67,7 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])
+        self.move_lesson_after_end_time()
 
         lesson = complete_lesson(
             user=self.teacher_user,
@@ -72,7 +80,20 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
         self.assertTrue(ParentCharge.objects.filter(participant=participant).exists())
         self.assertTrue(TeacherPayout.objects.filter(participant=participant).exists())
 
+    def test_complete_lesson_rejects_before_scheduled_end_time(self):
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
+
+        with self.assertRaises(exceptions.ValidationError):
+            complete_lesson(user=self.teacher_user, lesson=self.lesson, notes='')
+
+        self.lesson.refresh_from_db()
+        self.assertEqual(self.lesson.status, LessonStatus.SCHEDULED)
+
     def test_complete_lesson_rejects_pending_attendance(self):
+        self.move_lesson_after_end_time()
+
         with self.assertRaises(exceptions.ValidationError):
             complete_lesson(user=self.teacher_user, lesson=self.lesson, notes='')
 

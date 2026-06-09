@@ -63,6 +63,8 @@ def complete_lesson(*, user, lesson: Lesson, notes: str = '') -> Lesson:
     ensure_lesson_teacher_or_admin(user, lesson, 'complete this lesson')
     if lesson.status != LessonStatus.SCHEDULED:
         raise exceptions.ValidationError({'detail': 'Only scheduled lessons can be completed.'})
+    if lesson.end_at > timezone.now():
+        raise exceptions.ValidationError({'status': 'Lesson cannot be completed before its scheduled end time.'})
     if not lesson.participants.exists():
         raise exceptions.ValidationError({'detail': 'Lesson has no participants.'})
     if lesson.participants.filter(attendance_status=AttendanceStatus.PENDING).exists():
