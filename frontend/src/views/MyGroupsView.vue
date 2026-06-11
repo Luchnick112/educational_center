@@ -6,9 +6,10 @@
       <div class="toolbar">
         <button v-if="canManageGroups" class="btn" type="button" @click="openCreateForm">Створити групу</button>
         <button v-if="canManageGroups" class="btn btn--ghost" type="button" :disabled="!selectedGroupId" @click="openEditForm">Редагувати</button>
+        <button v-if="isAdmin" class="btn btn--ghost" type="button" :disabled="!selectedGroupId || saving" @click="deleteSelectedGroup">Видалити</button>
       </div>
       <div class="filters">
-        <div class="dropdown">
+        <div v-if="isAdmin" class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="teacherFilterOpen = !teacherFilterOpen">{{ selectedTeacherFilterLabel }}</button>
           <div v-if="teacherFilterOpen" class="dropdown__menu dropdown-list">
             <button class="dropdown__option" type="button" @click="setTeacherFilter(null)">Всі вчителі</button>
@@ -28,12 +29,12 @@
       <table v-else class="groups-table">
         <thead>
           <tr>
-            <th>Вчитель</th>
+            <th class="col-teacher">Вчитель</th>
             <th>Назва групи</th>
-            <th>Ціна учня</th>
+            <th v-if="isAdmin" class="col-student-price">Ціна учня</th>
             <th>Ставка вчителя</th>
             <th>Кількість учнів</th>
-            <th>Список студентів</th>
+            <th class="col-student-list">Список студентів</th>
           </tr>
         </thead>
         <tbody>
@@ -43,15 +44,40 @@
             :class="{ selected: selectedGroupId === row.group.id }"
             @click="selectedGroupId = row.group.id"
           >
-            <td>{{ teacherLabel(row.group.teacher) }}</td>
+            <td class="col-teacher">{{ teacherLabel(row.group.teacher) }}</td>
             <td>{{ row.group.name || `Група #${row.group.id}` }}</td>
-            <td>{{ priceLabel(row.group.student_price) }}</td>
+            <td v-if="isAdmin" class="col-student-price">{{ priceLabel(row.group.student_price) }}</td>
             <td>{{ priceLabel(row.group.teacher_rate) }}</td>
             <td>{{ row.studentIds.length }}</td>
-            <td>{{ row.studentNames.join(', ') || '-' }}</td>
+            <td class="col-student-list">{{ row.studentNames.join(', ') || '-' }}</td>
           </tr>
         </tbody>
       </table>
+      <div v-if="selectedGroupDetail" class="group-detail">
+        <div class="group-detail__title">{{ selectedGroupDetail.group.name || `Група #${selectedGroupDetail.group.id}` }}</div>
+        <div class="group-detail__grid">
+          <div class="detail-item col-teacher">
+            <span class="detail-item__label">Вчитель</span>
+            <span>{{ teacherLabel(selectedGroupDetail.group.teacher) }}</span>
+          </div>
+          <div v-if="isAdmin" class="detail-item col-student-price">
+            <span class="detail-item__label">Ціна учня</span>
+            <span>{{ priceLabel(selectedGroupDetail.group.student_price) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-item__label">Ставка вчителя</span>
+            <span>{{ priceLabel(selectedGroupDetail.group.teacher_rate) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-item__label">Учнів</span>
+            <span>{{ selectedGroupDetail.studentIds.length }}</span>
+          </div>
+          <div class="detail-item detail-item--wide col-student-list">
+            <span class="detail-item__label">Студенти</span>
+            <span>{{ selectedGroupDetail.studentNames.join(', ') || '-' }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="showCreateForm && canManageGroups" class="panel form">
@@ -65,7 +91,21 @@
             <button class="dropdown__option" v-for="s in subjects" :key="s.id" type="button" @click="setCreateSubject(s.id)">{{ s.name }}</button>
           </div>
         </div>
-        <input class="input" type="number" min="1" v-model.number="createForm.capacity" placeholder="Місткість" />
+        <div v-if="isAdmin" class="dropdown">
+          <button class="input dropdown__trigger" type="button" @click="createTeacherOpen = !createTeacherOpen">{{ selectedCreateTeacherLabel }}</button>
+          <div v-if="createTeacherOpen" class="dropdown__menu dropdown-list">
+            <button class="dropdown__option" type="button" @click="setCreateTeacher(null)">Вчитель...</button>
+            <button class="dropdown__option" v-for="t in teachers" :key="t.id" type="button" @click="setCreateTeacher(t.id)">{{ teacherLabel(t.id) }}</button>
+          </div>
+        </div>
+        <div v-if="isAdmin" class="field">
+          <div class="field__label">Ціна учня</div>
+          <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.student_price" />
+        </div>
+        <div v-if="isAdmin" class="field">
+          <div class="field__label">Ставка вчителя</div>
+          <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.teacher_rate" />
+        </div>
         <div class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="createStudentsOpen = !createStudentsOpen">{{ selectedStudentsLabel(createForm.students) }}</button>
           <div v-if="createStudentsOpen" class="dropdown__menu dropdown-list dropdown__menu--static">
@@ -194,6 +234,7 @@ const selectedGroupId = ref<number | null>(null)
 
 const subjectOpen = ref(false)
 const editSubjectOpen = ref(false)
+const createTeacherOpen = ref(false)
 const createStudentsOpen = ref(false)
 const editStudentsOpen = ref(false)
 const teacherFilterOpen = ref(false)
@@ -212,7 +253,14 @@ const groups = ref<Group[]>([])
 const enrollments = ref<Enrollment[]>([])
 const pricingRules = ref<GroupPricing[]>([])
 
-const createForm = ref({ subject: null as number | null, capacity: 1, students: [] as number[] })
+const createForm = ref({
+  subject: null as number | null,
+  teacher: null as number | null,
+  capacity: 1,
+  student_price: 0,
+  teacher_rate: 0,
+  students: [] as number[],
+})
 const editForm = ref({ subject: null as number | null, student_price: 0, teacher_rate: 0, students: [] as number[] })
 const pricingForm = ref({ effective_from_date: '', student_price: 0, teacher_rate: 0 })
 
@@ -227,6 +275,11 @@ const selectedGroupPricingRules = computed(() => {
 const selectedCreateSubjectLabel = computed(() => {
   if (!createForm.value.subject) return 'Предмет...'
   return subjects.value.find((s) => s.id === createForm.value.subject)?.name || 'Предмет...'
+})
+
+const selectedCreateTeacherLabel = computed(() => {
+  if (!createForm.value.teacher) return 'Вчитель...'
+  return teacherLabel(createForm.value.teacher)
 })
 
 const selectedEditSubjectLabel = computed(() => {
@@ -259,6 +312,8 @@ const filteredGroupRows = computed(() => {
     return true
   })
 })
+
+const selectedGroupDetail = computed(() => groupRows.value.find((row) => row.group.id === selectedGroupId.value) || null)
 
 const selectedTeacherFilterLabel = computed(() => (teacherFilter.value ? teacherLabel(teacherFilter.value) : 'Всі вчителі'))
 const selectedStudentFilterLabel = computed(() => {
@@ -308,6 +363,31 @@ function dateLabel(value?: string | null) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
 }
 
+function apiErrorMessage(e: any, fallback: string) {
+  const payload = e?.payload
+  if (payload?.detail) return String(payload.detail)
+  if (payload && typeof payload === 'object') {
+    const labels: Record<string, string> = {
+      teacher: 'Вчитель',
+      subject: 'Предмет',
+      student_price: 'Ціна учня',
+      teacher_rate: 'Ставка вчителя',
+      student_ids: 'Учні',
+      non_field_errors: 'Помилка',
+    }
+    return Object.entries(payload)
+      .map(([field, messages]) => {
+        const text = Array.isArray(messages) ? messages.join(', ') : String(messages)
+        const translated = text
+          .replace('This field is required.', "обов'язкове поле")
+          .replace('This field may not be null.', "обов'язкове поле")
+        return `${labels[field] || field}: ${translated}`
+      })
+      .join('; ')
+  }
+  return e?.message || fallback
+}
+
 function selectedStudentsLabel(ids: number[]) {
   if (!ids.length) return 'Оберіть учнів...'
   if (ids.length === 1) {
@@ -337,6 +417,13 @@ function setEditSubject(subjectId: number | null) {
   error.value = null
   editForm.value.subject = subjectId
   editSubjectOpen.value = false
+}
+
+function setCreateTeacher(teacherId: number | null) {
+  notice.value = null
+  error.value = null
+  createForm.value.teacher = teacherId
+  createTeacherOpen.value = false
 }
 
 function setTeacherFilter(teacherId: number | null) {
@@ -378,6 +465,12 @@ function replaceGroupEnrollments(groupId: number, updatedGroupEnrollments: Enrol
     ...enrollments.value.filter((e) => Number(e.group) !== Number(groupId)),
     ...updatedGroupEnrollments,
   ]
+}
+
+function removeGroupFromState(groupId: number) {
+  groups.value = groups.value.filter((g) => Number(g.id) !== Number(groupId))
+  enrollments.value = enrollments.value.filter((e) => Number(e.group) !== Number(groupId))
+  pricingRules.value = pricingRules.value.filter((rule) => Number(rule.group) !== Number(groupId))
 }
 
 function todayDate() {
@@ -427,6 +520,17 @@ async function loadPricingRules(groupId?: number | null) {
 function openCreateForm() {
   notice.value = null
   error.value = null
+  createForm.value = {
+    subject: null,
+    teacher: null,
+    capacity: 1,
+    student_price: 0,
+    teacher_rate: 0,
+    students: [],
+  }
+  subjectOpen.value = false
+  createTeacherOpen.value = false
+  createStudentsOpen.value = false
   showEditForm.value = false
   showCreateForm.value = true
 }
@@ -452,13 +556,27 @@ function openEditForm() {
 
 async function createGroup() {
   if (!createForm.value.subject) return
+  if (isAdmin.value && !createForm.value.teacher) {
+    error.value = 'Оберіть вчителя'
+    return
+  }
   saving.value = true
   error.value = null
   notice.value = null
   try {
+    const body: Record<string, unknown> = {
+      subject: createForm.value.subject,
+      capacity: createForm.value.capacity,
+      is_active: true,
+    }
+    if (isAdmin.value) {
+      body.teacher = createForm.value.teacher
+      body.student_price = createForm.value.student_price
+      body.teacher_rate = createForm.value.teacher_rate
+    }
     const created = await apiRequest<Group>('/api/academics/groups/', {
       method: 'POST',
-      body: { subject: createForm.value.subject, capacity: createForm.value.capacity, is_active: true },
+      body,
     })
     const updatedGroupEnrollments = await syncGroupStudents(created.id, createForm.value.students)
     await loadData()
@@ -467,7 +585,7 @@ async function createGroup() {
     showCreateForm.value = false
     notice.value = `Групу створено. Активних учнів: ${activeEnrollmentCount(updatedGroupEnrollments)}`
   } catch (e: any) {
-    error.value = e?.payload?.detail || e?.message || 'Не вдалося створити групу'
+    error.value = apiErrorMessage(e, 'Не вдалося створити групу')
   } finally {
     saving.value = false
   }
@@ -495,7 +613,38 @@ async function saveEditedGroup() {
     editForm.value.students = activeStudentIdsFromEnrollments(updatedGroupEnrollments)
     notice.value = `Групу збережено. Активних учнів: ${activeEnrollmentCount(updatedGroupEnrollments)}`
   } catch (e: any) {
-    error.value = e?.payload?.detail || e?.message || 'Не вдалося зберегти групу'
+    error.value = apiErrorMessage(e, 'Не вдалося зберегти групу')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function deleteSelectedGroup() {
+  const group = editableGroup.value
+  if (!group) return
+  const label = group.name || `#${group.id}`
+  if (!window.confirm(`Видалити групу ${label}?`)) return
+
+  saving.value = true
+  error.value = null
+  notice.value = null
+  try {
+    await apiRequest(`/api/academics/groups/${group.id}/`, { method: 'DELETE' })
+    removeGroupFromState(group.id)
+    selectedGroupId.value = null
+    showCreateForm.value = false
+    showEditForm.value = false
+    notice.value = 'Групу видалено'
+  } catch (e: any) {
+    if (e?.status === 404) {
+      removeGroupFromState(group.id)
+      selectedGroupId.value = null
+      showCreateForm.value = false
+      showEditForm.value = false
+      notice.value = 'Групу вже видалено'
+      return
+    }
+    error.value = apiErrorMessage(e, 'Не вдалося видалити групу')
   } finally {
     saving.value = false
   }
@@ -520,7 +669,7 @@ async function createPricingRule() {
     await loadPricingRules(groupId)
     notice.value = 'Ціну з дати додано'
   } catch (e: any) {
-    error.value = e?.payload?.detail || e?.message || 'Не вдалося додати ціну з дати'
+    error.value = apiErrorMessage(e, 'Не вдалося додати ціну з дати')
   } finally {
     savingPricing.value = false
   }
@@ -535,7 +684,7 @@ onMounted(async () => {
     if (canManageGroups.value) await loadData()
     if (isAdmin.value) await loadPricingRules()
   } catch (e: any) {
-    error.value = e?.payload?.detail || e?.message || 'Не вдалося завантажити дані'
+    error.value = apiErrorMessage(e, 'Не вдалося завантажити дані')
   } finally {
     loading.value = false
   }
@@ -588,6 +737,33 @@ onMounted(async () => {
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
+.group-detail {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.group-detail__title {
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+.group-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+.detail-item {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 14px;
+}
+.detail-item--wide {
+  grid-column: 1 / -1;
+}
+.detail-item__label {
+  color: var(--text-soft);
+  font-size: 12px;
+}
 .pricing-block {
   margin-top: 16px;
   display: grid;
@@ -610,6 +786,17 @@ onMounted(async () => {
   border-collapse: collapse;
 }
 @media (max-width: 760px) {
+  .groups-table .col-teacher,
+  .groups-table .col-student-price,
+  .groups-table .col-student-list {
+    display: none;
+  }
+  .filters {
+    grid-template-columns: 1fr;
+  }
+  .group-detail__grid {
+    grid-template-columns: 1fr;
+  }
   .pricing-form {
     grid-template-columns: 1fr;
   }

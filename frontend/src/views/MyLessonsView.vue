@@ -50,7 +50,7 @@
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-else-if="loading" class="muted">Завантаження...</div>
-      <DataTable v-else :columns="columns" :rows="filteredRows" :onRowClick="onLessonClick" />
+      <DataTable v-else class="lessons-table" :columns="columns" :rows="filteredRows" :onRowClick="onLessonClick" />
     </div>
 
     <div v-if="selectedLesson" ref="lessonDetailPanel" class="panel form">
@@ -195,6 +195,7 @@ type LessonDetail = Lesson & { participants?: LessonParticipant[] }
 type ParticipantForm = { id: number; studentLabel: string; attendance_status: string; billed_amount: string; payroll_amount: string }
 type Group = { id: number; name?: string; teacher?: number | null }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
+type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string }
 type LessonRescheduleRequest = {
   id: number
   lesson: number
@@ -240,7 +241,7 @@ const rescheduleForm = ref({ requested_starts_at_local: '', reason: '' })
 const applyRescheduleForm = ref({ starts_at_local: '', teacher_comment: '' })
 
 const columns = computed(() => {
-  const items = [
+  const items: LessonColumn[] = [
     { key: 'id', label: 'ID' },
     { key: 'group', label: 'Група', render: (r: Lesson) => groupLabel(r.group) },
     { key: 'status', label: 'Статус', render: (r: Lesson) => lessonStatusLabel(r.status) },
@@ -255,7 +256,7 @@ const columns = computed(() => {
   if (isAdmin.value) {
     items.push({ key: 'billed_amount', label: 'Вартість заняття', render: (r: Lesson) => formatPayrollAmount(r.billed_amount) })
   }
-  items.push({ key: 'notes', label: 'Нотатки', render: (r: Lesson) => r.notes || '-' })
+  items.push({ key: 'notes', label: 'Нотатки', className: 'col-notes', render: (r: Lesson) => r.notes || '-' })
   return items
 })
 
@@ -881,9 +882,22 @@ watch(
 @media (max-width: 640px) {
   .filters {
     grid-template-columns: 1fr;
+    width: calc(100% - 12px);
+  }
+  .filter-clear {
+    width: 100%;
+  }
+  :deep(.lessons-table .col-notes) {
+    display: none;
   }
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+  .reschedule-form {
+    grid-template-columns: 1fr;
+  }
+  .save-detail {
+    width: 100%;
   }
 }
 </style>

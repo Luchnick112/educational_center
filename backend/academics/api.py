@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 from decimal import Decimal
@@ -97,10 +98,15 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
     serializer_class = StudyGroupSerializer
     permission_classes = (StaffOrTeacherAcademicWritePermission, IsAdminOrRelatedAcademicObject)
 
+    def get_permissions(self):
+        if getattr(self, 'action', None) == 'destroy':
+            return [IsAdminUserRole()]
+        return super().get_permissions()
+
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.role == UserRole.ADMIN:
-            return self.queryset
+            return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             return self.queryset.filter(teacher=user.teacher_profile)
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
@@ -136,6 +142,12 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             )
             return
         serializer.save(format='group', student_price=student_price, teacher_rate=teacher_rate)
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            instance.lessons.all().delete()
+            instance.enrollments.all().delete()
+            instance.delete()
 
     @decorators.action(detail=True, methods=['post'], url_path='students')
     def sync_students(self, request, pk=None):
@@ -181,7 +193,7 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.role == UserRole.ADMIN:
-            return self.queryset
+            return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             return self.queryset.filter(group__teacher=user.teacher_profile)
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
@@ -262,7 +274,7 @@ class LessonViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.role == UserRole.ADMIN:
-            return self.queryset
+            return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             return self.queryset.filter(group__teacher=user.teacher_profile)
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
@@ -351,7 +363,7 @@ class LessonConfirmationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.role == UserRole.ADMIN:
-            return self.queryset
+            return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             return self.queryset.filter(participant__lesson__group__teacher=user.teacher_profile)
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
