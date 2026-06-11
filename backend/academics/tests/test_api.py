@@ -90,6 +90,51 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data['teacher_rate'], '0.00')
         self.assertNotIn('student_price', response.data)
 
+    def test_admin_can_delete_group_with_related_lessons_and_finance(self):
+        admin_user = User.objects.create_user(
+            username='group_delete_admin',
+            email='group_delete_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        participant = LessonParticipant.objects.create(lesson=self.lesson, enrollment=self.enrollment)
+        ParentCharge.objects.create(
+            participant=participant,
+            parent=self.parent,
+            student=self.student,
+            amount=Decimal('600.00'),
+        )
+        TeacherPayout.objects.create(
+            participant=participant,
+            teacher=self.teacher,
+            amount=Decimal('350.00'),
+        )
+        self.client.force_authenticate(admin_user)
+
+        before_delete_response = self.client.get('/api/academics/groups/')
+        response = self.client.delete(f'/api/academics/groups/{self.group.id}/')
+        after_delete_response = self.client.get('/api/academics/groups/')
+
+        self.assertEqual(before_delete_response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(after_delete_response.status_code, 200)
+        self.assertNotIn(self.group.id, [group['id'] for group in after_delete_response.data])
+        self.assertFalse(StudyGroup.objects.filter(id=self.group.id).exists())
+        self.assertFalse(StudentEnrollment.objects.filter(id=self.enrollment.id).exists())
+        self.assertFalse(Lesson.objects.filter(id=self.lesson.id).exists())
+        self.assertFalse(LessonParticipant.objects.filter(id=participant.id).exists())
+        self.assertFalse(ParentCharge.objects.filter(participant_id=participant.id).exists())
+        self.assertFalse(TeacherPayout.objects.filter(participant_id=participant.id).exists())
+
+    def test_teacher_cannot_delete_group(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.delete(f'/api/academics/groups/{self.group.id}/')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(StudyGroup.objects.filter(id=self.group.id).exists())
+
     def test_teacher_sees_only_teacher_rate_in_group_detail(self):
         self.client.force_authenticate(self.teacher_user)
 
