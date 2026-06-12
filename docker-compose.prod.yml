@@ -4,6 +4,8 @@ services:
     restart: unless-stopped
     env_file:
       - ${ENV_FILE:-.env.prod}
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - educational_center_prod_pgdata:/var/lib/postgresql/data
     healthcheck:

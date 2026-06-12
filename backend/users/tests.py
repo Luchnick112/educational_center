@@ -102,6 +102,32 @@ class RegisterApiTestCase(TestCase):
         self.assertFalse(user.has_usable_password())
         self.assertTrue(hasattr(user, 'student_profile'))
 
+    def test_staff_can_create_parent_and_teacher_without_password(self):
+        self.client.force_authenticate(self.staff)
+
+        cases = (
+            (UserRole.PARENT, '@parent_without_password', 'parent_profile'),
+            (UserRole.TEACHER, '@teacher_without_password', 'teacher_profile'),
+        )
+        for role, telegram_username, profile_attr in cases:
+            with self.subTest(role=role):
+                resp = self.client.post(
+                    '/api/users/register/',
+                    {
+                        'first_name': role.title(),
+                        'last_name': 'User',
+                        'telegram_username': telegram_username,
+                        'role': role,
+                    },
+                    format='json',
+                )
+
+                self.assertEqual(resp.status_code, 201, resp.data)
+                user = User.objects.get(pk=resp.data['id'])
+                self.assertEqual(user.role, role)
+                self.assertFalse(user.has_usable_password())
+                self.assertTrue(hasattr(user, profile_attr))
+
     def test_staff_can_update_student_lesson_price(self):
         self.client.force_authenticate(self.staff)
         student_user = User.objects.create_user(
@@ -164,6 +190,46 @@ class RegisterApiTestCase(TestCase):
         )
         self.assertEqual(token_resp.status_code, 200, token_resp.data)
 
+    def test_teacher_can_claim_staff_created_account_by_telegram(self):
+        teacher = User.objects.create(
+            username='@step_1b',
+            telegram_username='@step_1b',
+            email='',
+            role=UserRole.TEACHER,
+            is_active=True,
+        )
+        teacher.set_unusable_password()
+        teacher.save()
+        TeacherProfile.objects.create(user=teacher)
+
+        resp = self.client.post(
+            '/api/users/register/',
+            {
+                'first_name': 'Viktor',
+                'last_name': 'Malolaykov',
+                'telegram_username': '@step_1b',
+                'role': UserRole.TEACHER,
+                'password': 'newpass123',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data['id'], teacher.id)
+
+        teacher.refresh_from_db()
+        self.assertTrue(teacher.is_active)
+        self.assertTrue(teacher.has_usable_password())
+        self.assertTrue(teacher.check_password('newpass123'))
+        self.assertEqual(teacher.first_name, 'Viktor')
+
+        token_resp = self.client.post(
+            '/api/users/token/',
+            {'telegram_username': '@step_1b', 'password': 'newpass123'},
+            format='json',
+        )
+        self.assertEqual(token_resp.status_code, 200, token_resp.data)
+
     def test_public_registration_rejects_existing_usable_account(self):
         User.objects.create_user(
             username='@existing_student',
@@ -215,6 +281,34 @@ class RegisterApiTestCase(TestCase):
         self.assertEqual(student.telegram_username, '@updatedstudent')
         self.assertEqual(student.email, 'updated.student@example.com')
         self.assertEqual(student.phone, '+380000000011')
+
+    def test_staff_delete_student_profile_deactivates_user(self):
+        self.client.force_authenticate(self.staff)
+        student_user = User.objects.create_user(
+            username='step1_b',
+            telegram_username='@step1_b',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        student = StudentProfile.objects.create(user=student_user)
+
+        resp = self.client.delete(f'/api/users/students/{student.id}/')
+
+        self.assertEqual(resp.status_code, 204, resp.data)
+        student_user.refresh_from_db()
+        self.assertFalse(student_user.is_active)
+
+        list_resp = self.client.get('/api/users/students/')
+        self.assertEqual(list_resp.status_code, 200, list_resp.data)
+        self.assertNotIn(student.id, [item['id'] for item in list_resp.data])
+
+        token_client = APIClient()
+        token_resp = token_client.post(
+            '/api/users/token/',
+            {'telegram_username': '@step1_b', 'password': 'pass12345'},
+            format='json',
+        )
+        self.assertEqual(token_resp.status_code, 400)
 
 
 class StudentParentRelationApiTestCase(TestCase):

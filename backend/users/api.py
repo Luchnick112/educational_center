@@ -55,6 +55,10 @@ class UserViewSet(viewsets.ModelViewSet):
             return super().get_queryset()
         return User.objects.filter(pk=user.pk)
 
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
+
     @extend_schema(responses=UserSerializer)
     @decorators.action(detail=False, methods=['get'], url_path='me')
     def me(self, request):
@@ -104,36 +108,45 @@ class UserViewSet(viewsets.ModelViewSet):
         return response.Response(data)
 
 
-class StudentProfileViewSet(viewsets.ModelViewSet):
+class DeactivateProfileUserOnDestroyMixin:
+    def perform_destroy(self, instance):
+        user = instance.user
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+
+
+class StudentProfileViewSet(DeactivateProfileUserOnDestroyMixin, viewsets.ModelViewSet):
     queryset = StudentProfile.objects.select_related('user').all()
     serializer_class = StudentProfileSerializer
     permission_classes = (StaffOrTeacherWritePermission,)
 
     def get_queryset(self):
         user = self.request.user
+        queryset = self.queryset.filter(user__is_active=True)
         if user.is_staff or user.role == UserRole.ADMIN:
-            return super().get_queryset()
+            return queryset
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            return super().get_queryset()
+            return queryset
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
-            return self.queryset.filter(pk=user.student_profile.pk)
+            return queryset.filter(pk=user.student_profile.pk)
         if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
-            return self.queryset.filter(parent_links__parent=user.parent_profile).distinct()
-        return self.queryset.none()
+            return queryset.filter(parent_links__parent=user.parent_profile).distinct()
+        return queryset.none()
 
 
-class ParentProfileViewSet(viewsets.ModelViewSet):
+class ParentProfileViewSet(DeactivateProfileUserOnDestroyMixin, viewsets.ModelViewSet):
     queryset = ParentProfile.objects.select_related('user').prefetch_related('student_links__student__user').all()
     serializer_class = ParentProfileSerializer
     permission_classes = (StaffWritePermission,)
 
     def get_queryset(self):
         user = self.request.user
+        queryset = self.queryset.filter(user__is_active=True)
         if user.is_staff or user.role == UserRole.ADMIN:
-            return super().get_queryset()
+            return queryset
         if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
-            return self.queryset.filter(pk=user.parent_profile.pk)
-        return self.queryset.none()
+            return queryset.filter(pk=user.parent_profile.pk)
+        return queryset.none()
 
 
 class StudentParentRelationViewSet(viewsets.ModelViewSet):
@@ -158,18 +171,19 @@ class StudentParentRelationViewSet(viewsets.ModelViewSet):
         return StudentParentRelation.objects.none()
 
 
-class TeacherProfileViewSet(viewsets.ModelViewSet):
+class TeacherProfileViewSet(DeactivateProfileUserOnDestroyMixin, viewsets.ModelViewSet):
     queryset = TeacherProfile.objects.select_related('user').all()
     serializer_class = TeacherProfileSerializer
     permission_classes = (StaffWritePermission,)
 
     def get_queryset(self):
         user = self.request.user
+        queryset = self.queryset.filter(user__is_active=True)
         if user.is_staff or user.role == UserRole.ADMIN:
-            return super().get_queryset()
+            return queryset
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            return self.queryset.filter(pk=user.teacher_profile.pk)
-        return self.queryset.none()
+            return queryset.filter(pk=user.teacher_profile.pk)
+        return queryset.none()
 
 
 class RegisterView(APIView):
