@@ -36,7 +36,7 @@
 
         <label class="field">
           <span class="field__label">Телефон (необов'язково)</span>
-          <input v-model.trim="phone" class="input" autocomplete="tel" />
+          <input v-model.trim="phone" class="input" autocomplete="tel" placeholder="+380501112233" />
         </label>
 
         <label class="field">
@@ -45,7 +45,7 @@
         </label>
 
         <div class="row">
-          <button class="btn" type="submit" :disabled="auth.isLoading || (!telegram && !email) || password.length < 8">
+          <button class="btn" type="submit" :disabled="auth.isLoading || (!telegram && !email && !phone) || password.length < 8">
             {{ auth.isLoading ? 'Створення...' : 'Створити' }}
           </button>
           <RouterLink class="link" to="/login">Назад до входу</RouterLink>

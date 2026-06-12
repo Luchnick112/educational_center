@@ -239,3 +239,7 @@ TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "").strip().lstr
 TELEGRAM_LINK_TOKEN_TTL_SECONDS = int(os.environ.get("TELEGRAM_LINK_TOKEN_TTL_SECONDS", "600"))
 # Bot token used for sending messages (if you implement sending).
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+
+# Used only to interpret local phone numbers like "0501112233" during login.
+# Store as digits without "+", for example "380". Empty value disables this.
+DEFAULT_PHONE_COUNTRY_CODE = os.environ.get("DEFAULT_PHONE_COUNTRY_CODE", "").strip().lstrip("+")

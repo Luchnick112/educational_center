@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
@@ -10,6 +11,32 @@ from .models import ParentProfile, StudentParentRelation, StudentProfile, Teache
 DATE_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DD'}
 # Accept both "username" and "@username" at input time.
 TELEGRAM_USERNAME_RE = r'^@?[A-Za-z0-9_]{5,32}$'
+
+
+def normalize_phone(value: str) -> str:
+    return re.sub(r'[\s().-]+', '', value.strip())
+
+
+def phone_variants(value: str) -> set[str]:
+    normalized = normalize_phone(value)
+    if not normalized:
+        return set()
+
+    variants = {value.strip(), normalized}
+    digits = normalized[1:] if normalized.startswith('+') else normalized
+
+    if normalized.startswith('+'):
+        variants.add(normalized[1:])
+    else:
+        variants.add(f'+{normalized}')
+
+    default_country_code = str(getattr(settings, 'DEFAULT_PHONE_COUNTRY_CODE', '') or '').strip()
+    default_country_code = re.sub(r'\D+', '', default_country_code)
+    if default_country_code and digits.startswith('0'):
+        international = f'{default_country_code}{digits[1:]}'
+        variants.update({international, f'+{international}'})
+
+    return {variant for variant in variants if variant}
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -108,7 +135,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None)
         return bool(user and user.is_authenticated and (user.is_staff or user.role == UserRole.ADMIN))
 
-    def _existing_user_for_identity(self, *, telegram_username: str = '', email: str = '') -> User | None:
+    def _existing_user_for_identity(self, *, telegram_username: str = '', email: str = '', phone: str = '') -> User | None:
         matches = []
 
         if telegram_username:
@@ -123,10 +150,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         if email:
             matches.extend(User.objects.filter(email__iexact=email) | User.objects.filter(username__iexact=email))
 
+        phone_identity = normalize_phone(phone)
+        if phone_identity:
+            for user in User.objects.exclude(phone='').exclude(phone__isnull=True):
+                if normalize_phone(user.phone) in phone_variants(phone_identity):
+                    matches.append(user)
+
         unique_matches = {user.pk: user for user in matches}
         if len(unique_matches) > 1:
             raise serializers.ValidationError(
-                'Telegram username and email belong to different existing users.'
+                'Telegram username, email and phone belong to different existing users.'
             )
 
         return next(iter(unique_matches.values()), None)
@@ -136,15 +169,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = attrs.get('password', '')
         telegram_username = attrs.get('telegram_username', '')
         email = attrs.get('email', '')
+        phone = attrs.get('phone', '')
 
-        if not telegram_username and not email:
-            raise serializers.ValidationError('Telegram username or email is required.')
+        if not telegram_username and not email and not phone:
+            raise serializers.ValidationError('Telegram username, email or phone is required.')
 
         staff_creating_user = self._is_staff_request()
         if not password and not staff_creating_user:
             raise serializers.ValidationError({'password': 'Password is required.'})
 
-        existing_user = self._existing_user_for_identity(telegram_username=telegram_username, email=email)
+        existing_user = self._existing_user_for_identity(telegram_username=telegram_username, email=email, phone=phone)
         if existing_user:
             can_claim_user = (
                 bool(password)
@@ -174,7 +208,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         else:
             telegram_username = validated_data.get('telegram_username', '')
             email = validated_data.get('email', '')
-            username = telegram_username or email
+            phone = validated_data.get('phone', '')
+            username = telegram_username or email or phone
 
             # Keep a stable identifier for Django auth/admin.
             user = User(username=username, **validated_data)
@@ -195,9 +230,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class TelegramUsernameTokenObtainPairSerializer(serializers.Serializer):
+    login = serializers.CharField(required=False, allow_blank=True)
     telegram_username = serializers.CharField(required=False, allow_blank=True)
     # Backwards compatibility: allow existing users to authenticate by email too.
     email = serializers.EmailField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True)
 
     default_error_messages = {
@@ -205,29 +242,51 @@ class TelegramUsernameTokenObtainPairSerializer(serializers.Serializer):
     }
 
     def validate(self, attrs):
+        login = (attrs.get('login') or '').strip()
         telegram_username = (attrs.get('telegram_username') or '').strip()
         email = (attrs.get('email') or '').strip().lower()
+        phone = (attrs.get('phone') or '').strip()
         password = attrs['password']
 
         user = None
 
-        if telegram_username:
-            telegram_username = telegram_username.lower()
-            if telegram_username and not telegram_username.startswith('@'):
-                telegram_username_with_at = f'@{telegram_username}'
-            else:
-                telegram_username_with_at = telegram_username
-            telegram_username_without_at = telegram_username_with_at[1:] if telegram_username_with_at.startswith('@') else telegram_username_with_at
-            user = (
-                User.objects.filter(telegram_username__iexact=telegram_username_with_at).first()
-                or User.objects.filter(telegram_username__iexact=telegram_username_without_at).first()
-                or User.objects.filter(username__iexact=telegram_username_with_at).first()
-                or User.objects.filter(username__iexact=telegram_username_without_at).first()
-            )
-        elif email:
-            user = User.objects.filter(email__iexact=email).first()
-        else:
+        identity = login or telegram_username or email or phone
+        if not identity:
             self.fail('invalid_credentials')
+
+        identity = identity.strip()
+        identity_lower = identity.lower()
+        matches: dict[int, User] = {}
+
+        if identity_lower:
+            if identity_lower.startswith('@'):
+                telegram_username_with_at = identity_lower
+            else:
+                telegram_username_with_at = f'@{identity_lower}'
+            telegram_username_without_at = (
+                telegram_username_with_at[1:]
+                if telegram_username_with_at.startswith('@')
+                else telegram_username_with_at
+            )
+
+            for candidate in (
+                User.objects.filter(telegram_username__iexact=telegram_username_with_at).first(),
+                User.objects.filter(telegram_username__iexact=telegram_username_without_at).first(),
+                User.objects.filter(username__iexact=telegram_username_with_at).first(),
+                User.objects.filter(username__iexact=telegram_username_without_at).first(),
+                User.objects.filter(email__iexact=identity_lower).first(),
+            ):
+                if candidate:
+                    matches[candidate.pk] = candidate
+
+        phone_identity = normalize_phone(identity)
+        if phone_identity:
+            for candidate in User.objects.exclude(phone='').exclude(phone__isnull=True):
+                if normalize_phone(candidate.phone) in phone_variants(phone_identity):
+                    matches[candidate.pk] = candidate
+
+        if len(matches) == 1:
+            user = next(iter(matches.values()))
 
         if not user:
             self.fail('invalid_credentials')

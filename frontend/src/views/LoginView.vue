@@ -5,8 +5,8 @@
 
       <form class="form" @submit.prevent="onSubmit">
         <label class="field">
-          <span class="field__label">Email або Telegram username</span>
-          <input v-model.trim="login" class="input" autocomplete="username" placeholder="email@example.com або @username" />
+          <span class="field__label">Telegram, email або телефон</span>
+          <input v-model.trim="login" class="input" autocomplete="username" placeholder="@username, email@example.com або +380..." />
         </label>
 
         <label class="field">
@@ -37,19 +37,9 @@ const route = useRoute()
 const login = ref('')
 const password = ref('')
 
-function isEmail(value: string) {
-  return value.includes('@') && value.includes('.')
-}
-
 async function onSubmit() {
   const value = login.value.trim()
-  const payload: { email?: string; telegram_username?: string; password: string } = { password: password.value }
-  if (value) {
-    if (isEmail(value) && !value.startsWith('@')) payload.email = value
-    else payload.telegram_username = value
-  }
-
-  await auth.logIn(payload)
+  await auth.logIn({ login: value, password: password.value })
   const next = typeof route.query.next === 'string' ? route.query.next : '/me'
   await router.push(next)
 }
