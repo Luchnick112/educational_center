@@ -140,19 +140,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         if not telegram_username and not email:
             raise serializers.ValidationError('Telegram username or email is required.')
 
-        staff_creating_student = self._is_staff_request() and role == UserRole.STUDENT
-        if not password and not staff_creating_student:
+        staff_creating_user = self._is_staff_request()
+        if not password and not staff_creating_user:
             raise serializers.ValidationError({'password': 'Password is required.'})
 
         existing_user = self._existing_user_for_identity(telegram_username=telegram_username, email=email)
         if existing_user:
-            can_claim_student = (
+            can_claim_user = (
                 bool(password)
-                and role == UserRole.STUDENT
-                and existing_user.role == UserRole.STUDENT
+                and role == existing_user.role
                 and not existing_user.has_usable_password()
             )
-            if not can_claim_student:
+            if not can_claim_user:
                 raise serializers.ValidationError('User with this Telegram username or email already exists.')
 
             attrs['_claim_user'] = existing_user

@@ -42,7 +42,7 @@
             v-if="mode === 'create'"
             title="Акаунт"
             :model="createUser"
-            :showPassword="true"
+            :showPassword="false"
           />
           <UserAccountForm
             v-else-if="selectedUserDetail"
@@ -217,7 +217,6 @@ async function submitForm() {
           email: createUser.value.email || undefined,
           role: 'teacher',
           phone: createUser.value.phone || undefined,
-          password: createUser.value.password,
         },
       })
       await reload()
