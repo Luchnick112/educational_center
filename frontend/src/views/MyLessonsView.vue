@@ -168,6 +168,9 @@
         <button v-if="canManageLessons" class="btn save-detail" type="button" :disabled="savingLesson" @click="updateLesson">
           {{ savingLesson ? 'Збереження...' : 'Зберегти урок' }}
         </button>
+        <button v-if="isAdmin" class="btn btn--ghost save-detail" type="button" :disabled="savingLesson" @click="deleteLesson">
+          Видалити урок
+        </button>
       </div>
     </div>
   </AppShell>
@@ -640,6 +643,27 @@ async function updateLesson() {
     await reloadLessons()
   } catch (e: any) {
     detailError.value = e?.payload?.detail || e?.message || 'Не вдалося оновити урок'
+  } finally {
+    savingLesson.value = false
+  }
+}
+
+async function deleteLesson() {
+  if (!selectedLesson.value) return
+  const ok = window.confirm(`Видалити урок #${selectedLesson.value.id}?`)
+  if (!ok) return
+
+  savingLesson.value = true
+  error.value = null
+  detailError.value = null
+  try {
+    await apiRequest(`/api/academics/lessons/${selectedLesson.value.id}/`, { method: 'DELETE' })
+    selectedLesson.value = null
+    participantForms.value = []
+    rescheduleRequests.value = []
+    await reloadLessons()
+  } catch (e: any) {
+    detailError.value = apiErrorMessage(e, 'Не вдалося видалити урок')
   } finally {
     savingLesson.value = false
   }

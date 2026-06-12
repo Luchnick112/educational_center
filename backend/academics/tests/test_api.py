@@ -757,11 +757,30 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertIn(self.group.id, ids)
         self.assertNotIn(other_group.id, ids)
 
+    def test_admin_can_delete_lesson(self):
+        admin_user = User.objects.create_user(
+            username='lesson_delete_admin',
+            email='lesson_delete_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        participant = self.lesson.participants.get()
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.delete(f'/api/academics/lessons/{self.lesson.id}/')
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Lesson.objects.filter(id=self.lesson.id).exists())
+        self.assertFalse(LessonParticipant.objects.filter(id=participant.id).exists())
+
     def test_teacher_cannot_delete_lessons(self):
         self.client.force_authenticate(self.teacher_user)
 
         response = self.client.delete(f'/api/academics/lessons/{self.lesson.id}/')
+
         self.assertEqual(response.status_code, 403)
+        self.assertTrue(Lesson.objects.filter(id=self.lesson.id).exists())
 
     def test_student_can_confirm_own_confirmation_only(self):
         participant = self.lesson.participants.get()
