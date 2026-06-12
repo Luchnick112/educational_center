@@ -21,7 +21,7 @@
       </div>
       <div class="field">
         <div class="field__label">Телефон</div>
-        <input class="input" v-model.trim="model.phone" :disabled="disabled" />
+        <input class="input" v-model.trim="model.phone" placeholder="+380501112233" :disabled="disabled" />
       </div>
       <div v-if="showPassword" class="field">
         <div class="field__label">Пароль</div>

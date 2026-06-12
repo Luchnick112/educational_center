@@ -10,6 +10,7 @@ export type MeResponse = {
   last_name: string
   telegram_username: string
   email: string
+  phone: string
   role: Role
   is_staff: boolean
   my: Array<{ key: string; url: string }>
@@ -80,7 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function logIn(payload: { email?: string; telegram_username?: string; password: string }) {
+  async function logIn(payload: { login?: string; email?: string; telegram_username?: string; phone?: string; password: string }) {
     isLoading.value = true
     error.value = null
     try {
@@ -119,6 +120,8 @@ export const useAuthStore = defineStore('auth', () => {
       // After register, log in by the available identifier.
       if (payload.telegram_username) {
         await logIn({ telegram_username: payload.telegram_username, password: payload.password })
+      } else if (payload.phone) {
+        await logIn({ phone: payload.phone, password: payload.password })
       } else {
         await logIn({ email: payload.email, password: payload.password })
       }

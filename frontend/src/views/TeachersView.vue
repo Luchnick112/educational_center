@@ -129,6 +129,13 @@ async function updateSelectedUserAccount() {
 const hourly_rate = ref('')
 const bio = ref('')
 
+function teacherProfilePayload() {
+  return {
+    hourly_rate: hourly_rate.value === '' ? '0.00' : hourly_rate.value,
+    bio: bio.value || '',
+  }
+}
+
 const formTitle = computed(() => {
   if (mode.value === 'create') return 'Створити'
   if (mode.value === 'edit' && selectedId.value) return `Редагувати #${selectedId.value}`
@@ -224,7 +231,7 @@ async function submitForm() {
       if (teacher) {
         await apiRequest(`/api/users/teachers/${teacher.id}/`, {
           method: 'PATCH',
-          body: { hourly_rate: hourly_rate.value === '' ? null : hourly_rate.value, bio: bio.value || '' },
+          body: teacherProfilePayload(),
         })
         await loadDetail(teacher.id)
       }
@@ -236,7 +243,7 @@ async function submitForm() {
       await updateSelectedUserAccount()
       await apiRequest(`/api/users/teachers/${selectedId.value}/`, {
         method: 'PATCH',
-        body: { hourly_rate: hourly_rate.value === '' ? null : hourly_rate.value, bio: bio.value || '' },
+        body: teacherProfilePayload(),
       })
       await reload()
       await loadDetail(selectedId.value)

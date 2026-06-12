@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from academics.models import Lesson, LessonConfirmation, LessonParticipant, StudentEnrollment, StudyGroup, Subject
@@ -128,6 +128,27 @@ class RegisterApiTestCase(TestCase):
                 self.assertFalse(user.has_usable_password())
                 self.assertTrue(hasattr(user, profile_attr))
 
+    def test_staff_can_create_user_with_phone_only(self):
+        self.client.force_authenticate(self.staff)
+
+        resp = self.client.post(
+            '/api/users/register/',
+            {
+                'first_name': 'Phone',
+                'last_name': 'Only',
+                'phone': '+380501112233',
+                'role': UserRole.TEACHER,
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.data)
+        user = User.objects.get(pk=resp.data['id'])
+        self.assertEqual(user.phone, '+380501112233')
+        self.assertEqual(user.role, UserRole.TEACHER)
+        self.assertFalse(user.has_usable_password())
+        self.assertTrue(hasattr(user, 'teacher_profile'))
+
     def test_staff_can_update_student_lesson_price(self):
         self.client.force_authenticate(self.staff)
         student_user = User.objects.create_user(
@@ -230,6 +251,46 @@ class RegisterApiTestCase(TestCase):
         )
         self.assertEqual(token_resp.status_code, 200, token_resp.data)
 
+    @override_settings(DEFAULT_PHONE_COUNTRY_CODE='380')
+    def test_token_login_accepts_telegram_email_or_phone(self):
+        user = User.objects.create_user(
+            username='multi_login',
+            telegram_username='@multi_login',
+            email='multi.login@example.com',
+            phone='+380 50 111-22-33',
+            password='pass12345',
+            role=UserRole.TEACHER,
+        )
+        TeacherProfile.objects.create(user=user)
+
+        for login in ('@multi_login', 'multi.login@example.com', '+380501112233', '380 50 111 22 33', '0501112233'):
+            with self.subTest(login=login):
+                resp = self.client.post(
+                    '/api/users/token/',
+                    {'login': login, 'password': 'pass12345'},
+                    format='json',
+                )
+                self.assertEqual(resp.status_code, 200, resp.data)
+                self.assertIn('access', resp.data)
+
+    def test_token_login_rejects_ambiguous_phone(self):
+        for suffix in ('one', 'two'):
+            User.objects.create_user(
+                username=f'phone_{suffix}',
+                telegram_username=f'@phone_{suffix}',
+                phone='+380501112233',
+                password='pass12345',
+                role=UserRole.TEACHER,
+            )
+
+        resp = self.client.post(
+            '/api/users/token/',
+            {'login': '+380501112233', 'password': 'pass12345'},
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 400)
+
     def test_public_registration_rejects_existing_usable_account(self):
         User.objects.create_user(
             username='@existing_student',
@@ -281,6 +342,72 @@ class RegisterApiTestCase(TestCase):
         self.assertEqual(student.telegram_username, '@updatedstudent')
         self.assertEqual(student.email, 'updated.student@example.com')
         self.assertEqual(student.phone, '+380000000011')
+
+    def test_user_can_update_own_account_fields(self):
+        user = User.objects.create_user(
+            username='own_user',
+            telegram_username='@own_user',
+            email='own.old@example.com',
+            phone='+380000000012',
+            password='pass12345',
+            role=UserRole.TEACHER,
+        )
+        self.client.force_authenticate(user)
+
+        resp = self.client.patch(
+            '/api/users/me/',
+            {
+                'first_name': 'Own',
+                'last_name': 'Updated',
+                'telegram_username': '@own_updated',
+                'email': 'own.updated@example.com',
+                'phone': '+380000000013',
+            },
+            format='json',
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, 'Own')
+        self.assertEqual(user.last_name, 'Updated')
+        self.assertEqual(user.telegram_username, '@own_updated')
+        self.assertEqual(user.email, 'own.updated@example.com')
+        self.assertEqual(user.phone, '+380000000013')
+
+    def test_admin_dashboard_includes_active_student_and_teacher_counts(self):
+        active_student_user = User.objects.create_user(
+            username='active_student',
+            telegram_username='@active_student',
+            role=UserRole.STUDENT,
+        )
+        inactive_student_user = User.objects.create_user(
+            username='inactive_student',
+            telegram_username='@inactive_student',
+            role=UserRole.STUDENT,
+            is_active=False,
+        )
+        active_teacher_user = User.objects.create_user(
+            username='active_teacher',
+            telegram_username='@active_teacher',
+            role=UserRole.TEACHER,
+        )
+        inactive_teacher_user = User.objects.create_user(
+            username='inactive_teacher',
+            telegram_username='@inactive_teacher',
+            role=UserRole.TEACHER,
+            is_active=False,
+        )
+        StudentProfile.objects.create(user=active_student_user)
+        StudentProfile.objects.create(user=inactive_student_user)
+        TeacherProfile.objects.create(user=active_teacher_user)
+        TeacherProfile.objects.create(user=inactive_teacher_user)
+
+        self.client.force_authenticate(self.staff)
+        resp = self.client.get('/api/users/dashboard/')
+
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['stats']['Студенти'], 1)
+        self.assertEqual(resp.data['stats']['Вчителі'], 1)
 
     def test_staff_delete_student_profile_deactivates_user(self):
         self.client.force_authenticate(self.staff)

@@ -59,9 +59,15 @@ class UserViewSet(viewsets.ModelViewSet):
         instance.is_active = False
         instance.save(update_fields=['is_active'])
 
-    @extend_schema(responses=UserSerializer)
-    @decorators.action(detail=False, methods=['get'], url_path='me')
+    @extend_schema(request=UserSerializer, responses=UserSerializer)
+    @decorators.action(detail=False, methods=['get', 'patch'], url_path='me')
     def me(self, request):
+        if request.method == 'PATCH':
+            serializer = self.get_serializer(request.user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return response.Response(serializer.data)
+
         serializer = self.get_serializer(request.user)
         return response.Response(serializer.data)
 
@@ -78,8 +84,8 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             student = user.student_profile
             data['stats'] = {
-                'active_enrollments': StudentEnrollment.objects.filter(student=student, status='active').count(),
-                'upcoming_lessons': LessonParticipant.objects.filter(
+                'Активні зарахування': StudentEnrollment.objects.filter(student=student, status='active').count(),
+                'Заплановані уроки': LessonParticipant.objects.filter(
                     student=student,
                     lesson__status='scheduled',
                 ).count(),
@@ -87,22 +93,24 @@ class UserViewSet(viewsets.ModelViewSet):
         elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
             parent = user.parent_profile
             data['stats'] = {
-                'children': parent.student_links.count(),
-                'open_charges': ParentCharge.objects.filter(parent=parent).exclude(status='paid').count(),
+                'Діти': parent.student_links.count(),
+                'Відкриті нарахування': ParentCharge.objects.filter(parent=parent).exclude(status='paid').count(),
             }
         elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             teacher = user.teacher_profile
             data['stats'] = {
-                'groups': teacher.groups.count(),
-                'scheduled_lessons': Lesson.objects.filter(group__teacher=teacher, status='scheduled').count(),
-                'pending_payouts': TeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count(),
+                'Групи': teacher.groups.count(),
+                'Заплановані уроки': Lesson.objects.filter(group__teacher=teacher, status='scheduled').count(),
+                'Очікують виплати': TeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count(),
             }
         else:
             data['stats'] = {
-                'users': User.objects.count(),
-                'groups': StudentEnrollment.objects.values('group').distinct().count(),
-                'scheduled_lessons': Lesson.objects.filter(status='scheduled').count(),
-                'open_charges': ParentCharge.objects.exclude(status='paid').count(),
+                'Користувачі': User.objects.count(),
+                'Студенти': StudentProfile.objects.filter(user__is_active=True).count(),
+                'Вчителі': TeacherProfile.objects.filter(user__is_active=True).count(),
+                'Групи': StudentEnrollment.objects.values('group').distinct().count(),
+                'Заплановані уроки': Lesson.objects.filter(status='scheduled').count(),
+                'Відкриті нарахування': ParentCharge.objects.exclude(status='paid').count(),
             }
 
         return response.Response(data)
@@ -216,7 +224,7 @@ class TokenPageView(TokenObtainPairView):
                 'button_label': 'Get tokens',
                 'endpoint': '/api/users/token/',
                 'fields': (
-                    {'name': 'telegram_username', 'label': 'Telegram username', 'type': 'text', 'required': True},
+                    {'name': 'login', 'label': 'Telegram, email or phone', 'type': 'text', 'required': True},
                     {'name': 'password', 'label': 'Password', 'type': 'password', 'required': True},
                 ),
             },
