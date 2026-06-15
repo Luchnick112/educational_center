@@ -3,8 +3,9 @@ from rest_framework import decorators, permissions, response, viewsets
 from users.models import UserRole
 from users.permissions import IsAdminOrRelatedAcademicObject, StaffWritePermission
 
-from .models import ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
+from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
 from .serializers import (
+    LessonTeacherPayoutSerializer,
     ParentChargeIssueSerializer,
     ParentChargeMarkPaidSerializer,
     ParentChargeSerializer,
@@ -70,6 +71,49 @@ class ParentChargeViewSet(viewsets.ModelViewSet):
 class TeacherPayoutViewSet(viewsets.ModelViewSet):
     queryset = TeacherPayout.objects.select_related('teacher', 'participant').all()
     serializer_class = TeacherPayoutSerializer
+    permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
+
+    def get_permissions(self):
+        if getattr(self, 'action', None) in {'approve', 'mark_paid'}:
+            return [permissions.IsAuthenticated(), IsAdminOrRelatedAcademicObject()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.role == UserRole.ADMIN:
+            return self.queryset
+        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            return self.queryset.filter(teacher=user.teacher_profile)
+        return self.queryset.none()
+
+    @decorators.action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        payout = self.get_object()
+        serializer = TeacherPayoutApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payout = approve_teacher_payout(
+            user=request.user,
+            payout=payout,
+            approved_at=serializer.validated_data.get('approved_at'),
+        )
+        return response.Response(self.get_serializer(payout).data)
+
+    @decorators.action(detail=True, methods=['post'], url_path='mark-paid')
+    def mark_paid(self, request, pk=None):
+        payout = self.get_object()
+        serializer = TeacherPayoutMarkPaidSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payout = mark_teacher_payout_paid(
+            user=request.user,
+            payout=payout,
+            paid_at=serializer.validated_data.get('paid_at'),
+        )
+        return response.Response(self.get_serializer(payout).data)
+
+
+class LessonTeacherPayoutViewSet(viewsets.ModelViewSet):
+    queryset = LessonTeacherPayout.objects.select_related('teacher', 'lesson').all()
+    serializer_class = LessonTeacherPayoutSerializer
     permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
 
     def get_permissions(self):

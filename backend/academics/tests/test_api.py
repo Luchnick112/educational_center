@@ -2,7 +2,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 
 from django.utils import timezone
-from finance.models import ChargeStatus, ParentCharge, PayoutStatus, TeacherPayout
+from finance.models import ChargeStatus, LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
 from rest_framework.test import APIRequestFactory
 from users.models import ParentProfile, StudentProfile, TeacherProfile, User, UserRole
 
@@ -15,6 +15,7 @@ from academics.models import (
     LessonParticipant,
     LessonRescheduleStatus,
     LessonStatus,
+    StudyGroupFormat,
     StudentEnrollment,
 )
 from academics.models import StudyGroup, Subject
@@ -60,6 +61,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             {
                 'subject': self.subject.id,
                 'teacher': self.teacher.id,
+                'format': StudyGroupFormat.INDIVIDUAL,
                 'capacity': 5,
                 'student_price': '700.00',
                 'teacher_rate': '400.00',
@@ -71,6 +73,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(create_response.status_code, 201)
         created_id = create_response.data['id']
         self.assertEqual(create_response.data['name'], f'{self.subject.name}{self.teacher.id}{created_id}')
+        self.assertEqual(create_response.data['format'], StudyGroupFormat.INDIVIDUAL)
 
     def test_teacher_can_create_group_without_teacher_or_prices(self):
         self.client.force_authenticate(self.teacher_user)
@@ -87,8 +90,30 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['teacher'], self.teacher.id)
+        self.assertEqual(response.data['format'], StudyGroupFormat.GROUP)
         self.assertEqual(response.data['teacher_rate'], '0.00')
         self.assertNotIn('student_price', response.data)
+
+    def test_admin_can_update_group_format(self):
+        admin_user = User.objects.create_user(
+            username='group_format_admin',
+            email='group_format_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.patch(
+            f'/api/academics/groups/{self.group.id}/',
+            {'format': StudyGroupFormat.INDIVIDUAL},
+            format='json',
+        )
+
+        self.group.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['format'], StudyGroupFormat.INDIVIDUAL)
+        self.assertEqual(self.group.format, StudyGroupFormat.INDIVIDUAL)
 
     def test_admin_can_delete_group_with_related_lessons_and_finance(self):
         admin_user = User.objects.create_user(
@@ -640,17 +665,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(participant.billed_amount, Decimal('600.00'))
 
-    def test_teacher_cannot_directly_reschedule_lesson(self):
-        self.client.force_authenticate(self.teacher_user)
-
-        response = self.client.patch(
-            f'/api/academics/lessons/{self.lesson.id}/',
-            {'starts_at': (timezone.now() + timedelta(days=2)).isoformat()},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, 400)
-
     def test_admin_can_manage_group_pricing_rules(self):
         admin_user = User.objects.create_user(
             username='pricing_admin',
@@ -756,6 +770,52 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         ids = set(qs.values_list('id', flat=True))
         self.assertIn(self.group.id, ids)
         self.assertNotIn(other_group.id, ids)
+
+    def test_teacher_can_update_scheduled_lesson_time(self):
+        self.client.force_authenticate(self.teacher_user)
+        starts_at = timezone.now() + timedelta(days=2)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'starts_at': starts_at.isoformat()},
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.lesson.starts_at, starts_at)
+
+    def test_teacher_can_update_cancelled_lesson_time(self):
+        self.lesson.status = LessonStatus.CANCELLED
+        self.lesson.save(update_fields=['status'])
+        self.client.force_authenticate(self.teacher_user)
+        starts_at = timezone.now() + timedelta(days=2)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'starts_at': starts_at.isoformat()},
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.lesson.starts_at, starts_at)
+
+    def test_teacher_cannot_update_completed_lesson_time(self):
+        original_starts_at = self.lesson.starts_at
+        self.lesson.status = LessonStatus.COMPLETED
+        self.lesson.save(update_fields=['status'])
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'starts_at': (timezone.now() + timedelta(days=2)).isoformat()},
+            format='json',
+        )
+
+        self.lesson.refresh_from_db()
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.lesson.starts_at, original_starts_at)
 
     def test_admin_can_delete_lesson(self):
         admin_user = User.objects.create_user(
@@ -974,7 +1034,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         )
 
         charge = ParentCharge.objects.get(participant=participant)
-        payout = TeacherPayout.objects.get(participant=participant)
+        payout = LessonTeacherPayout.objects.get(lesson=self.lesson)
 
         admin_user = User.objects.create_user(
             username='finance_admin',
@@ -996,12 +1056,12 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             format='json',
         )
         approve_response = self.client.post(
-            f'/api/finance/teacher-payouts/{payout.id}/approve/',
+            f'/api/finance/lesson-teacher-payouts/{payout.id}/approve/',
             {},
             format='json',
         )
         payout_paid_response = self.client.post(
-            f'/api/finance/teacher-payouts/{payout.id}/mark-paid/',
+            f'/api/finance/lesson-teacher-payouts/{payout.id}/mark-paid/',
             {},
             format='json',
         )

@@ -1,6 +1,6 @@
 from django.db import models
 
-from academics.models import LessonParticipant
+from academics.models import Lesson, LessonParticipant
 from users.models import ParentProfile, StudentProfile, TeacherProfile, User
 
 
@@ -42,6 +42,18 @@ class TeacherPayout(models.Model):
 
     def __str__(self) -> str:
         return f'{self.teacher} / {self.amount}'
+
+
+class LessonTeacherPayout(models.Model):
+    lesson = models.OneToOneField(Lesson, on_delete=models.CASCADE, related_name='teacher_payout')
+    teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='lesson_payouts')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=16, choices=PayoutStatus.choices, default=PayoutStatus.DRAFT)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f'{self.teacher} / lesson {self.lesson_id} / {self.amount}'
 
 
 class StudentPayment(models.Model):

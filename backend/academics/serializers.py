@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -8,6 +9,7 @@ from users.models import StudentParentRelation, UserRole
 
 from .models import (
     AttendanceStatus,
+    GroupAttendanceRate,
     GroupPricing,
     Lesson,
     LessonConfirmation,
@@ -107,6 +109,7 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'name',
             'subject',
             'teacher',
+            'format',
             'capacity',
             'student_price',
             'teacher_rate',
@@ -163,6 +166,24 @@ class GroupPricingSerializer(serializers.ModelSerializer):
             'group',
             'group_name',
             'student_price',
+            'teacher_rate',
+            'effective_from',
+            'created_at',
+        )
+        read_only_fields = ('created_at',)
+
+
+class GroupAttendanceRateSerializer(serializers.ModelSerializer):
+    effective_from = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    group_name = serializers.CharField(source='group.name', read_only=True)
+
+    class Meta:
+        model = GroupAttendanceRate
+        fields = (
+            'id',
+            'group',
+            'group_name',
+            'present_count',
             'teacher_rate',
             'effective_from',
             'created_at',
@@ -262,6 +283,14 @@ class LessonSerializer(serializers.ModelSerializer):
         self.fields['group'].queryset = StudyGroup.objects.none()
 
     def get_payroll_amount(self, instance):
+        annotated_lesson_payout = getattr(instance, 'lesson_teacher_payout_amount', None)
+        if annotated_lesson_payout is not None:
+            return annotated_lesson_payout
+        try:
+            return instance.teacher_payout.amount
+        except ObjectDoesNotExist:
+            pass
+
         value = getattr(instance, 'payroll_amount_total', None)
         if value is None:
             value = sum(

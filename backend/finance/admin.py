@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
+from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
 
 
 @admin.register(ParentCharge)
@@ -12,6 +12,12 @@ class ParentChargeAdmin(admin.ModelAdmin):
 @admin.register(TeacherPayout)
 class TeacherPayoutAdmin(admin.ModelAdmin):
     list_display = ('teacher', 'amount', 'status', 'approved_at', 'paid_at')
+    list_filter = ('status',)
+
+
+@admin.register(LessonTeacherPayout)
+class LessonTeacherPayoutAdmin(admin.ModelAdmin):
+    list_display = ('lesson', 'teacher', 'amount', 'status', 'approved_at', 'paid_at')
     list_filter = ('status',)
 
 

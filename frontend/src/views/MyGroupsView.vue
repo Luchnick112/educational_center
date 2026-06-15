@@ -31,7 +31,8 @@
           <tr>
             <th class="col-teacher">Вчитель</th>
             <th>Назва групи</th>
-            <th v-if="isAdmin" class="col-student-price">Ціна учня</th>
+            <th>Тип</th>
+            <th v-if="isAdmin" class="col-student-price">Ціна за навчання</th>
             <th>Ставка вчителя</th>
             <th>Кількість учнів</th>
             <th class="col-student-list">Список студентів</th>
@@ -46,6 +47,7 @@
           >
             <td class="col-teacher">{{ teacherLabel(row.group.teacher) }}</td>
             <td>{{ row.group.name || `Група #${row.group.id}` }}</td>
+            <td>{{ groupFormatLabel(row.group.format) }}</td>
             <td v-if="isAdmin" class="col-student-price">{{ priceLabel(row.group.student_price) }}</td>
             <td>{{ priceLabel(row.group.teacher_rate) }}</td>
             <td>{{ row.studentIds.length }}</td>
@@ -60,8 +62,12 @@
             <span class="detail-item__label">Вчитель</span>
             <span>{{ teacherLabel(selectedGroupDetail.group.teacher) }}</span>
           </div>
+          <div class="detail-item">
+            <span class="detail-item__label">Тип</span>
+            <span>{{ groupFormatLabel(selectedGroupDetail.group.format) }}</span>
+          </div>
           <div v-if="isAdmin" class="detail-item col-student-price">
-            <span class="detail-item__label">Ціна учня</span>
+            <span class="detail-item__label">Ціна за навчання</span>
             <span>{{ priceLabel(selectedGroupDetail.group.student_price) }}</span>
           </div>
           <div class="detail-item">
@@ -98,8 +104,14 @@
             <button class="dropdown__option" v-for="t in teachers" :key="t.id" type="button" @click="setCreateTeacher(t.id)">{{ teacherLabel(t.id) }}</button>
           </div>
         </div>
+        <label class="field">
+          <span class="field__label">Тип</span>
+          <select class="input" v-model="createForm.format">
+            <option v-for="option in groupFormatOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
         <div v-if="isAdmin" class="field">
-          <div class="field__label">Ціна учня</div>
+          <div class="field__label">Ціна за навчання</div>
           <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.student_price" />
         </div>
         <div v-if="isAdmin" class="field">
@@ -136,13 +148,19 @@
           </div>
         </div>
         <div v-if="isAdmin" class="field">
-          <div class="field__label">Ціна учня</div>
-          <input class="input" type="number" min="0" step="0.01" v-model.number="editForm.student_price" placeholder="Ціна учня" />
+          <div class="field__label">Ціна за навчання</div>
+          <input class="input" type="number" min="0" step="0.01" v-model.number="editForm.student_price" placeholder="Ціна за навчання" />
         </div>
         <div v-if="isAdmin" class="field">
           <div class="field__label">Ставка вчителя</div>
           <input class="input" type="number" min="0" step="0.01" v-model.number="editForm.teacher_rate" placeholder="Ставка вчителя" />
         </div>
+        <label class="field">
+          <span class="field__label">Тип</span>
+          <select class="input" v-model="editForm.format">
+            <option v-for="option in groupFormatOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
         <div class="field">
           <div class="field__label">Учні групи</div>
           <div class="dropdown">
@@ -166,7 +184,7 @@
             <input class="input" type="date" v-model="pricingForm.effective_from_date" />
           </label>
           <label class="field">
-            <span class="field__label">Ціна учня</span>
+            <span class="field__label">Ціна за навчання</span>
             <input class="input" type="number" min="0" step="0.01" v-model.number="pricingForm.student_price" />
           </label>
           <label class="field">
@@ -181,7 +199,7 @@
           <thead>
             <tr>
               <th>Дата з</th>
-              <th>Ціна учня</th>
+              <th>Ціна за навчання</th>
               <th>Ставка вчителя</th>
             </tr>
           </thead>
@@ -194,6 +212,49 @@
           </tbody>
         </table>
         <div v-else class="muted">Правил цін ще немає</div>
+      </div>
+
+      <div v-if="isAdmin && editForm.format === 'group'" class="pricing-block">
+        <div class="section-title">Виплата вчителю за присутніми</div>
+        <div class="attendance-rate-form">
+          <label class="field">
+            <span class="field__label">Дата з</span>
+            <input class="input" type="date" v-model="attendanceRateForm.effective_from_date" @change="hydrateAttendanceRateFormFromRules" />
+          </label>
+          <div class="attendance-rate-grid">
+            <label v-for="tier in attendanceRateTiers" :key="tier.present_count" class="field">
+              <span class="field__label">{{ tier.label }}</span>
+              <input
+                class="input"
+                type="number"
+                min="0"
+                step="0.01"
+                v-model="attendanceRateForm.rates[tier.present_count]"
+                placeholder="0.00"
+              />
+            </label>
+          </div>
+          <button class="btn pricing-submit" type="button" :disabled="savingAttendanceRate || !attendanceRateForm.effective_from_date" @click="saveAttendanceRateGrid">
+            {{ savingAttendanceRate ? 'Збереження...' : 'Зберегти ставки' }}
+          </button>
+        </div>
+        <table v-if="selectedGroupAttendanceRateRules.length" class="pricing-table">
+          <thead>
+            <tr>
+              <th>Дата з</th>
+              <th>Присутніх від</th>
+              <th>Ставка вчителя</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="rule in selectedGroupAttendanceRateRules" :key="rule.id">
+              <td>{{ dateLabel(rule.effective_from) }}</td>
+              <td>{{ rule.present_count }}+</td>
+              <td>{{ priceLabel(rule.teacher_rate) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="muted">Ставок за присутніми ще немає</div>
       </div>
     </div>
   </AppShell>
@@ -208,8 +269,10 @@ import { useAuthStore } from '@/stores/auth'
 type Subject = { id: number; name: string }
 type Student = { id: number; user_detail?: { first_name?: string; last_name?: string; email?: string; telegram_username?: string } }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
-type Group = { id: number; name?: string; teacher?: number | null; subject?: number | null; capacity?: number | null; student_price?: string | number | null; teacher_rate?: string | number | null }
+type GroupFormat = 'group' | 'individual'
+type Group = { id: number; name?: string; teacher?: number | null; subject?: number | null; format?: GroupFormat | string | null; capacity?: number | null; student_price?: string | number | null; teacher_rate?: string | number | null }
 type GroupPricing = { id: number; group: number; group_name?: string; student_price: string | number; teacher_rate: string | number; effective_from: string; created_at?: string }
+type GroupAttendanceRate = { id: number; group: number; group_name?: string; present_count: number; teacher_rate: string | number; effective_from: string; created_at?: string }
 type Enrollment = {
   id: number
   group: number
@@ -222,12 +285,18 @@ type Enrollment = {
   student_telegram_username?: string
 }
 
+const groupFormatOptions: Array<{ value: GroupFormat; label: string }> = [
+  { value: 'group', label: 'Груповий' },
+  { value: 'individual', label: 'Індивідуальний' },
+]
+
 const auth = useAuthStore()
 const canManageGroups = ref(false)
 const isAdmin = ref(false)
 const loading = ref(true)
 const saving = ref(false)
 const savingPricing = ref(false)
+const savingAttendanceRate = ref(false)
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
 const selectedGroupId = ref<number | null>(null)
@@ -252,17 +321,29 @@ const teachers = ref<Teacher[]>([])
 const groups = ref<Group[]>([])
 const enrollments = ref<Enrollment[]>([])
 const pricingRules = ref<GroupPricing[]>([])
+const attendanceRateRules = ref<GroupAttendanceRate[]>([])
+const attendanceRateTiers = [
+  { present_count: 1, label: '1 учень' },
+  { present_count: 2, label: '2 учні' },
+  { present_count: 3, label: '3 учні' },
+  { present_count: 4, label: '4+ учні' },
+]
 
 const createForm = ref({
   subject: null as number | null,
   teacher: null as number | null,
+  format: 'group' as GroupFormat,
   capacity: 1,
   student_price: 0,
   teacher_rate: 0,
   students: [] as number[],
 })
-const editForm = ref({ subject: null as number | null, student_price: 0, teacher_rate: 0, students: [] as number[] })
+const editForm = ref({ subject: null as number | null, format: 'group' as GroupFormat, student_price: 0, teacher_rate: 0, students: [] as number[] })
 const pricingForm = ref({ effective_from_date: '', student_price: 0, teacher_rate: 0 })
+const attendanceRateForm = ref({
+  effective_from_date: '',
+  rates: Object.fromEntries(attendanceRateTiers.map((tier) => [tier.present_count, ''])) as Record<number, string>,
+})
 
 const editableGroup = computed(() => groups.value.find((g) => g.id === selectedGroupId.value) || null)
 const selectedGroupPricingRules = computed(() => {
@@ -270,6 +351,13 @@ const selectedGroupPricingRules = computed(() => {
   return pricingRules.value
     .filter((rule) => Number(rule.group) === Number(selectedGroupId.value))
     .sort((a, b) => new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime() || b.id - a.id)
+})
+
+const selectedGroupAttendanceRateRules = computed(() => {
+  if (!selectedGroupId.value) return []
+  return attendanceRateRules.value
+    .filter((rule) => Number(rule.group) === Number(selectedGroupId.value))
+    .sort((a, b) => a.present_count - b.present_count || new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime() || b.id - a.id)
 })
 
 const selectedCreateSubjectLabel = computed(() => {
@@ -349,6 +437,10 @@ function teacherLabel(teacherId?: number | null) {
   return [u.first_name, u.last_name].filter(Boolean).join(' ') || u.telegram_username || u.email || `Вчитель #${teacherId}`
 }
 
+function groupFormatLabel(format?: string | null) {
+  return groupFormatOptions.find((option) => option.value === format)?.label || 'Груповий'
+}
+
 function priceLabel(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return '-'
   const n = Number(value)
@@ -363,6 +455,54 @@ function dateLabel(value?: string | null) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
 }
 
+function dateInputValue(value?: string | null) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function attendanceRateIsoDate() {
+  return new Date(`${attendanceRateForm.value.effective_from_date}T00:00:00`).toISOString()
+}
+
+function emptyAttendanceRateRates() {
+  return Object.fromEntries(attendanceRateTiers.map((tier) => [tier.present_count, ''])) as Record<number, string>
+}
+
+function currentAttendanceRateRule(presentCount: number, date: string) {
+  return selectedGroupAttendanceRateRules.value
+    .filter((rule) => Number(rule.present_count) <= presentCount && dateInputValue(rule.effective_from) <= date)
+    .sort((a, b) => {
+      const byPresentCount = Number(b.present_count) - Number(a.present_count)
+      if (byPresentCount !== 0) return byPresentCount
+      const byDate = dateInputValue(b.effective_from).localeCompare(dateInputValue(a.effective_from))
+      if (byDate !== 0) return byDate
+      return b.id - a.id
+    })[0]
+}
+
+function hydrateAttendanceRateFormFromRules() {
+  const groupId = selectedGroupId.value
+  const date = attendanceRateForm.value.effective_from_date
+  const rates = emptyAttendanceRateRates()
+  if (!groupId || !date) {
+    attendanceRateForm.value.rates = rates
+    return
+  }
+
+  for (const tier of attendanceRateTiers) {
+    const rule = currentAttendanceRateRule(tier.present_count, date)
+    rates[tier.present_count] = rule ? String(rule.teacher_rate) : ''
+  }
+  attendanceRateForm.value.rates = rates
+}
+
+function parseMoneyInput(value: string) {
+  return Number(String(value).replace(',', '.'))
+}
+
 function apiErrorMessage(e: any, fallback: string) {
   const payload = e?.payload
   if (payload?.detail) return String(payload.detail)
@@ -370,7 +510,7 @@ function apiErrorMessage(e: any, fallback: string) {
     const labels: Record<string, string> = {
       teacher: 'Вчитель',
       subject: 'Предмет',
-      student_price: 'Ціна учня',
+      student_price: 'Ціна за навчання',
       teacher_rate: 'Ставка вчителя',
       student_ids: 'Учні',
       non_field_errors: 'Помилка',
@@ -471,6 +611,7 @@ function removeGroupFromState(groupId: number) {
   groups.value = groups.value.filter((g) => Number(g.id) !== Number(groupId))
   enrollments.value = enrollments.value.filter((e) => Number(e.group) !== Number(groupId))
   pricingRules.value = pricingRules.value.filter((rule) => Number(rule.group) !== Number(groupId))
+  attendanceRateRules.value = attendanceRateRules.value.filter((rule) => Number(rule.group) !== Number(groupId))
 }
 
 function todayDate() {
@@ -517,12 +658,28 @@ async function loadPricingRules(groupId?: number | null) {
   pricingRules.value = rules
 }
 
+async function loadAttendanceRateRules(groupId?: number | null) {
+  if (!isAdmin.value) return
+  const query = groupId ? `?group=${groupId}` : ''
+  const rules = await apiRequest<GroupAttendanceRate[]>(`/api/academics/group-attendance-rates/${query}`)
+  if (groupId) {
+    attendanceRateRules.value = [
+      ...attendanceRateRules.value.filter((rule) => Number(rule.group) !== Number(groupId)),
+      ...rules,
+    ]
+    hydrateAttendanceRateFormFromRules()
+    return
+  }
+  attendanceRateRules.value = rules
+}
+
 function openCreateForm() {
   notice.value = null
   error.value = null
   createForm.value = {
     subject: null,
     teacher: null,
+    format: 'group',
     capacity: 1,
     student_price: 0,
     teacher_rate: 0,
@@ -543,6 +700,7 @@ function openEditForm() {
   showCreateForm.value = false
   showEditForm.value = true
   editForm.value.subject = g.subject || null
+  editForm.value.format = g.format === 'individual' ? 'individual' : 'group'
   editForm.value.student_price = Number(g.student_price || 0)
   editForm.value.teacher_rate = Number(g.teacher_rate || 0)
   editForm.value.students = activeStudentIdsByGroup(g.id)
@@ -551,7 +709,12 @@ function openEditForm() {
     student_price: Number(g.student_price || 0),
     teacher_rate: Number(g.teacher_rate || 0),
   }
+  attendanceRateForm.value = {
+    effective_from_date: todayDate(),
+    rates: emptyAttendanceRateRates(),
+  }
   void loadPricingRules(g.id)
+  void loadAttendanceRateRules(g.id)
 }
 
 async function createGroup() {
@@ -566,6 +729,7 @@ async function createGroup() {
   try {
     const body: Record<string, unknown> = {
       subject: createForm.value.subject,
+      format: createForm.value.format,
       capacity: createForm.value.capacity,
       is_active: true,
     }
@@ -600,6 +764,7 @@ async function saveEditedGroup() {
     const groupId = editableGroup.value.id
     const body: Record<string, unknown> = {
       subject: editForm.value.subject,
+      format: editForm.value.format,
     }
     if (isAdmin.value) {
       body.student_price = editForm.value.student_price
@@ -675,6 +840,69 @@ async function createPricingRule() {
   }
 }
 
+async function saveAttendanceRateGrid() {
+  if (!editableGroup.value || !attendanceRateForm.value.effective_from_date) return
+
+  const parsedRates = attendanceRateTiers.map((tier) => {
+    const raw = attendanceRateForm.value.rates[tier.present_count] ?? ''
+    const rate = parseMoneyInput(raw)
+    return { ...tier, raw, rate }
+  })
+  if (parsedRates.some((item) => item.raw === '' || !Number.isFinite(item.rate) || item.rate < 0)) {
+    error.value = 'Заповніть ставки для 1, 2, 3 та 4+ учнів'
+    return
+  }
+
+  savingAttendanceRate.value = true
+  error.value = null
+  notice.value = null
+  try {
+    const groupId = editableGroup.value.id
+    const effectiveFrom = attendanceRateIsoDate()
+    const formDate = attendanceRateForm.value.effective_from_date
+
+    for (const item of parsedRates) {
+      const matchingRules = selectedGroupAttendanceRateRules.value
+        .filter((rule) => Number(rule.present_count) === item.present_count && dateInputValue(rule.effective_from) === formDate)
+        .sort((a, b) => b.id - a.id)
+
+      const keep = matchingRules[0]
+      const duplicateRules = matchingRules.slice(1)
+
+      if (keep) {
+        await apiRequest<GroupAttendanceRate>(`/api/academics/group-attendance-rates/${keep.id}/`, {
+          method: 'PATCH',
+          body: {
+            teacher_rate: item.rate.toFixed(2),
+            effective_from: effectiveFrom,
+          },
+        })
+      } else {
+        await apiRequest<GroupAttendanceRate>('/api/academics/group-attendance-rates/', {
+          method: 'POST',
+          body: {
+            group: groupId,
+            present_count: item.present_count,
+            teacher_rate: item.rate.toFixed(2),
+            effective_from: effectiveFrom,
+          },
+        })
+      }
+
+      for (const duplicate of duplicateRules) {
+        await apiRequest(`/api/academics/group-attendance-rates/${duplicate.id}/`, { method: 'DELETE' })
+      }
+    }
+
+    await loadAttendanceRateRules(groupId)
+    notice.value = 'Ставки за присутніми збережено'
+  } catch (e: any) {
+    error.value = apiErrorMessage(e, 'Не вдалося зберегти ставки за присутніми')
+  } finally {
+    savingAttendanceRate.value = false
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -682,7 +910,10 @@ onMounted(async () => {
     canManageGroups.value = auth.me?.role === 'teacher' || auth.me?.role === 'admin' || !!auth.me?.is_staff
     isAdmin.value = auth.me?.role === 'admin' || !!auth.me?.is_staff
     if (canManageGroups.value) await loadData()
-    if (isAdmin.value) await loadPricingRules()
+    if (isAdmin.value) {
+      await loadPricingRules()
+      await loadAttendanceRateRules()
+    }
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося завантажити дані')
   } finally {
@@ -778,6 +1009,17 @@ onMounted(async () => {
   gap: 10px;
   align-items: end;
 }
+.attendance-rate-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(320px, 2fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.attendance-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(80px, 1fr));
+  gap: 10px;
+}
 .pricing-submit {
   min-height: 39px;
 }
@@ -798,6 +1040,10 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
   .pricing-form {
+    grid-template-columns: 1fr;
+  }
+  .attendance-rate-form,
+  .attendance-rate-grid {
     grid-template-columns: 1fr;
   }
 }
