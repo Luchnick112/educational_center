@@ -77,7 +77,7 @@
           </label>
           <label class="field">
             <span class="field__label">Початок заняття</span>
-            <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" :disabled="savingLesson || !isAdmin" />
+            <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" :disabled="savingLesson || !canEditLessonTime" />
           </label>
         </div>
 
@@ -167,6 +167,9 @@
 
         <button v-if="canManageLessons" class="btn save-detail" type="button" :disabled="savingLesson" @click="updateLesson">
           {{ savingLesson ? 'Збереження...' : 'Зберегти урок' }}
+        </button>
+        <button v-if="isAdmin" class="btn btn--ghost save-detail" type="button" :disabled="savingLesson" @click="deleteLesson">
+          Видалити урок
         </button>
       </div>
     </div>
@@ -266,6 +269,10 @@ const canSeePayroll = computed(() => canManageLessons.value)
 const canSeeLessonBilledAmount = computed(() => isAdmin.value || !canManageLessons.value)
 const canSeeLessonPayrollAmount = computed(() => canManageLessons.value)
 const canMarkAttendance = computed(() => canManageLessons.value && selectedLesson.value?.status === 'scheduled')
+const canEditLessonTime = computed(() => {
+  if (isAdmin.value) return true
+  return currentRole.value === 'teacher' && ['scheduled', 'cancelled'].includes(selectedLesson.value?.status || '')
+})
 const participantColumnCount = computed(() => 2 + Number(canSeeLessonBilledAmount.value) + Number(canSeeLessonPayrollAmount.value))
 const activeRescheduleRequest = computed(() =>
   rescheduleRequests.value.find((item) => item.status === 'pending_parent' || item.status === 'parent_confirmed') || null,
@@ -604,6 +611,9 @@ async function createLesson() {
         notes: lessonForm.value.notes,
       },
     })
+    lessonForm.value = { group: null, starts_at_local: '', notes: '' }
+    createLessonFormOpen.value = false
+    lessonGroupOpen.value = false
     await reloadLessons()
   } catch (e: any) {
     error.value = e?.payload?.detail || e?.message || 'Не вдалося створити урок'
@@ -619,7 +629,7 @@ async function updateLesson() {
   detailError.value = null
   try {
     const body: Record<string, unknown> = { notes: editLessonForm.value.notes }
-    if (isAdmin.value) {
+    if (canEditLessonTime.value) {
       body.starts_at = new Date(editLessonForm.value.starts_at_local).toISOString()
     }
     if (canManageLessons.value) {
@@ -640,6 +650,27 @@ async function updateLesson() {
     await reloadLessons()
   } catch (e: any) {
     detailError.value = e?.payload?.detail || e?.message || 'Не вдалося оновити урок'
+  } finally {
+    savingLesson.value = false
+  }
+}
+
+async function deleteLesson() {
+  if (!selectedLesson.value) return
+  const ok = window.confirm(`Видалити урок #${selectedLesson.value.id}?`)
+  if (!ok) return
+
+  savingLesson.value = true
+  error.value = null
+  detailError.value = null
+  try {
+    await apiRequest(`/api/academics/lessons/${selectedLesson.value.id}/`, { method: 'DELETE' })
+    selectedLesson.value = null
+    participantForms.value = []
+    rescheduleRequests.value = []
+    await reloadLessons()
+  } catch (e: any) {
+    detailError.value = apiErrorMessage(e, 'Не вдалося видалити урок')
   } finally {
     savingLesson.value = false
   }

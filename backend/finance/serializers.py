@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
+from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
 
 DATE_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DD'}
 DATETIME_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DDTHH:MM:SSZ'}
@@ -45,6 +45,7 @@ class ParentChargeSerializer(serializers.ModelSerializer):
 
 
 class TeacherPayoutSerializer(serializers.ModelSerializer):
+    payout_type = serializers.SerializerMethodField()
     approved_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     lesson = serializers.IntegerField(source='participant.lesson_id', read_only=True)
@@ -56,6 +57,7 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
         model = TeacherPayout
         fields = (
             'id',
+            'payout_type',
             'participant',
             'lesson',
             'teacher',
@@ -70,6 +72,49 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
 
     def get_student_name(self, instance):
         return profile_label(instance.participant.student)
+
+    def get_teacher_name(self, instance):
+        return profile_label(instance.teacher)
+
+    def get_payout_type(self, instance):
+        return 'participant'
+
+
+class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
+    payout_type = serializers.SerializerMethodField()
+    participant = serializers.SerializerMethodField()
+    lesson = serializers.IntegerField(source='lesson_id', read_only=True)
+    student_name = serializers.SerializerMethodField()
+    teacher_name = serializers.SerializerMethodField()
+    lesson_starts_at = serializers.DateTimeField(source='lesson.starts_at', read_only=True)
+    approved_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+
+    class Meta:
+        model = LessonTeacherPayout
+        fields = (
+            'id',
+            'payout_type',
+            'participant',
+            'lesson',
+            'teacher',
+            'teacher_name',
+            'student_name',
+            'lesson_starts_at',
+            'amount',
+            'status',
+            'approved_at',
+            'paid_at',
+        )
+
+    def get_payout_type(self, instance):
+        return 'lesson'
+
+    def get_participant(self, instance):
+        return None
+
+    def get_student_name(self, instance):
+        return 'За урок'
 
     def get_teacher_name(self, instance):
         return profile_label(instance.teacher)

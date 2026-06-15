@@ -12,6 +12,7 @@ from .models import (
     LessonRescheduleRequest,
     LessonRescheduleStatus,
     LessonStatus,
+    StudyGroupFormat,
 )
 
 
@@ -46,7 +47,7 @@ def mark_lesson_attendance(*, user, lesson: Lesson, participant_id: int, attenda
         raise exceptions.NotFound('Participant does not belong to this lesson.')
 
     participant.attendance_status = attendance_status
-    if attendance_status == AttendanceStatus.PRESENT:
+    if attendance_status == AttendanceStatus.PRESENT and participant.lesson.group.format != StudyGroupFormat.GROUP:
         _, base_teacher_rate = participant.lesson.group.get_effective_pricing(participant.lesson.starts_at)
         participant.payroll_amount = participant.enrollment.teacher_rate_override or base_teacher_rate
     else:

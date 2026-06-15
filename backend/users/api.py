@@ -11,7 +11,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from academics.models import Lesson, LessonParticipant, StudentEnrollment
 from core.serializers import DashboardSerializer
-from finance.models import ParentCharge, TeacherPayout
+from finance.models import LessonTeacherPayout, ParentCharge, TeacherPayout
 
 from .models import (
     ParentProfile,
@@ -101,7 +101,10 @@ class UserViewSet(viewsets.ModelViewSet):
             data['stats'] = {
                 'Групи': teacher.groups.count(),
                 'Заплановані уроки': Lesson.objects.filter(group__teacher=teacher, status='scheduled').count(),
-                'Очікують виплати': TeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count(),
+                'Очікують виплати': (
+                    TeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count()
+                    + LessonTeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count()
+                ),
             }
         else:
             data['stats'] = {

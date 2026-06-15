@@ -8,6 +8,7 @@ from users.models import UserRole
 from users.permissions import IsAdminOrRelatedAcademicObject, IsAdminUserRole, StaffWritePermission
 
 from .models import (
+    GroupAttendanceRate,
     GroupPricing,
     Lesson,
     LessonConfirmation,
@@ -20,6 +21,7 @@ from .models import (
 )
 from .serializers import (
     AttendanceMarkSerializer,
+    GroupAttendanceRateSerializer,
     GroupPricingSerializer,
     GroupStudentsSyncSerializer,
     LessonCancelSerializer,
@@ -122,12 +124,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             serializer.save(
                 teacher=user.teacher_profile,
-                format='group',
                 student_price=Decimal('0.00'),
                 teacher_rate=Decimal('0.00'),
             )
             return
-        serializer.save(format='group', student_price=student_price, teacher_rate=teacher_rate)
+        serializer.save(student_price=student_price, teacher_rate=teacher_rate)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -136,12 +137,11 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             serializer.save(
                 teacher=user.teacher_profile,
-                format='group',
                 student_price=serializer.instance.student_price,
                 teacher_rate=serializer.instance.teacher_rate,
             )
             return
-        serializer.save(format='group', student_price=student_price, teacher_rate=teacher_rate)
+        serializer.save(student_price=student_price, teacher_rate=teacher_rate)
 
     def perform_destroy(self, instance):
         with transaction.atomic():
@@ -247,6 +247,19 @@ class GroupPricingViewSet(viewsets.ModelViewSet):
         return queryset
 
 
+class GroupAttendanceRateViewSet(viewsets.ModelViewSet):
+    queryset = GroupAttendanceRate.objects.select_related('group', 'group__subject', 'group__teacher').all()
+    serializer_class = GroupAttendanceRateSerializer
+    permission_classes = (IsAdminUserRole,)
+
+    def get_queryset(self):
+        queryset = self.queryset.order_by('group_id', 'present_count', '-effective_from', '-id')
+        group_id = self.request.query_params.get('group')
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        return queryset
+
+
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = (
         Lesson.objects.select_related(
@@ -309,8 +322,14 @@ class LessonViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         if not (user.is_staff or user.role == UserRole.ADMIN):
+            is_lesson_teacher = (
+                user.role == UserRole.TEACHER
+                and hasattr(user, 'teacher_profile')
+                and instance.group.teacher_id == user.teacher_profile.id
+            )
             if 'starts_at' in serializer.validated_data and serializer.validated_data['starts_at'] != instance.starts_at:
-                raise exceptions.ValidationError({'starts_at': 'Use the reschedule request workflow to change lesson time.'})
+                if not is_lesson_teacher or instance.status not in {LessonStatus.SCHEDULED, LessonStatus.CANCELLED}:
+                    raise exceptions.ValidationError({'starts_at': 'Lesson time can only be changed by the lesson teacher while scheduled or cancelled.'})
             if 'group' in serializer.validated_data and serializer.validated_data['group'].id != instance.group_id:
                 raise exceptions.ValidationError({'group': 'Lesson group cannot be changed.'})
 

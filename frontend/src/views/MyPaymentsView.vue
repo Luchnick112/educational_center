@@ -255,6 +255,7 @@ type Charge = {
 
 type Payout = {
   id: number
+  payout_type?: 'participant' | 'lesson'
   lesson?: number
   participant?: number
   teacher?: number
@@ -634,11 +635,11 @@ const teacherLessonPayoutCols = [
   { key: 'amount_total', label: 'Сума', render: (r: TeacherLessonPayout) => money(r.amount_total) },
   { key: 'paid_amount', label: 'Виплачено', render: (r: TeacherLessonPayout) => money(r.paid_amount) },
   { key: 'debt_amount', label: 'До виплати', render: (r: TeacherLessonPayout) => money(r.debt_amount) },
-  { key: 'payout_count', label: 'Учасників' },
+  { key: 'payout_count', label: 'Нарахувань' },
 ]
 
 const payoutDetailCols = [
-  { key: 'student_name', label: 'Учень', render: (r: Payout) => r.student_name || '-' },
+  { key: 'student_name', label: 'Нарахування', render: (r: Payout) => r.student_name || '-' },
   { key: 'status', label: 'Статус', render: (r: Payout) => payoutStatusLabel(r.status) },
   { key: 'amount', label: 'Сума', render: (r: Payout) => money(r.amount) },
   { key: 'paid_at', label: 'Виплачено', render: (r: Payout) => dateLabel(r.paid_at) },

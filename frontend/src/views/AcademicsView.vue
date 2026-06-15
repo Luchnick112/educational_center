@@ -97,6 +97,12 @@
                 </select>
               </div>
               <div class="field">
+                <div class="field__label">Тип</div>
+                <select class="input" v-model="form.group.format" :disabled="mode === 'view'">
+                  <option v-for="option in groupFormatOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                </select>
+              </div>
+              <div class="field">
                 <div class="field__label">Місткість</div>
                 <input class="input" type="number" min="1" v-model.number="form.group.capacity" :disabled="mode === 'view'" />
               </div>
@@ -309,7 +315,8 @@ const formTitle = computed(() => {
 type SubjectRow = { id: number; name: string; description?: string }
 type TeacherRow = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type StudentRow = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
-type GroupRow = { id: number; name?: string; subject?: number; teacher?: number; is_active?: boolean }
+type GroupFormat = 'group' | 'individual'
+type GroupRow = { id: number; name?: string; subject?: number; teacher?: number; format?: GroupFormat | string | null; is_active?: boolean }
   type LessonRow = { id: number; group: number; starts_at: string; status: string }
   type UserRow = { id: number; first_name?: string; last_name?: string; telegram_username?: string; email?: string }
   type ParticipantRow = { id: number; student?: number; student_last_name?: string; attendance_status?: string }
@@ -336,6 +343,11 @@ type GroupRow = { id: number; name?: string; subject?: number; teacher?: number;
       teacher_rate_override?: string | null
     }
 
+const groupFormatOptions: Array<{ value: GroupFormat; label: string }> = [
+  { value: 'group', label: 'Груповий' },
+  { value: 'individual', label: 'Індивідуальний' },
+]
+
 const subjects = ref<SubjectRow[]>([])
 const teachers = ref<TeacherRow[]>([])
 const students = ref<StudentRow[]>([])
@@ -351,6 +363,7 @@ const form = ref({
   group: {
     subject: null as number | null,
     teacher: null as number | null,
+    format: 'group' as GroupFormat,
     capacity: 1,
     student_price: '0.00',
     teacher_rate: '0.00',
@@ -401,7 +414,7 @@ const columns = computed(() => {
 
   const keys = Object.keys(first)
   // Keep the table scannable; detail panel shows full payload.
-  const preferred = ['id', 'name', 'status', 'starts_at', 'group', 'student', 'teacher', 'subject']
+  const preferred = ['id', 'name', 'status', 'format', 'starts_at', 'group', 'student', 'teacher', 'subject']
   const ordered = [...preferred.filter((k) => keys.includes(k)), ...keys.filter((k) => !preferred.includes(k))]
   const pick = ordered.slice(0, 8)
   return pick.map((k) => ({
@@ -519,6 +532,7 @@ function hydrateFormFromDetail(resetForCreate = false) {
     form.value.group = {
       subject: null,
       teacher: null,
+      format: 'group',
       capacity: 1,
       student_price: '0.00',
       teacher_rate: '0.00',
@@ -538,6 +552,7 @@ function hydrateFormFromDetail(resetForCreate = false) {
     form.value.group = {
       subject: d.subject ?? null,
       teacher: d.teacher ?? null,
+      format: d.format === 'individual' ? 'individual' : 'group',
       capacity: d.capacity ?? 1,
       student_price: String(d.student_price ?? '0.00'),
       teacher_rate: String(d.teacher_rate ?? '0.00'),
@@ -761,6 +776,7 @@ function payloadForSubmit() {
     return {
       subject: form.value.group.subject,
       teacher: form.value.group.teacher,
+      format: form.value.group.format,
       capacity: form.value.group.capacity,
       student_price: form.value.group.student_price,
       teacher_rate: form.value.group.teacher_rate,

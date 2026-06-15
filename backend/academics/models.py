@@ -40,6 +40,11 @@ class ConfirmationStatus(models.TextChoices):
     REJECTED = 'rejected', 'Rejected'
 
 
+class StudyGroupFormat(models.TextChoices):
+    INDIVIDUAL = 'individual', 'Individual'
+    GROUP = 'group', 'Group'
+
+
 class LessonRescheduleStatus(models.TextChoices):
     PENDING_PARENT = 'pending_parent', 'Pending parent confirmation'
     PARENT_CONFIRMED = 'parent_confirmed', 'Parent confirmed'
@@ -60,7 +65,7 @@ class StudyGroup(models.Model):
     name = models.CharField(max_length=128, blank=True, default='')
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='groups')
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
-    format = models.CharField(max_length=16, default='group')
+    format = models.CharField(max_length=16, choices=StudyGroupFormat.choices, default=StudyGroupFormat.GROUP)
     capacity = models.PositiveIntegerField(default=1)
     student_price = models.DecimalField(max_digits=10, decimal_places=2)
     teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
@@ -270,3 +275,17 @@ class GroupPricing(models.Model):
 
     def __str__(self) -> str:
         return f'{self.group} from {self.effective_from}'
+
+
+class GroupAttendanceRate(models.Model):
+    group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='attendance_rates')
+    present_count = models.PositiveIntegerField()
+    teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    effective_from = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('group_id', 'present_count', '-effective_from', '-id')
+
+    def __str__(self) -> str:
+        return f'{self.group}: {self.present_count}+ present / {self.teacher_rate}'
