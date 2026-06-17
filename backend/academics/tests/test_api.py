@@ -9,6 +9,7 @@ from users.models import ParentProfile, StudentProfile, TeacherProfile, User, Us
 from academics.models import (
     AttendanceStatus,
     ConfirmationRequester,
+    GroupAttendanceRate,
     GroupPricing,
     Lesson,
     LessonConfirmation,
@@ -194,6 +195,24 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data[0]['payroll_amount'], '350.00')
         self.assertNotIn('billed_amount', response.data[0])
 
+    def test_group_lesson_payroll_amount_uses_attendance_rate(self):
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.payroll_amount = Decimal('0.00')
+        participant.save(update_fields=['attendance_status', 'payroll_amount'])
+        GroupAttendanceRate.objects.create(
+            group=self.group,
+            present_count=1,
+            teacher_rate=Decimal('275.00'),
+            effective_from=self.lesson.starts_at - timedelta(days=1),
+        )
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get(f'/api/academics/lessons/{self.lesson.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['payroll_amount'], '275.00')
+
     def test_admin_my_lessons_include_lesson_billed_amount(self):
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
@@ -347,6 +366,49 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item['id'] for item in response.data], [self.lesson.id])
         self.assertNotIn(outside_lesson.id, [item['id'] for item in response.data])
+
+    def test_teacher_my_lessons_can_be_filtered_by_group(self):
+        other_group = StudyGroup.objects.create(
+            subject=self.subject,
+            teacher=self.teacher,
+            format=StudyGroupFormat.GROUP,
+            capacity=10,
+            student_price=600,
+            teacher_rate=350,
+        )
+        other_lesson = Lesson.objects.create(group=other_group, starts_at=timezone.now() + timedelta(days=1))
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/lessons/', {'group': other_group.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.data], [other_lesson.id])
+        self.assertNotIn(self.lesson.id, [item['id'] for item in response.data])
+
+    def test_admin_lessons_api_can_be_filtered_by_group(self):
+        other_group = StudyGroup.objects.create(
+            subject=self.subject,
+            teacher=self.teacher,
+            format=StudyGroupFormat.GROUP,
+            capacity=10,
+            student_price=600,
+            teacher_rate=350,
+        )
+        other_lesson = Lesson.objects.create(group=other_group, starts_at=timezone.now() + timedelta(days=1))
+        admin_user = User.objects.create_user(
+            username='lesson_group_filter_admin',
+            email='lesson_group_filter_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.get('/api/academics/lessons/', {'group': other_group.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.data], [other_lesson.id])
+        self.assertNotIn(self.lesson.id, [item['id'] for item in response.data])
 
     def test_student_sees_only_own_price_in_group_detail(self):
         self.enrollment.student_price_override = Decimal('123.45')

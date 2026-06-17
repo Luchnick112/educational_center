@@ -1,40 +1,140 @@
+from decimal import Decimal
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from decimal import Decimal
+from django.utils import timezone
 
 from finance.models import LessonTeacherPayout, ParentCharge, TeacherPayout
 from users.models import StudentParentRelation
 
-from .models import (
-    AttendanceStatus,
-    GroupAttendanceRate,
-    Lesson,
-    LessonParticipant,
-    LessonStatus,
-    StudyGroupFormat,
-    StudentEnrollment,
-)
+from .constants import BILLING_LESSON_COUNT
+from .models import Lesson, LessonParticipant, LessonStatus, StudyGroupFormat, StudentEnrollment
+from .services import group_lesson_teacher_amount
 
 
-def group_lesson_teacher_amount(lesson: Lesson) -> Decimal:
-    present_count = lesson.participants.filter(attendance_status=AttendanceStatus.PRESENT).count()
-    if present_count <= 0:
-        return Decimal('0.00')
+def completed_lessons_count(group) -> int:
+    return group.lessons.filter(status=LessonStatus.COMPLETED).count()
 
-    rate = (
-        GroupAttendanceRate.objects.filter(
+
+def lessons_until_next_billing(group) -> int:
+    completed_count = completed_lessons_count(group)
+    remainder = completed_count % BILLING_LESSON_COUNT
+    if remainder == 0:
+        return BILLING_LESSON_COUNT
+    return BILLING_LESSON_COUNT - remainder
+
+
+def _completed_lesson_batch(lesson: Lesson) -> tuple[int, list[Lesson]]:
+    completed_lessons = list(
+        Lesson.objects.filter(
             group=lesson.group,
-            present_count__lte=present_count,
-            effective_from__lte=lesson.starts_at,
-        )
-        .order_by('-present_count', '-effective_from', '-id')
-        .first()
+            status=LessonStatus.COMPLETED,
+        ).order_by('completed_at', 'id')
     )
-    if rate:
-        return rate.teacher_rate
+    if len(completed_lessons) == 0 or len(completed_lessons) % BILLING_LESSON_COUNT != 0:
+        return 0, []
 
-    _, teacher_rate = lesson.group.get_effective_pricing(lesson.starts_at)
-    return teacher_rate
+    batch_number = len(completed_lessons) // BILLING_LESSON_COUNT
+    return batch_number, completed_lessons[-BILLING_LESSON_COUNT:]
+
+
+def _batch_period(batch: list[Lesson]):
+    starts = [lesson.starts_at for lesson in batch]
+    return min(starts), max(starts)
+
+
+def _create_parent_charges_for_batch(*, batch_number: int, batch: list[Lesson]) -> None:
+    period_start_at, period_end_at = _batch_period(batch)
+    participants = (
+        LessonParticipant.objects.filter(lesson__in=batch)
+        .select_related('student')
+        .order_by('lesson__starts_at', 'lesson_id', 'id')
+    )
+    participants_by_student = {}
+    for participant in participants:
+        participants_by_student.setdefault(participant.student_id, []).append(participant)
+
+    for student_participants in participants_by_student.values():
+        billing_participant = student_participants[-1]
+        relation = (
+            StudentParentRelation.objects.filter(
+                student=billing_participant.student,
+                is_financial_contact=True,
+            )
+            .select_related('parent')
+            .first()
+        )
+        if relation is None:
+            continue
+
+        ParentCharge.objects.get_or_create(
+            participant=billing_participant,
+            defaults={
+                'parent': relation.parent,
+                'student': billing_participant.student,
+                'amount': sum((item.billed_amount for item in student_participants), Decimal('0.00')),
+                'billing_period': batch_number,
+                'lesson_count': len(student_participants),
+                'period_start_at': period_start_at,
+                'period_end_at': period_end_at,
+            },
+        )
+
+
+def _create_group_teacher_payout_for_batch(*, batch_number: int, batch: list[Lesson]) -> None:
+    period_start_at, period_end_at = _batch_period(batch)
+    billing_lesson = batch[-1]
+    LessonTeacherPayout.objects.get_or_create(
+        lesson=billing_lesson,
+        defaults={
+            'teacher': billing_lesson.group.teacher,
+            'amount': sum((group_lesson_teacher_amount(lesson) for lesson in batch), Decimal('0.00')),
+            'billing_period': batch_number,
+            'lesson_count': len(batch),
+            'period_start_at': period_start_at,
+            'period_end_at': period_end_at,
+        },
+    )
+
+
+def _create_individual_financial_documents(lesson: Lesson) -> None:
+    participants = lesson.participants.select_related(
+        'student',
+        'enrollment',
+        'enrollment__group',
+        'enrollment__group__teacher',
+    )
+
+    for participant in participants:
+        relation = (
+            StudentParentRelation.objects.filter(
+                student=participant.student,
+                is_financial_contact=True,
+            )
+            .select_related('parent')
+            .first()
+        )
+        if relation:
+            ParentCharge.objects.get_or_create(
+                participant=participant,
+                defaults={
+                    'parent': relation.parent,
+                    'student': participant.student,
+                    'amount': participant.billed_amount,
+                    'period_start_at': lesson.starts_at,
+                    'period_end_at': lesson.starts_at,
+                },
+            )
+
+        TeacherPayout.objects.get_or_create(
+            participant=participant,
+            defaults={
+                'teacher': participant.enrollment.group.teacher,
+                'amount': participant.payroll_amount if participant.attendance_status == AttendanceStatus.PRESENT else 0,
+                'period_start_at': lesson.starts_at,
+                'period_end_at': lesson.starts_at,
+            },
+        )
 
 
 @receiver(post_save, sender=Lesson)
@@ -60,47 +160,17 @@ def create_financial_documents(sender, instance: Lesson, created: bool, **kwargs
     if kwargs.get('raw') or created or instance.status != LessonStatus.COMPLETED:
         return
 
-    participants = instance.participants.select_related(
-        'student',
-        'enrollment',
-        'enrollment__group',
-        'enrollment__group__teacher',
-    )
+    if instance.completed_at is None:
+        instance.completed_at = timezone.now()
+        Lesson.objects.filter(pk=instance.pk, completed_at__isnull=True).update(completed_at=instance.completed_at)
 
-    for participant in participants:
-        relation = (
-            StudentParentRelation.objects.filter(
-                student=participant.student,
-                is_financial_contact=True,
-            )
-            .select_related('parent')
-            .first()
-        )
-        if relation:
-            ParentCharge.objects.get_or_create(
-                participant=participant,
-                defaults={
-                    'parent': relation.parent,
-                    'student': participant.student,
-                    'amount': participant.billed_amount,
-                },
-            )
-
-    if instance.group.format == StudyGroupFormat.GROUP:
-        LessonTeacherPayout.objects.get_or_create(
-            lesson=instance,
-            defaults={
-                'teacher': instance.group.teacher,
-                'amount': group_lesson_teacher_amount(instance),
-            },
-        )
+    if instance.group.format != StudyGroupFormat.GROUP:
+        _create_individual_financial_documents(instance)
         return
 
-    for participant in participants:
-        TeacherPayout.objects.get_or_create(
-            participant=participant,
-            defaults={
-                'teacher': participant.enrollment.group.teacher,
-                'amount': participant.payroll_amount if participant.attendance_status == AttendanceStatus.PRESENT else 0,
-            },
-        )
+    batch_number, batch = _completed_lesson_batch(instance)
+    if not batch:
+        return
+
+    _create_parent_charges_for_batch(batch_number=batch_number, batch=batch)
+    _create_group_teacher_payout_for_batch(batch_number=batch_number, batch=batch)

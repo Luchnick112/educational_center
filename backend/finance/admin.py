@@ -5,20 +5,20 @@ from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPa
 
 @admin.register(ParentCharge)
 class ParentChargeAdmin(admin.ModelAdmin):
-    list_display = ('parent', 'student', 'amount', 'status', 'due_date', 'paid_at')
-    list_filter = ('status',)
+    list_display = ('parent', 'student', 'amount', 'billing_period', 'lesson_count', 'status', 'due_date', 'paid_at')
+    list_filter = ('status', 'billing_period')
 
 
 @admin.register(TeacherPayout)
 class TeacherPayoutAdmin(admin.ModelAdmin):
-    list_display = ('teacher', 'amount', 'status', 'approved_at', 'paid_at')
-    list_filter = ('status',)
+    list_display = ('teacher', 'amount', 'billing_period', 'lesson_count', 'status', 'approved_at', 'paid_at')
+    list_filter = ('status', 'billing_period')
 
 
 @admin.register(LessonTeacherPayout)
 class LessonTeacherPayoutAdmin(admin.ModelAdmin):
-    list_display = ('lesson', 'teacher', 'amount', 'status', 'approved_at', 'paid_at')
-    list_filter = ('status',)
+    list_display = ('lesson', 'teacher', 'amount', 'billing_period', 'lesson_count', 'status', 'approved_at', 'paid_at')
+    list_filter = ('status', 'billing_period')
 
 
 @admin.register(StudentPayment)

@@ -35,6 +35,8 @@
             <th v-if="isAdmin" class="col-student-price">Ціна за навчання</th>
             <th>Ставка вчителя</th>
             <th>Кількість учнів</th>
+            <th>Завершено уроків</th>
+            <th>До рахунку</th>
             <th class="col-student-list">Список студентів</th>
           </tr>
         </thead>
@@ -51,6 +53,8 @@
             <td v-if="isAdmin" class="col-student-price">{{ priceLabel(row.group.student_price) }}</td>
             <td>{{ priceLabel(row.group.teacher_rate) }}</td>
             <td>{{ row.studentIds.length }}</td>
+            <td>{{ groupCompletedLessonsLabel(row.group) }}</td>
+            <td>{{ groupLessonsUntilBillingLabel(row.group) }}</td>
             <td class="col-student-list">{{ row.studentNames.join(', ') || '-' }}</td>
           </tr>
         </tbody>
@@ -77,6 +81,14 @@
           <div class="detail-item">
             <span class="detail-item__label">Учнів</span>
             <span>{{ selectedGroupDetail.studentIds.length }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-item__label">Завершено уроків</span>
+            <span>{{ groupCompletedLessonsLabel(selectedGroupDetail.group) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-item__label">До наступного рахунку</span>
+            <span>{{ groupLessonsUntilBillingLabel(selectedGroupDetail.group) }}</span>
           </div>
           <div class="detail-item detail-item--wide col-student-list">
             <span class="detail-item__label">Студенти</span>
@@ -270,7 +282,18 @@ type Subject = { id: number; name: string }
 type Student = { id: number; user_detail?: { first_name?: string; last_name?: string; email?: string; telegram_username?: string } }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type GroupFormat = 'group' | 'individual'
-type Group = { id: number; name?: string; teacher?: number | null; subject?: number | null; format?: GroupFormat | string | null; capacity?: number | null; student_price?: string | number | null; teacher_rate?: string | number | null }
+type Group = {
+  id: number
+  name?: string
+  teacher?: number | null
+  subject?: number | null
+  format?: GroupFormat | string | null
+  capacity?: number | null
+  student_price?: string | number | null
+  teacher_rate?: string | number | null
+  completed_lessons_count?: number | null
+  lessons_until_next_billing?: number | null
+}
 type GroupPricing = { id: number; group: number; group_name?: string; student_price: string | number; teacher_rate: string | number; effective_from: string; created_at?: string }
 type GroupAttendanceRate = { id: number; group: number; group_name?: string; present_count: number; teacher_rate: string | number; effective_from: string; created_at?: string }
 type Enrollment = {
@@ -445,6 +468,20 @@ function priceLabel(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return '-'
   const n = Number(value)
   return Number.isFinite(n) ? n.toFixed(2) : String(value)
+}
+
+function isGroupFormat(group: Group) {
+  return (group.format || 'group') === 'group'
+}
+
+function groupCompletedLessonsLabel(group: Group) {
+  if (!isGroupFormat(group)) return '-'
+  return String(group.completed_lessons_count ?? 0)
+}
+
+function groupLessonsUntilBillingLabel(group: Group) {
+  if (!isGroupFormat(group)) return '-'
+  return String(group.lessons_until_next_billing ?? '-')
 }
 
 function dateLabel(value?: string | null) {
@@ -776,6 +813,9 @@ async function saveEditedGroup() {
     replaceGroupEnrollments(groupId, updatedGroupEnrollments)
     selectedGroupId.value = groupId
     editForm.value.students = activeStudentIdsFromEnrollments(updatedGroupEnrollments)
+    showEditForm.value = false
+    editSubjectOpen.value = false
+    editStudentsOpen.value = false
     notice.value = `Групу збережено. Активних учнів: ${activeEnrollmentCount(updatedGroupEnrollments)}`
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося зберегти групу')
