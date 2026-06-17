@@ -66,6 +66,16 @@ class LessonSignalsTestCase(TestCase):
             start_date=date.today(),
         )
 
+    def create_completed_lesson(self, *, days_offset: int, attendance_status=AttendanceStatus.PRESENT):
+        lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() - timedelta(days=20 - days_offset),
+        )
+        lesson.participants.update(attendance_status=attendance_status)
+        lesson.status = LessonStatus.COMPLETED
+        lesson.save(update_fields=['status'])
+        return lesson
+
     def test_lesson_creation_builds_participants_without_confirmation_requests(self):
         lesson = Lesson.objects.create(
             group=self.group,
@@ -90,29 +100,25 @@ class LessonSignalsTestCase(TestCase):
 
         self.assertEqual(participant.billed_amount, self.student.lesson_price)
 
-    def test_completed_individual_lesson_creates_parent_charge_and_teacher_payout(self):
+    def test_completed_individual_lesson_creates_parent_charge_and_teacher_payout_immediately(self):
         self.group.format = StudyGroupFormat.INDIVIDUAL
         self.group.save(update_fields=['format'])
-        lesson = Lesson.objects.create(
-            group=self.group,
-            starts_at=timezone.now(),
-        )
-        participant = lesson.participants.get()
-        participant.attendance_status = AttendanceStatus.PRESENT
-        participant.save(update_fields=['attendance_status'])
 
-        lesson.status = LessonStatus.COMPLETED
-        lesson.save()
+        lesson = self.create_completed_lesson(days_offset=0)
+        participant = lesson.participants.get()
 
         charge = ParentCharge.objects.get(participant=participant)
         payout = TeacherPayout.objects.get(participant=participant)
 
         self.assertEqual(charge.parent, self.parent)
-        self.assertEqual(charge.amount, participant.billed_amount)
+        self.assertEqual(charge.amount, Decimal('500.00'))
+        self.assertEqual(charge.lesson_count, 1)
+        self.assertEqual(charge.billing_period, 1)
         self.assertEqual(payout.teacher, self.teacher)
-        self.assertEqual(payout.amount, participant.payroll_amount)
+        self.assertEqual(payout.amount, Decimal('250.00'))
+        self.assertEqual(payout.lesson_count, 1)
 
-    def test_completed_group_lesson_creates_single_lesson_teacher_payout_from_attendance_rate(self):
+    def test_completed_group_lessons_create_single_teacher_payout_after_tenth_lesson(self):
         second_student_user = User.objects.create_user(
             username='student2',
             email='student2@example.com',
@@ -129,26 +135,37 @@ class LessonSignalsTestCase(TestCase):
             group=self.group,
             present_count=1,
             teacher_rate=Decimal('250.00'),
-            effective_from=timezone.now() - timedelta(days=1),
+            effective_from=timezone.now() - timedelta(days=30),
         )
         GroupAttendanceRate.objects.create(
             group=self.group,
             present_count=2,
             teacher_rate=Decimal('450.00'),
-            effective_from=timezone.now() - timedelta(days=1),
+            effective_from=timezone.now() - timedelta(days=30),
         )
-        lesson = Lesson.objects.create(
-            group=self.group,
-            starts_at=timezone.now(),
-        )
-        lesson.participants.update(attendance_status=AttendanceStatus.PRESENT)
 
-        lesson.status = LessonStatus.COMPLETED
-        lesson.save()
+        for index in range(9):
+            self.create_completed_lesson(days_offset=index)
+
+        self.assertFalse(ParentCharge.objects.exists())
+        self.assertFalse(LessonTeacherPayout.objects.exists())
+
+        lesson = self.create_completed_lesson(days_offset=9)
 
         payout = LessonTeacherPayout.objects.get(lesson=lesson)
 
         self.assertEqual(ParentCharge.objects.filter(participant__lesson=lesson).count(), 1)
         self.assertFalse(TeacherPayout.objects.filter(participant__lesson=lesson).exists())
         self.assertEqual(payout.teacher, self.teacher)
-        self.assertEqual(payout.amount, Decimal('450.00'))
+        self.assertEqual(payout.amount, Decimal('4500.00'))
+        self.assertEqual(payout.lesson_count, 10)
+
+    def test_absent_student_is_still_charged_after_tenth_completed_lesson(self):
+        for index in range(10):
+            self.create_completed_lesson(days_offset=index, attendance_status=AttendanceStatus.ABSENT)
+
+        charge = ParentCharge.objects.get()
+
+        self.assertEqual(charge.student, self.student)
+        self.assertEqual(charge.amount, Decimal('5000.00'))
+        self.assertEqual(charge.lesson_count, 10)

@@ -16,6 +16,8 @@ class ParentChargeSerializer(serializers.ModelSerializer):
     due_date = serializers.DateField(required=False, allow_null=True, style=DATE_INPUT_STYLE)
     issued_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    period_start_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    period_end_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     parent_name = serializers.SerializerMethodField()
     student_name = serializers.SerializerMethodField()
     lesson_starts_at = serializers.DateTimeField(source='participant.lesson.starts_at', read_only=True)
@@ -31,6 +33,10 @@ class ParentChargeSerializer(serializers.ModelSerializer):
             'student_name',
             'lesson_starts_at',
             'amount',
+            'billing_period',
+            'lesson_count',
+            'period_start_at',
+            'period_end_at',
             'status',
             'due_date',
             'issued_at',
@@ -48,6 +54,8 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
     payout_type = serializers.SerializerMethodField()
     approved_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    period_start_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    period_end_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     lesson = serializers.IntegerField(source='participant.lesson_id', read_only=True)
     student_name = serializers.SerializerMethodField()
     teacher_name = serializers.SerializerMethodField()
@@ -65,6 +73,10 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
             'student_name',
             'lesson_starts_at',
             'amount',
+            'billing_period',
+            'lesson_count',
+            'period_start_at',
+            'period_end_at',
             'status',
             'approved_at',
             'paid_at',
@@ -89,6 +101,8 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
     lesson_starts_at = serializers.DateTimeField(source='lesson.starts_at', read_only=True)
     approved_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    period_start_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    period_end_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
 
     class Meta:
         model = LessonTeacherPayout
@@ -102,6 +116,10 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
             'student_name',
             'lesson_starts_at',
             'amount',
+            'billing_period',
+            'lesson_count',
+            'period_start_at',
+            'period_end_at',
             'status',
             'approved_at',
             'paid_at',

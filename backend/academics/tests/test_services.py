@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import exceptions
 
-from finance.models import ParentCharge, TeacherPayout
+from finance.models import LessonTeacherPayout, ParentCharge, TeacherPayout
 from users.models import ParentProfile, TeacherProfile, User, UserRole
 
 from academics.models import AttendanceStatus, ConfirmationRequester, ConfirmationStatus, LessonConfirmation, LessonStatus
@@ -63,7 +63,7 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
                 attendance_status=AttendanceStatus.PRESENT,
             )
 
-    def test_complete_lesson_sets_status_and_triggers_financial_documents(self):
+    def test_complete_lesson_sets_status_and_waits_for_tenth_lesson_before_finance_documents(self):
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])
@@ -77,8 +77,9 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
 
         self.assertEqual(lesson.status, LessonStatus.COMPLETED)
         self.assertEqual(lesson.notes, 'Service completed lesson')
-        self.assertTrue(ParentCharge.objects.filter(participant=participant).exists())
-        self.assertTrue(TeacherPayout.objects.filter(participant=participant).exists())
+        self.assertFalse(ParentCharge.objects.filter(participant=participant).exists())
+        self.assertFalse(TeacherPayout.objects.filter(participant=participant).exists())
+        self.assertFalse(LessonTeacherPayout.objects.filter(lesson=lesson).exists())
 
     def test_complete_lesson_rejects_before_scheduled_end_time(self):
         participant = self.lesson.participants.get()

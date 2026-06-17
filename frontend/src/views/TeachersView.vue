@@ -208,6 +208,16 @@ function cancelEdit() {
   }
 }
 
+function closeEditor() {
+  selectedId.value = null
+  detail.value = null
+  mode.value = 'view'
+  formError.value = null
+  createUser.value = { first_name: '', last_name: '', telegram_username: '', email: '', phone: '', password: '' }
+  hourly_rate.value = ''
+  bio.value = ''
+}
+
 async function submitForm() {
   if (mode.value === 'view') return
   saving.value = true
@@ -233,9 +243,9 @@ async function submitForm() {
           method: 'PATCH',
           body: teacherProfilePayload(),
         })
-        await loadDetail(teacher.id)
       }
-      mode.value = 'view'
+      await reload()
+      closeEditor()
       return
     }
 
@@ -246,8 +256,7 @@ async function submitForm() {
         body: teacherProfilePayload(),
       })
       await reload()
-      await loadDetail(selectedId.value)
-      mode.value = 'view'
+      closeEditor()
     }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'

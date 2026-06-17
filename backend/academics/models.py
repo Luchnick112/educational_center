@@ -144,6 +144,7 @@ class Lesson(models.Model):
     group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='lessons')
     starts_at = models.DateTimeField()
     status = models.CharField(max_length=16, choices=LessonStatus.choices, default=LessonStatus.SCHEDULED)
+    completed_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
 
     @property

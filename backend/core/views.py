@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Max, Sum
+from django.db.models import Max, Q, Sum
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema
@@ -91,15 +91,21 @@ class MyLessonsView(APIView):
 
         date_from = parse_date(request.query_params.get('date_from', ''))
         date_to = parse_date(request.query_params.get('date_to', ''))
+        group_id = request.query_params.get('group')
         has_date_filter = date_from is not None or date_to is not None
 
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
         if date_from is not None:
             queryset = queryset.filter(starts_at__date__gte=date_from)
         if date_to is not None:
             queryset = queryset.filter(starts_at__date__lte=date_to)
 
         queryset = queryset.select_related('teacher_payout').annotate(
-            lesson_teacher_payout_amount=Max('teacher_payout__amount'),
+            lesson_teacher_payout_amount=Max(
+                'teacher_payout__amount',
+                filter=Q(teacher_payout__lesson_count=1),
+            ),
             billed_amount_total=Sum('participants__billed_amount'),
         ).order_by('starts_at')
         if not has_date_filter:
@@ -140,16 +146,28 @@ class MyPaymentsView(APIView):
 
         def apply_lesson_date_filters(queryset):
             if date_from is not None:
-                queryset = queryset.filter(participant__lesson__starts_at__date__gte=date_from)
+                queryset = queryset.filter(
+                    Q(period_end_at__date__gte=date_from)
+                    | Q(period_end_at__isnull=True, participant__lesson__starts_at__date__gte=date_from)
+                )
             if date_to is not None:
-                queryset = queryset.filter(participant__lesson__starts_at__date__lte=date_to)
+                queryset = queryset.filter(
+                    Q(period_end_at__date__lte=date_to)
+                    | Q(period_end_at__isnull=True, participant__lesson__starts_at__date__lte=date_to)
+                )
             return queryset
 
         def apply_lesson_payout_date_filters(queryset):
             if date_from is not None:
-                queryset = queryset.filter(lesson__starts_at__date__gte=date_from)
+                queryset = queryset.filter(
+                    Q(period_end_at__date__gte=date_from)
+                    | Q(period_end_at__isnull=True, lesson__starts_at__date__gte=date_from)
+                )
             if date_to is not None:
-                queryset = queryset.filter(lesson__starts_at__date__lte=date_to)
+                queryset = queryset.filter(
+                    Q(period_end_at__date__lte=date_to)
+                    | Q(period_end_at__isnull=True, lesson__starts_at__date__lte=date_to)
+                )
             return queryset
 
         def apply_payment_date_filters(queryset):
@@ -188,6 +206,8 @@ class MyPaymentsView(APIView):
             return paid_count, debt_count
 
         def payout_lesson_starts_at(payout):
+            if payout.period_end_at is not None:
+                return payout.period_end_at
             if isinstance(payout, LessonTeacherPayout):
                 return payout.lesson.starts_at
             return payout.participant.lesson.starts_at
@@ -285,7 +305,7 @@ class MyPaymentsView(APIView):
                 item['paid_count'], item['debt_count'] = recompute_paid_debt_counts(
                     charges_by_student.get(item['student'], []),
                     item['paid_amount'],
-                    lambda charge: (charge.participant.lesson.starts_at, charge.id),
+                    lambda charge: (charge.period_end_at or charge.participant.lesson.starts_at, charge.id),
                 )
 
             teacher_summaries = {}
@@ -511,7 +531,7 @@ class MyNotificationsView(APIView):
                 paid_remaining = paid_by_student.get(student_id, Decimal('0.00'))
                 for charge in sorted(
                     student_charges,
-                    key=lambda item: (item.participant.lesson.starts_at, item.id),
+                    key=lambda item: (item.period_end_at or item.participant.lesson.starts_at, item.id),
                 ):
                     if paid_remaining >= charge.amount:
                         paid_remaining -= charge.amount

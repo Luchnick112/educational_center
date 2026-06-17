@@ -287,16 +287,22 @@ class LessonViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff or user.role == UserRole.ADMIN:
-            return self.queryset.all()
-        if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            return self.queryset.filter(group__teacher=user.teacher_profile)
-        if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
-            return self.queryset.filter(participants__student=user.student_profile).distinct()
-        if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
-            return self.queryset.filter(
+            queryset = self.queryset.all()
+        elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            queryset = self.queryset.filter(group__teacher=user.teacher_profile)
+        elif user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
+            queryset = self.queryset.filter(participants__student=user.student_profile).distinct()
+        elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
+            queryset = self.queryset.filter(
                 participants__student__parent_links__parent=user.parent_profile,
             ).distinct()
-        return self.queryset.none()
+        else:
+            return self.queryset.none()
+
+        group_id = self.request.query_params.get('group')
+        if group_id:
+            queryset = queryset.filter(group_id=group_id)
+        return queryset
 
     def perform_create(self, serializer):
         user = self.request.user

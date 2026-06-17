@@ -200,6 +200,16 @@ function cancelEdit() {
   }
 }
 
+function closeEditor() {
+  selectedId.value = null
+  detail.value = null
+  mode.value = 'view'
+  formError.value = null
+  createUser.value = { first_name: '', last_name: '', telegram_username: '', email: '', phone: '', password: '' }
+  lesson_price.value = ''
+  notes.value = ''
+}
+
 async function submitForm() {
   if (mode.value === 'view') return
   saving.value = true
@@ -228,9 +238,9 @@ async function submitForm() {
             notes: notes.value || '',
           },
         })
-        await loadDetail(student.id)
       }
-      mode.value = 'view'
+      await reload()
+      closeEditor()
       return
     }
 
@@ -244,8 +254,7 @@ async function submitForm() {
         },
       })
       await reload()
-      await loadDetail(selectedId.value)
-      mode.value = 'view'
+      closeEditor()
     }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'

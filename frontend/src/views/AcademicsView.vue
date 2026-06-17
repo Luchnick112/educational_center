@@ -316,7 +316,16 @@ type SubjectRow = { id: number; name: string; description?: string }
 type TeacherRow = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type StudentRow = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type GroupFormat = 'group' | 'individual'
-type GroupRow = { id: number; name?: string; subject?: number; teacher?: number; format?: GroupFormat | string | null; is_active?: boolean }
+type GroupRow = {
+  id: number
+  name?: string
+  subject?: number
+  teacher?: number
+  format?: GroupFormat | string | null
+  is_active?: boolean
+  completed_lessons_count?: number | null
+  lessons_until_next_billing?: number | null
+}
   type LessonRow = { id: number; group: number; starts_at: string; status: string }
   type UserRow = { id: number; first_name?: string; last_name?: string; telegram_username?: string; email?: string }
   type ParticipantRow = { id: number; student?: number; student_last_name?: string; attendance_status?: string }
@@ -406,6 +415,17 @@ const columns = computed(() => {
       { key: 'student_last_name', label: 'Студент', render: (r: any) => String(r?.student_last_name ?? '-') },
       { key: 'billed_amount', label: 'Вартість заняття', render: (r: any) => fmtMoney(r?.billed_amount) },
       { key: 'payroll_amount', label: 'Винагорода викладача', render: (r: any) => fmtMoney(r?.payroll_amount) },
+    ]
+  }
+  if (currentTab.value.key === 'groups') {
+    return [
+      { key: 'id', label: 'ID' },
+      { key: 'name', label: 'Група', render: (r: GroupRow) => r.name || `Група #${r.id}` },
+      { key: 'format', label: 'Тип', render: (r: GroupRow) => r.format === 'individual' ? 'Індивідуальний' : 'Груповий' },
+      { key: 'subject', label: 'Предмет' },
+      { key: 'teacher', label: 'Викладач' },
+      { key: 'completed_lessons_count', label: 'Завершено уроків', render: (r: GroupRow) => groupCompletedLessonsLabel(r) },
+      { key: 'lessons_until_next_billing', label: 'До рахунку', render: (r: GroupRow) => groupLessonsUntilBillingLabel(r) },
     ]
   }
 
@@ -507,6 +527,15 @@ function cancelEdit() {
   mode.value = 'view'
   formError.value = null
   hydrateFormFromDetail()
+}
+
+function closeEditor() {
+  selectedId.value = null
+  detail.value = null
+  participants.value = []
+  mode.value = 'view'
+  formError.value = null
+  hydrateFormFromDetail(true)
 }
 
 function isoFromLocal(dtLocal: string) {
@@ -634,6 +663,20 @@ function fmtMoney(v: any) {
   const n = typeof v === 'number' ? v : Number(v)
   if (Number.isFinite(n)) return n.toFixed(2)
   return String(v)
+}
+
+function isGroupFormat(group: GroupRow) {
+  return (group.format || 'group') === 'group'
+}
+
+function groupCompletedLessonsLabel(group: GroupRow) {
+  if (!isGroupFormat(group)) return '-'
+  return String(group.completed_lessons_count ?? 0)
+}
+
+function groupLessonsUntilBillingLabel(group: GroupRow) {
+  if (!isGroupFormat(group)) return '-'
+  return String(group.lessons_until_next_billing ?? '-')
 }
 
 function fmtDt(iso: any) {
@@ -829,8 +872,7 @@ async function submitForm() {
           await syncGroupStudents(created.id, form.value.group.students || [])
         }
         await loadList()
-        if (typeof created?.id === 'number') await loadDetail(created.id)
-        mode.value = 'view'
+        closeEditor()
         return
       }
 
@@ -839,10 +881,8 @@ async function submitForm() {
         if (currentTab.value.key === 'groups' && typeof updated?.id === 'number') {
           await syncGroupStudents(updated.id, form.value.group.students || [])
         }
-        // Reload list + detail to reflect server truth.
         await loadList()
-        if (typeof updated?.id === 'number') await loadDetail(updated.id)
-        mode.value = 'view'
+        closeEditor()
       }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'

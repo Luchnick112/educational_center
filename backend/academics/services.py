@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.utils import timezone
 from rest_framework import exceptions
 
@@ -7,6 +9,7 @@ from .models import (
     AttendanceStatus,
     ConfirmationRequester,
     ConfirmationStatus,
+    GroupAttendanceRate,
     Lesson,
     LessonConfirmation,
     LessonRescheduleRequest,
@@ -14,6 +17,27 @@ from .models import (
     LessonStatus,
     StudyGroupFormat,
 )
+
+
+def group_lesson_teacher_amount(lesson: Lesson) -> Decimal:
+    present_count = lesson.participants.filter(attendance_status=AttendanceStatus.PRESENT).count()
+    if present_count <= 0:
+        return Decimal('0.00')
+
+    rate = (
+        GroupAttendanceRate.objects.filter(
+            group=lesson.group,
+            present_count__lte=present_count,
+            effective_from__lte=lesson.starts_at,
+        )
+        .order_by('-present_count', '-effective_from', '-id')
+        .first()
+    )
+    if rate:
+        return rate.teacher_rate
+
+    _, teacher_rate = lesson.group.get_effective_pricing(lesson.starts_at)
+    return teacher_rate
 
 
 def ensure_lesson_teacher_or_admin(user, lesson: Lesson, action_label: str) -> None:
@@ -76,6 +100,7 @@ def complete_lesson(*, user, lesson: Lesson, notes: str = '') -> Lesson:
     if notes:
         lesson.notes = notes
     lesson.status = LessonStatus.COMPLETED
+    lesson.completed_at = timezone.now()
     lesson.save()
     confirm_lesson_confirmations(user=user, lesson=lesson)
     return lesson

@@ -190,6 +190,15 @@ function cancelEdit() {
   if (detail.value) billing_notes.value = detail.value.billing_notes || ''
 }
 
+function closeEditor() {
+  selectedId.value = null
+  detail.value = null
+  mode.value = 'view'
+  formError.value = null
+  createUser.value = { first_name: '', last_name: '', telegram_username: '', email: '', phone: '', password: '' }
+  billing_notes.value = ''
+}
+
 async function submitForm() {
   if (mode.value === 'view') return
   saving.value = true
@@ -212,9 +221,9 @@ async function submitForm() {
       const parent = rows.value.find((p) => p.user === createdUser.id)
       if (parent) {
         await apiRequest(`/api/users/parents/${parent.id}/`, { method: 'PATCH', body: { billing_notes: billing_notes.value } })
-        await loadDetail(parent.id)
       }
-      mode.value = 'view'
+      await reload()
+      closeEditor()
       return
     }
 
@@ -222,8 +231,7 @@ async function submitForm() {
       await updateSelectedUserAccount()
       await apiRequest(`/api/users/parents/${selectedId.value}/`, { method: 'PATCH', body: { billing_notes: billing_notes.value } })
       await reload()
-      await loadDetail(selectedId.value)
-      mode.value = 'view'
+      closeEditor()
     }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'

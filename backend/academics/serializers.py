@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from users.models import StudentParentRelation, UserRole
 
+from .constants import BILLING_LESSON_COUNT
 from .models import (
     AttendanceStatus,
     GroupAttendanceRate,
@@ -18,9 +19,10 @@ from .models import (
     LessonStatus,
     StudentEnrollment,
     StudyGroup,
+    StudyGroupFormat,
     Subject,
 )
-from .services import confirm_lesson_confirmations, reject_lesson_confirmations
+from .services import confirm_lesson_confirmations, group_lesson_teacher_amount, reject_lesson_confirmations
 
 DATE_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DD'}
 DATETIME_INPUT_STYLE = {'input_type': 'text', 'placeholder': 'YYYY-MM-DDTHH:MM:SSZ'}
@@ -33,6 +35,9 @@ class SubjectSerializer(serializers.ModelSerializer):
 
 
 class StudyGroupSerializer(serializers.ModelSerializer):
+    completed_lessons_count = serializers.SerializerMethodField()
+    lessons_until_next_billing = serializers.SerializerMethodField()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
@@ -102,6 +107,20 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         rep['teacher_rate'] = self.fields['teacher_rate'].to_representation(teacher_rate)
         return rep
 
+    def get_completed_lessons_count(self, instance):
+        if instance.format != StudyGroupFormat.GROUP:
+            return None
+        return instance.lessons.filter(status=LessonStatus.COMPLETED).count()
+
+    def get_lessons_until_next_billing(self, instance):
+        if instance.format != StudyGroupFormat.GROUP:
+            return None
+        completed_count = self.get_completed_lessons_count(instance)
+        remainder = completed_count % BILLING_LESSON_COUNT
+        if remainder == 0:
+            return BILLING_LESSON_COUNT
+        return BILLING_LESSON_COUNT - remainder
+
     class Meta:
         model = StudyGroup
         fields = (
@@ -113,6 +132,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'capacity',
             'student_price',
             'teacher_rate',
+            'completed_lessons_count',
+            'lessons_until_next_billing',
             'is_active',
         )
         read_only_fields = ('name',)
@@ -256,6 +277,7 @@ class LessonParticipantAmountUpdateSerializer(serializers.Serializer):
 
 class LessonSerializer(serializers.ModelSerializer):
     starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    completed_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
     participant_updates = LessonParticipantAmountUpdateSerializer(many=True, write_only=True, required=False)
     payroll_amount = serializers.SerializerMethodField()
@@ -287,9 +309,13 @@ class LessonSerializer(serializers.ModelSerializer):
         if annotated_lesson_payout is not None:
             return annotated_lesson_payout
         try:
-            return instance.teacher_payout.amount
+            if instance.teacher_payout.lesson_count == 1:
+                return instance.teacher_payout.amount
         except ObjectDoesNotExist:
             pass
+
+        if instance.group.format == StudyGroupFormat.GROUP:
+            return f'{group_lesson_teacher_amount(instance):.2f}'
 
         value = getattr(instance, 'payroll_amount_total', None)
         if value is None:
@@ -335,9 +361,11 @@ class LessonSerializer(serializers.ModelSerializer):
         return None
 
     def _has_paid_financial_document(self, instance):
-        return instance.participants.filter(
+        has_paid_participant_document = instance.participants.filter(
             models.Q(parent_charge__status='paid') | models.Q(teacher_payout__status='paid')
         ).exists()
+        has_paid_lesson_payout = hasattr(instance, 'teacher_payout') and instance.teacher_payout.status == 'paid'
+        return has_paid_participant_document or has_paid_lesson_payout
 
     def update(self, instance, validated_data):
         participant_updates = validated_data.pop('participant_updates', [])
@@ -388,6 +416,20 @@ class LessonSerializer(serializers.ModelSerializer):
             requested_starts_at = validated_data.get('starts_at', instance.starts_at)
             if requested_starts_at + instance.DEFAULT_DURATION > timezone.now():
                 raise serializers.ValidationError({'status': 'Lesson cannot be completed before its scheduled end time.'})
+
+        if (
+            'status' in validated_data
+            and validated_data['status'] == LessonStatus.COMPLETED
+            and previous_status != LessonStatus.COMPLETED
+            and validated_data.get('completed_at') is None
+        ):
+            validated_data['completed_at'] = timezone.now()
+        if (
+            'status' in validated_data
+            and validated_data['status'] != LessonStatus.COMPLETED
+            and previous_status == LessonStatus.COMPLETED
+        ):
+            validated_data['completed_at'] = None
 
         with transaction.atomic():
             if participant_updates:
@@ -457,6 +499,7 @@ class LessonSerializer(serializers.ModelSerializer):
             'id',
             'group',
             'starts_at',
+            'completed_at',
             'payroll_amount',
             'billed_amount',
             'can_request_reschedule',

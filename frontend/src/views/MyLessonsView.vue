@@ -40,6 +40,13 @@
             <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacherLabel(teacher) }}</option>
           </select>
         </label>
+        <label v-if="canManageLessons" class="field">
+          <span class="field__label">Група</span>
+          <select class="input dropdown-list" v-model.number="groupFilter" @change="reloadLessons">
+            <option :value="null">Всі групи</option>
+            <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name || `Група #${group.id}` }}</option>
+          </select>
+        </label>
         <button class="btn btn--ghost filter-clear" type="button" :disabled="!hasFilters" @click="clearFilters">
           Очистити
         </button>
@@ -79,6 +86,10 @@
             <span class="field__label">Початок заняття</span>
             <input class="input" type="datetime-local" step="900" v-model="editLessonForm.starts_at_local" :disabled="savingLesson || !canEditLessonTime" />
           </label>
+          <label v-if="canSeeLessonPayrollAmount" class="field">
+            <span class="field__label">Винагорода викладача за урок</span>
+            <input class="input" type="text" :value="formatPayrollAmount(selectedLesson.payroll_amount)" disabled />
+          </label>
         </div>
 
         <div class="section-title">Учні</div>
@@ -88,7 +99,7 @@
               <th>Учень</th>
               <th>Присутній</th>
               <th v-if="canSeeLessonBilledAmount">Вартість заняття</th>
-              <th v-if="canSeeLessonPayrollAmount">Винагорода викладача</th>
+              <th v-if="showParticipantPayrollAmount">Винагорода викладача</th>
             </tr>
           </thead>
           <tbody>
@@ -109,7 +120,7 @@
               <td v-if="canSeeLessonBilledAmount">
                 <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.billed_amount" :disabled="savingLesson || !isAdmin" />
               </td>
-              <td v-if="canSeeLessonPayrollAmount">
+              <td v-if="showParticipantPayrollAmount">
                 <input class="input amount-input" type="number" min="0" step="0.01" :value="participantPayrollAmount(participant)" disabled />
               </td>
             </tr>
@@ -196,7 +207,7 @@ type LessonParticipant = {
 }
 type LessonDetail = Lesson & { participants?: LessonParticipant[] }
 type ParticipantForm = { id: number; studentLabel: string; attendance_status: string; billed_amount: string; payroll_amount: string }
-type Group = { id: number; name?: string; teacher?: number | null }
+type Group = { id: number; name?: string; teacher?: number | null; format?: string }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string }
 type LessonRescheduleRequest = {
@@ -229,6 +240,7 @@ const createLessonFormOpen = ref(false)
 const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
+const groupFilter = ref<number | null>(null)
 const rows = ref<Lesson[]>([])
 const selectedLesson = ref<Lesson | null>(null)
 const lessonDetailPanel = ref<HTMLElement | null>(null)
@@ -264,16 +276,23 @@ const columns = computed(() => {
 })
 
 const hasDateInterval = computed(() => Boolean(dateFilterFrom.value || dateFilterTo.value))
-const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null)
+const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null || groupFilter.value !== null)
 const canSeePayroll = computed(() => canManageLessons.value)
 const canSeeLessonBilledAmount = computed(() => isAdmin.value || !canManageLessons.value)
 const canSeeLessonPayrollAmount = computed(() => canManageLessons.value)
+const selectedLessonGroup = computed(() => {
+  const groupId = selectedLesson.value?.group
+  if (!groupId) return null
+  return groups.value.find((g) => g.id === groupId) || null
+})
+const selectedLessonIsGroup = computed(() => selectedLessonGroup.value?.format === 'group')
+const showParticipantPayrollAmount = computed(() => canSeeLessonPayrollAmount.value && !selectedLessonIsGroup.value)
 const canMarkAttendance = computed(() => canManageLessons.value && selectedLesson.value?.status === 'scheduled')
 const canEditLessonTime = computed(() => {
   if (isAdmin.value) return true
   return currentRole.value === 'teacher' && ['scheduled', 'cancelled'].includes(selectedLesson.value?.status || '')
 })
-const participantColumnCount = computed(() => 2 + Number(canSeeLessonBilledAmount.value) + Number(canSeeLessonPayrollAmount.value))
+const participantColumnCount = computed(() => 2 + Number(canSeeLessonBilledAmount.value) + Number(showParticipantPayrollAmount.value))
 const activeRescheduleRequest = computed(() =>
   rescheduleRequests.value.find((item) => item.status === 'pending_parent' || item.status === 'parent_confirmed') || null,
 )
@@ -415,6 +434,16 @@ function fillLessonDetailForm(lesson: LessonDetail) {
     billed_amount: String(participant.billed_amount ?? '0.00'),
     payroll_amount: String(participant.payroll_amount ?? '0.00'),
   }))
+}
+
+function closeLessonDetail() {
+  selectedLesson.value = null
+  participantForms.value = []
+  rescheduleRequests.value = []
+  rescheduleForm.value = { requested_starts_at_local: '', reason: '' }
+  applyRescheduleForm.value = { starts_at_local: '', teacher_comment: '' }
+  detailError.value = null
+  rescheduleError.value = null
 }
 
 async function toggleParticipantPresence(participant: ParticipantForm, event: Event) {
@@ -572,6 +601,7 @@ async function loadLessons() {
   const params = new URLSearchParams()
   if (dateFilterFrom.value) params.set('date_from', dateFilterFrom.value)
   if (dateFilterTo.value) params.set('date_to', dateFilterTo.value)
+  if (groupFilter.value !== null) params.set('group', String(groupFilter.value))
   const query = params.toString()
   rows.value = await apiRequest<Lesson[]>(`/api/my/lessons/${query ? `?${query}` : ''}`)
 }
@@ -590,11 +620,11 @@ async function reloadLessons() {
 
 function clearFilters() {
   if (!hasFilters.value) return
-  const hadDateFilter = hasDateInterval.value
   dateFilterFrom.value = ''
   dateFilterTo.value = ''
   teacherFilter.value = null
-  if (hadDateFilter) void reloadLessons()
+  groupFilter.value = null
+  void reloadLessons()
 }
 
 async function createLesson() {
@@ -641,13 +671,12 @@ async function updateLesson() {
         billed_amount: participant.billed_amount,
       }))
     }
-    const updated = await apiRequest<LessonDetail>(`/api/academics/lessons/${selectedLesson.value.id}/`, {
+    await apiRequest<LessonDetail>(`/api/academics/lessons/${selectedLesson.value.id}/`, {
       method: 'PATCH',
       body,
     })
-    selectedLesson.value = updated
-    fillLessonDetailForm(updated as LessonDetail)
     await reloadLessons()
+    closeLessonDetail()
   } catch (e: any) {
     detailError.value = e?.payload?.detail || e?.message || 'Не вдалося оновити урок'
   } finally {
@@ -665,9 +694,7 @@ async function deleteLesson() {
   detailError.value = null
   try {
     await apiRequest(`/api/academics/lessons/${selectedLesson.value.id}/`, { method: 'DELETE' })
-    selectedLesson.value = null
-    participantForms.value = []
-    rescheduleRequests.value = []
+    closeLessonDetail()
     await reloadLessons()
   } catch (e: any) {
     detailError.value = apiErrorMessage(e, 'Не вдалося видалити урок')
@@ -803,7 +830,7 @@ watch(
 }
 .filters {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(180px, 1fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
   align-items: end;
   margin-bottom: 10px;
