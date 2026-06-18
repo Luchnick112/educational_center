@@ -75,6 +75,16 @@ class MyLessonsView(APIView):
 
     @extend_schema(responses=LessonSerializer(many=True))
     def get(self, request):
+        def positive_int(value, default, *, maximum=None):
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                parsed = default
+            parsed = max(parsed, 1)
+            if maximum is not None:
+                parsed = min(parsed, maximum)
+            return parsed
+
         user = request.user
         queryset = Lesson.objects.none()
 
@@ -92,10 +102,13 @@ class MyLessonsView(APIView):
         date_from = parse_date(request.query_params.get('date_from', ''))
         date_to = parse_date(request.query_params.get('date_to', ''))
         group_id = request.query_params.get('group')
-        has_date_filter = date_from is not None or date_to is not None
+        teacher_id = request.query_params.get('teacher')
+        has_filter = date_from is not None or date_to is not None or bool(group_id) or bool(teacher_id)
 
         if group_id:
             queryset = queryset.filter(group_id=group_id)
+        if teacher_id:
+            queryset = queryset.filter(group__teacher_id=teacher_id)
         if date_from is not None:
             queryset = queryset.filter(starts_at__date__gte=date_from)
         if date_to is not None:
@@ -108,7 +121,25 @@ class MyLessonsView(APIView):
             ),
             billed_amount_total=Sum('participants__billed_amount'),
         ).order_by('starts_at')
-        if not has_date_filter:
+
+        uses_pagination = 'page' in request.query_params or 'page_size' in request.query_params
+        if uses_pagination:
+            page = positive_int(request.query_params.get('page'), 1)
+            page_size = positive_int(request.query_params.get('page_size'), 20, maximum=100)
+            count = queryset.count()
+            start = (page - 1) * page_size
+            end = start + page_size
+            serializer = LessonSerializer(queryset[start:end], many=True, context={'request': request})
+            return Response(
+                {
+                    'count': count,
+                    'page': page,
+                    'page_size': page_size,
+                    'results': serializer.data,
+                }
+            )
+
+        if not has_filter:
             queryset = queryset[:20]
 
         serializer = LessonSerializer(queryset, many=True, context={'request': request})

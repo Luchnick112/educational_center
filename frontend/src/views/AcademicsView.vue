@@ -446,6 +446,7 @@ const columns = computed(() => {
       if (typeof v === 'object') return JSON.stringify(v)
       return String(v)
     },
+    cellClass: (row: any) => (k === 'status' ? lessonStatusClass(String(row?.[k] ?? '')) : ''),
   }))
 })
 
@@ -646,6 +647,12 @@ function lessonStatusLabel(status: string) {
     cancelled: 'Скасовано',
   }
   return map[status] || status
+}
+
+function lessonStatusClass(status: string) {
+  if (status === 'scheduled') return 'status-scheduled'
+  if (status === 'completed') return 'status-completed'
+  return ''
 }
 function userLabel(u: UserRow) {
   const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
