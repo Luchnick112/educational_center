@@ -27,22 +27,22 @@
       <div class="filters">
         <label class="field">
           <span class="field__label">З</span>
-          <input class="input" type="date" v-model="dateFilterFrom" @change="reloadLessons" />
+          <input class="input" type="date" v-model="dateFilterFrom" @change="reloadLessons()" />
         </label>
         <label class="field">
           <span class="field__label">До</span>
-          <input class="input" type="date" v-model="dateFilterTo" @change="reloadLessons" />
+          <input class="input" type="date" v-model="dateFilterTo" @change="reloadLessons()" />
         </label>
         <label v-if="isAdmin" class="field">
           <span class="field__label">Викладач</span>
-          <select class="input dropdown-list" v-model.number="teacherFilter">
+          <select class="input dropdown-list" v-model.number="teacherFilter" @change="reloadLessons()">
             <option :value="null">Всі викладачі</option>
             <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacherLabel(teacher) }}</option>
           </select>
         </label>
         <label v-if="canManageLessons" class="field">
           <span class="field__label">Група</span>
-          <select class="input dropdown-list" v-model.number="groupFilter" @change="reloadLessons">
+          <select class="input dropdown-list" v-model.number="groupFilter" @change="reloadLessons()">
             <option :value="null">Всі групи</option>
             <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name || `Група #${group.id}` }}</option>
           </select>
@@ -57,7 +57,20 @@
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-else-if="loading" class="muted">Завантаження...</div>
-      <DataTable v-else class="lessons-table" :columns="columns" :rows="filteredRows" :onRowClick="onLessonClick" />
+      <template v-else>
+        <DataTable class="lessons-table" :columns="columns" :rows="filteredRows" :onRowClick="onLessonClick" />
+        <div v-if="lessonPageCount > 1" class="pagination">
+          <button class="btn btn--ghost" type="button" :disabled="lessonPage <= 1" @click="goToLessonPage(lessonPage - 1)">
+            Назад
+          </button>
+          <span class="pagination__label">
+            Сторінка {{ lessonPage }} з {{ lessonPageCount }} · {{ lessonPageStart }}-{{ lessonPageEnd }} з {{ lessonCount }}
+          </span>
+          <button class="btn btn--ghost" type="button" :disabled="lessonPage >= lessonPageCount" @click="goToLessonPage(lessonPage + 1)">
+            Вперед
+          </button>
+        </div>
+      </template>
     </div>
 
     <div v-if="selectedLesson" ref="lessonDetailPanel" class="panel form">
@@ -209,7 +222,8 @@ type LessonDetail = Lesson & { participants?: LessonParticipant[] }
 type ParticipantForm = { id: number; studentLabel: string; attendance_status: string; billed_amount: string; payroll_amount: string }
 type Group = { id: number; name?: string; teacher?: number | null; format?: string }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
-type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string }
+type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string; cellClass?: (row: Lesson) => string }
+type LessonPageResponse = { count: number; page: number; page_size: number; results: Lesson[] }
 type LessonRescheduleRequest = {
   id: number
   lesson: number
@@ -241,6 +255,9 @@ const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
 const groupFilter = ref<number | null>(null)
+const lessonPage = ref(1)
+const lessonPageSize = ref(20)
+const lessonCount = ref(0)
 const rows = ref<Lesson[]>([])
 const selectedLesson = ref<Lesson | null>(null)
 const lessonDetailPanel = ref<HTMLElement | null>(null)
@@ -259,7 +276,7 @@ const columns = computed(() => {
   const items: LessonColumn[] = [
     { key: 'id', label: 'ID' },
     { key: 'group', label: 'Група', render: (r: Lesson) => groupLabel(r.group) },
-    { key: 'status', label: 'Статус', render: (r: Lesson) => lessonStatusLabel(r.status) },
+    { key: 'status', label: 'Статус', render: (r: Lesson) => lessonStatusLabel(r.status), cellClass: (r: Lesson) => lessonStatusClass(r.status) },
     { key: 'starts_at', label: 'Початок', render: (r: Lesson) => formatLessonDateTime(r.starts_at) },
   ]
   if (isAdmin.value) {
@@ -310,6 +327,9 @@ const filteredRows = computed(() => {
   if (!isAdmin.value || teacherFilter.value === null) return rows.value
   return rows.value.filter((lesson) => groupTeacherId(lesson.group) === teacherFilter.value)
 })
+const lessonPageCount = computed(() => Math.max(1, Math.ceil(lessonCount.value / lessonPageSize.value)))
+const lessonPageStart = computed(() => (lessonCount.value === 0 ? 0 : (lessonPage.value - 1) * lessonPageSize.value + 1))
+const lessonPageEnd = computed(() => Math.min(lessonCount.value, lessonPage.value * lessonPageSize.value))
 const payrollAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0))
 const billedAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0))
 
@@ -361,6 +381,12 @@ function lessonStatusLabel(status: string) {
     cancelled: 'Скасовано',
   }
   return map[status] || status
+}
+
+function lessonStatusClass(status: string) {
+  if (status === 'scheduled') return 'status-scheduled'
+  if (status === 'completed') return 'status-completed'
+  return ''
 }
 
 function rescheduleStatusLabel(status: string) {
@@ -601,12 +627,25 @@ async function loadLessons() {
   const params = new URLSearchParams()
   if (dateFilterFrom.value) params.set('date_from', dateFilterFrom.value)
   if (dateFilterTo.value) params.set('date_to', dateFilterTo.value)
+  if (teacherFilter.value !== null) params.set('teacher', String(teacherFilter.value))
   if (groupFilter.value !== null) params.set('group', String(groupFilter.value))
+  params.set('page', String(lessonPage.value))
+  params.set('page_size', String(lessonPageSize.value))
   const query = params.toString()
-  rows.value = await apiRequest<Lesson[]>(`/api/my/lessons/${query ? `?${query}` : ''}`)
+  const data = await apiRequest<Lesson[] | LessonPageResponse>(`/api/my/lessons/${query ? `?${query}` : ''}`)
+  if (Array.isArray(data)) {
+    rows.value = data
+    lessonCount.value = data.length
+    return
+  }
+  rows.value = data.results
+  lessonCount.value = data.count
+  lessonPage.value = data.page
+  lessonPageSize.value = data.page_size
 }
 
-async function reloadLessons() {
+async function reloadLessons(resetPage = true) {
+  if (resetPage) lessonPage.value = 1
   loading.value = true
   error.value = null
   try {
@@ -616,6 +655,13 @@ async function reloadLessons() {
   } finally {
     loading.value = false
   }
+}
+
+async function goToLessonPage(page: number) {
+  const nextPage = Math.min(Math.max(page, 1), lessonPageCount.value)
+  if (nextPage === lessonPage.value || loading.value) return
+  lessonPage.value = nextPage
+  await reloadLessons(false)
 }
 
 function clearFilters() {
@@ -837,6 +883,18 @@ watch(
 }
 .filter-clear {
   min-height: 39px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.pagination__label {
+  color: var(--text-soft);
+  font-size: 13px;
 }
 .period-totals {
   display: grid;
