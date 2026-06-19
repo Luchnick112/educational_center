@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from finance.models import LessonTeacherPayout, ParentCharge, TeacherPayout
+from finance.models import LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
 from users.models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, User, UserRole
 
 from academics.models import (
@@ -159,6 +159,45 @@ class LessonSignalsTestCase(TestCase):
         self.assertEqual(payout.teacher, self.teacher)
         self.assertEqual(payout.amount, Decimal('4500.00'))
         self.assertEqual(payout.lesson_count, 10)
+
+    def test_attendance_rate_change_recalculates_draft_group_lesson_payout(self):
+        lesson = self.create_completed_lesson(days_offset=0)
+        payout = LessonTeacherPayout.objects.create(
+            lesson=lesson,
+            teacher=self.teacher,
+            amount=Decimal('0.00'),
+        )
+
+        GroupAttendanceRate.objects.create(
+            group=self.group,
+            present_count=1,
+            teacher_rate=Decimal('550.00'),
+            effective_from=lesson.starts_at - timedelta(days=1),
+        )
+
+        payout.refresh_from_db()
+
+        self.assertEqual(payout.amount, Decimal('550.00'))
+
+    def test_attendance_rate_change_does_not_recalculate_paid_group_lesson_payout(self):
+        lesson = self.create_completed_lesson(days_offset=0)
+        payout = LessonTeacherPayout.objects.create(
+            lesson=lesson,
+            teacher=self.teacher,
+            amount=Decimal('0.00'),
+            status=PayoutStatus.PAID,
+        )
+
+        GroupAttendanceRate.objects.create(
+            group=self.group,
+            present_count=1,
+            teacher_rate=Decimal('550.00'),
+            effective_from=lesson.starts_at - timedelta(days=1),
+        )
+
+        payout.refresh_from_db()
+
+        self.assertEqual(payout.amount, Decimal('0.00'))
 
     def test_absent_student_is_still_charged_after_tenth_completed_lesson(self):
         for index in range(10):

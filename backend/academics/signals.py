@@ -1,14 +1,22 @@
 from decimal import Decimal
 
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from finance.models import LessonTeacherPayout, ParentCharge, TeacherPayout
+from finance.models import LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
 from users.models import StudentParentRelation
 
 from .constants import BILLING_LESSON_COUNT
-from .models import Lesson, LessonParticipant, LessonStatus, StudyGroupFormat, StudentEnrollment
+from .models import (
+    AttendanceStatus,
+    GroupAttendanceRate,
+    Lesson,
+    LessonParticipant,
+    LessonStatus,
+    StudyGroupFormat,
+    StudentEnrollment,
+)
 from .services import group_lesson_teacher_amount
 
 
@@ -84,17 +92,55 @@ def _create_parent_charges_for_batch(*, batch_number: int, batch: list[Lesson]) 
 def _create_group_teacher_payout_for_batch(*, batch_number: int, batch: list[Lesson]) -> None:
     period_start_at, period_end_at = _batch_period(batch)
     billing_lesson = batch[-1]
-    LessonTeacherPayout.objects.get_or_create(
+    amount = sum((group_lesson_teacher_amount(lesson) for lesson in batch), Decimal('0.00'))
+    payout, created = LessonTeacherPayout.objects.get_or_create(
         lesson=billing_lesson,
         defaults={
             'teacher': billing_lesson.group.teacher,
-            'amount': sum((group_lesson_teacher_amount(lesson) for lesson in batch), Decimal('0.00')),
+            'amount': amount,
             'billing_period': batch_number,
             'lesson_count': len(batch),
             'period_start_at': period_start_at,
             'period_end_at': period_end_at,
         },
     )
+    if not created and payout.status == PayoutStatus.DRAFT and payout.amount != amount:
+        payout.amount = amount
+        payout.save(update_fields=['amount'])
+
+
+def _lesson_teacher_payout_lessons(payout: LessonTeacherPayout):
+    if payout.lesson_count == 1:
+        return [payout.lesson]
+    if payout.period_start_at is None or payout.period_end_at is None:
+        return [payout.lesson]
+    return list(
+        Lesson.objects.filter(
+            group=payout.lesson.group,
+            status=LessonStatus.COMPLETED,
+            starts_at__gte=payout.period_start_at,
+            starts_at__lte=payout.period_end_at,
+        ).order_by('starts_at', 'id')
+    )
+
+
+def _recalculate_draft_lesson_teacher_payout(payout: LessonTeacherPayout) -> None:
+    amount = sum(
+        (group_lesson_teacher_amount(lesson) for lesson in _lesson_teacher_payout_lessons(payout)),
+        Decimal('0.00'),
+    )
+    if payout.amount != amount:
+        payout.amount = amount
+        payout.save(update_fields=['amount'])
+
+
+def _recalculate_draft_lesson_teacher_payouts_for_group(group) -> None:
+    payouts = LessonTeacherPayout.objects.filter(
+        lesson__group=group,
+        status=PayoutStatus.DRAFT,
+    ).select_related('lesson', 'lesson__group')
+    for payout in payouts:
+        _recalculate_draft_lesson_teacher_payout(payout)
 
 
 def _create_individual_financial_documents(lesson: Lesson) -> None:
@@ -174,3 +220,15 @@ def create_financial_documents(sender, instance: Lesson, created: bool, **kwargs
 
     _create_parent_charges_for_batch(batch_number=batch_number, batch=batch)
     _create_group_teacher_payout_for_batch(batch_number=batch_number, batch=batch)
+
+
+@receiver(post_save, sender=GroupAttendanceRate)
+def recalculate_group_draft_payouts_after_attendance_rate_save(sender, instance: GroupAttendanceRate, **kwargs):
+    if kwargs.get('raw'):
+        return
+    _recalculate_draft_lesson_teacher_payouts_for_group(instance.group)
+
+
+@receiver(post_delete, sender=GroupAttendanceRate)
+def recalculate_group_draft_payouts_after_attendance_rate_delete(sender, instance: GroupAttendanceRate, **kwargs):
+    _recalculate_draft_lesson_teacher_payouts_for_group(instance.group)
