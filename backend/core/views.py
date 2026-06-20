@@ -573,6 +573,37 @@ class MyNotificationsView(APIView):
                         paid_remaining = Decimal('0.00')
             return uncovered
 
+        def group_billing_created_at(payout):
+            return payout.approved_at or payout.period_end_at or payout.lesson.starts_at
+
+        def money(value: Decimal) -> str:
+            return f'{value:.2f}'
+
+        def profile_label(profile) -> str:
+            profile_user = profile.user
+            full_name = profile_user.get_full_name().strip()
+            return full_name or profile_user.telegram_username or profile_user.email or f'#{profile.id}'
+
+        def group_billing_message(payout, *, include_teacher=False):
+            group = payout.lesson.group
+            teacher_part = ''
+            if include_teacher:
+                teacher_part = f' Викладач: {profile_label(payout.teacher)}.'
+            return (
+                f'Група {group.name}: створено рахунок за {payout.lesson_count} завершених уроків.'
+                f' Сума викладачу: {money(payout.amount)}.{teacher_part}'
+            )
+
+        def group_billing_payouts(queryset):
+            return queryset.select_related(
+                'teacher__user',
+                'lesson',
+                'lesson__group',
+            ).filter(
+                lesson_count__gte=10,
+                status=PayoutStatus.DRAFT,
+            ).order_by('-period_end_at', '-id')[:10]
+
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             charges = ParentCharge.objects.select_related('participant__lesson').filter(student=user.student_profile)
             payments = StudentPayment.objects.filter(student=user.student_profile)
@@ -648,6 +679,18 @@ class MyNotificationsView(APIView):
                     payout.approved_at,
                 )
 
+            for payout in group_billing_payouts(
+                LessonTeacherPayout.objects.filter(teacher=user.teacher_profile)
+            ):
+                add(
+                    'group_billing',
+                    f'teacher:{payout.id}',
+                    'Створено рахунок за групові уроки',
+                    group_billing_message(payout),
+                    '/my/payments',
+                    group_billing_created_at(payout),
+                )
+
             teacher_payments = TeacherPayment.objects.filter(
                 teacher=user.teacher_profile,
             ).select_related('teacher').order_by('-created_at')[:10]
@@ -673,6 +716,16 @@ class MyNotificationsView(APIView):
                     f'Урок #{reschedule.lesson_id}: {reschedule.status}.',
                     f'/my/lessons?lesson={reschedule.lesson_id}',
                     reschedule.updated_at,
+                )
+
+            for payout in group_billing_payouts(LessonTeacherPayout.objects.all()):
+                add(
+                    'group_billing',
+                    f'admin:{payout.id}',
+                    'Створено групові рахунки',
+                    group_billing_message(payout, include_teacher=True),
+                    '/my/payments',
+                    group_billing_created_at(payout),
                 )
 
         notifications.sort(key=lambda item: str(item.get('created_at') or ''), reverse=True)

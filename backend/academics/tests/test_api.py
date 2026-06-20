@@ -29,6 +29,19 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.lesson.starts_at = timezone.now() - self.lesson.DEFAULT_DURATION - timedelta(minutes=1)
         self.lesson.save(update_fields=['starts_at'])
 
+    def create_completed_group_billing_batch(self):
+        billing_lesson = None
+        for index in range(10):
+            lesson = Lesson.objects.create(
+                group=self.group,
+                starts_at=timezone.now() - timedelta(days=20 - index),
+            )
+            lesson.participants.update(attendance_status=AttendanceStatus.PRESENT)
+            lesson.status = LessonStatus.COMPLETED
+            lesson.save(update_fields=['status'])
+            billing_lesson = lesson
+        return LessonTeacherPayout.objects.get(lesson=billing_lesson)
+
     def test_register_page_is_available_in_browser(self):
         response = self.client.get('/api/users/register/')
 
@@ -768,6 +781,41 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(any(item['kind'] == 'payout' for item in response.data))
+
+    def test_teacher_notifications_include_created_group_billing(self):
+        payout = self.create_completed_group_billing_batch()
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(response.status_code, 200)
+        notification = next(item for item in response.data if item['id'] == f'group_billing:teacher:{payout.id}')
+        self.assertEqual(notification['kind'], 'group_billing')
+        self.assertEqual(notification['title'], 'Створено рахунок за групові уроки')
+        self.assertIn(self.group.name, notification['message'])
+        self.assertIn('10 завершених уроків', notification['message'])
+        self.assertEqual(notification['url'], '/my/payments')
+
+    def test_admin_notifications_include_created_group_billing(self):
+        payout = self.create_completed_group_billing_batch()
+        admin_user = User.objects.create_user(
+            username='group_billing_notification_admin',
+            email='group_billing_notification_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+
+        response = self.client.get('/api/my/notifications/')
+
+        self.assertEqual(response.status_code, 200)
+        notification = next(item for item in response.data if item['id'] == f'group_billing:admin:{payout.id}')
+        self.assertEqual(notification['kind'], 'group_billing')
+        self.assertEqual(notification['title'], 'Створено групові рахунки')
+        self.assertIn(self.group.name, notification['message'])
+        self.assertIn('Викладач:', notification['message'])
+        self.assertEqual(notification['url'], '/my/payments')
 
     def test_teacher_cannot_update_billed_amount(self):
         participant = self.lesson.participants.get()
