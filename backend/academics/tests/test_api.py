@@ -60,7 +60,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Refresh access token')
 
-    def test_group_name_is_auto_generated_on_create(self):
+    def test_individual_group_name_uses_student_last_name_after_sync(self):
         admin_user = User.objects.create_user(
             username='group_admin',
             email='group_admin@example.com',
@@ -68,6 +68,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             role=UserRole.ADMIN,
             is_staff=True,
         )
+        self.student_user.last_name = 'Shevchenko'
+        self.student_user.save(update_fields=['last_name'])
         self.client.force_authenticate(admin_user)
 
         create_response = self.client.post(
@@ -86,8 +88,17 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(create_response.status_code, 201)
         created_id = create_response.data['id']
-        self.assertEqual(create_response.data['name'], f'{self.subject.name}{self.teacher.id}{created_id}')
         self.assertEqual(create_response.data['format'], StudyGroupFormat.INDIVIDUAL)
+
+        sync_response = self.client.post(
+            f'/api/academics/groups/{created_id}/students/',
+            {'student_ids': [self.student.id]},
+            format='json',
+        )
+
+        self.assertEqual(sync_response.status_code, 200)
+        created_group = StudyGroup.objects.get(pk=created_id)
+        self.assertEqual(created_group.name, f'Shevchenko_{created_id}')
 
     def test_teacher_can_create_group_without_teacher_or_prices(self):
         self.client.force_authenticate(self.teacher_user)
@@ -396,6 +407,24 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item['id'] for item in response.data], [other_lesson.id])
+        self.assertNotIn(self.lesson.id, [item['id'] for item in response.data])
+
+    def test_teacher_my_lessons_can_be_filtered_by_group_format(self):
+        individual_group = StudyGroup.objects.create(
+            subject=self.subject,
+            teacher=self.teacher,
+            format=StudyGroupFormat.INDIVIDUAL,
+            capacity=1,
+            student_price=600,
+            teacher_rate=350,
+        )
+        individual_lesson = Lesson.objects.create(group=individual_group, starts_at=timezone.now() + timedelta(days=1))
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/lessons/', {'group_format': StudyGroupFormat.INDIVIDUAL})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.data], [individual_lesson.id])
         self.assertNotIn(self.lesson.id, [item['id'] for item in response.data])
 
     def test_admin_my_lessons_teacher_filter_is_applied_before_default_limit(self):

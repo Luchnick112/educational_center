@@ -8,7 +8,14 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from academics.models import AttendanceStatus, Lesson, LessonConfirmation, LessonRescheduleRequest, LessonRescheduleStatus
+from academics.models import (
+    AttendanceStatus,
+    Lesson,
+    LessonConfirmation,
+    LessonRescheduleRequest,
+    LessonRescheduleStatus,
+    StudyGroupFormat,
+)
 from academics.serializers import LessonConfirmationSerializer, LessonSerializer
 from finance.models import ChargeStatus, LessonTeacherPayout, ParentCharge, PayoutStatus, StudentPayment, TeacherPayment, TeacherPayout
 from finance.serializers import (
@@ -102,11 +109,21 @@ class MyLessonsView(APIView):
         date_from = parse_date(request.query_params.get('date_from', ''))
         date_to = parse_date(request.query_params.get('date_to', ''))
         group_id = request.query_params.get('group')
+        group_format = request.query_params.get('group_format')
         teacher_id = request.query_params.get('teacher')
-        has_filter = date_from is not None or date_to is not None or bool(group_id) or bool(teacher_id)
+        has_group_format_filter = group_format in {StudyGroupFormat.INDIVIDUAL, StudyGroupFormat.GROUP}
+        has_filter = (
+            date_from is not None
+            or date_to is not None
+            or bool(group_id)
+            or has_group_format_filter
+            or bool(teacher_id)
+        )
 
         if group_id:
             queryset = queryset.filter(group_id=group_id)
+        if has_group_format_filter:
+            queryset = queryset.filter(group__format=group_format)
         if teacher_id:
             queryset = queryset.filter(group__teacher_id=teacher_id)
         if date_from is not None:

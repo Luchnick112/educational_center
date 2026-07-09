@@ -112,13 +112,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
 
     def validate_telegram_username(self, value):
-        normalized = value.strip()
+        normalized = (value or '').strip()
         normalized = normalized.lower()
         if normalized and not normalized.startswith('@'):
             normalized = f'@{normalized}'
 
         if not normalized:
-            return ''
+            return None
 
         if not re.fullmatch(TELEGRAM_USERNAME_RE, normalized):
             raise serializers.ValidationError(

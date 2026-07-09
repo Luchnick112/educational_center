@@ -42,9 +42,11 @@
         </label>
         <label v-if="canManageLessons" class="field">
           <span class="field__label">Група</span>
-          <select class="input dropdown-list" v-model.number="groupFilter" @change="reloadLessons()">
-            <option :value="null">Всі групи</option>
-            <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name || `Група #${group.id}` }}</option>
+          <select class="input dropdown-list" v-model="groupFilter" @change="reloadLessons()">
+            <option value="">Всі групи</option>
+            <option value="individual">Індивідуальні</option>
+            <option value="group">Групові</option>
+            <option v-for="group in groups" :key="group.id" :value="String(group.id)">{{ group.name || `Група #${group.id}` }}</option>
           </select>
         </label>
         <button class="btn btn--ghost filter-clear" type="button" :disabled="!hasFilters" @click="clearFilters">
@@ -254,7 +256,7 @@ const createLessonFormOpen = ref(false)
 const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
-const groupFilter = ref<number | null>(null)
+const groupFilter = ref('')
 const lessonPage = ref(1)
 const lessonPageSize = ref(20)
 const lessonCount = ref(0)
@@ -293,7 +295,7 @@ const columns = computed(() => {
 })
 
 const hasDateInterval = computed(() => Boolean(dateFilterFrom.value || dateFilterTo.value))
-const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null || groupFilter.value !== null)
+const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null || groupFilter.value !== '')
 const canSeePayroll = computed(() => canManageLessons.value)
 const canSeeLessonBilledAmount = computed(() => isAdmin.value || !canManageLessons.value)
 const canSeeLessonPayrollAmount = computed(() => canManageLessons.value)
@@ -628,7 +630,11 @@ async function loadLessons() {
   if (dateFilterFrom.value) params.set('date_from', dateFilterFrom.value)
   if (dateFilterTo.value) params.set('date_to', dateFilterTo.value)
   if (teacherFilter.value !== null) params.set('teacher', String(teacherFilter.value))
-  if (groupFilter.value !== null) params.set('group', String(groupFilter.value))
+  if (groupFilter.value === 'individual' || groupFilter.value === 'group') {
+    params.set('group_format', groupFilter.value)
+  } else if (groupFilter.value) {
+    params.set('group', groupFilter.value)
+  }
   params.set('page', String(lessonPage.value))
   params.set('page_size', String(lessonPageSize.value))
   const query = params.toString()
@@ -669,7 +675,7 @@ function clearFilters() {
   dateFilterFrom.value = ''
   dateFilterTo.value = ''
   teacherFilter.value = null
-  groupFilter.value = null
+  groupFilter.value = ''
   void reloadLessons()
 }
 

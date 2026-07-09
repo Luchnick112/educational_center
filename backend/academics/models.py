@@ -61,7 +61,7 @@ class Subject(models.Model):
 
 
 class StudyGroup(models.Model):
-    # Auto-generated from subject_ + teacher.id_ + group.id (see save()).
+    # Auto-generated from group metadata (see save()).
     name = models.CharField(max_length=128, blank=True, default='')
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='groups')
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
@@ -83,7 +83,22 @@ class StudyGroup(models.Model):
         return self.student_price, self.teacher_rate
 
     def _build_auto_name(self) -> str:
-        if not (self.subject_id and self.teacher_id and self.pk):
+        if not self.pk:
+            return self.name
+        if self.format == StudyGroupFormat.INDIVIDUAL:
+            enrollment = (
+                self.enrollments.select_related('student__user')
+                .filter(status=EnrollmentStatus.ACTIVE)
+                .order_by('id')
+                .first()
+            )
+            if enrollment is None:
+                enrollment = self.enrollments.select_related('student__user').order_by('id').first()
+            if enrollment is None:
+                return self.name
+            last_name = (enrollment.student.user.last_name or '').strip()
+            return f'{last_name}_{self.pk}' if last_name else self.name
+        if not (self.subject_id and self.teacher_id):
             return self.name
         return f'{self.subject}{self.teacher_id}{self.pk}'
 
@@ -133,6 +148,11 @@ class StudentEnrollment(models.Model):
     def teacher_rate(self) -> Decimal:
         _, base_teacher_rate = self.group.get_effective_pricing()
         return self.teacher_rate_override or base_teacher_rate
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.group.format == StudyGroupFormat.INDIVIDUAL:
+            self.group.save(update_fields=['name'])
 
     def __str__(self) -> str:
         return f'{self.student} / {self.group}'
