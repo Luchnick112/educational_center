@@ -149,6 +149,29 @@ class RegisterApiTestCase(TestCase):
         self.assertFalse(user.has_usable_password())
         self.assertTrue(hasattr(user, 'teacher_profile'))
 
+    def test_staff_can_create_multiple_phone_only_users_with_blank_telegram(self):
+        self.client.force_authenticate(self.staff)
+
+        for suffix in ('one', 'two'):
+            with self.subTest(suffix=suffix):
+                resp = self.client.post(
+                    '/api/users/register/',
+                    {
+                        'first_name': 'Phone',
+                        'last_name': suffix.title(),
+                        'telegram_username': '',
+                        'phone': f'+38050111223{1 if suffix == "one" else 2}',
+                        'role': UserRole.TEACHER,
+                    },
+                    format='json',
+                )
+
+                self.assertEqual(resp.status_code, 201, resp.data)
+                user = User.objects.get(pk=resp.data['id'])
+                self.assertIsNone(user.telegram_username)
+                self.assertEqual(user.role, UserRole.TEACHER)
+                self.assertTrue(hasattr(user, 'teacher_profile'))
+
     def test_staff_can_update_student_lesson_price(self):
         self.client.force_authenticate(self.staff)
         student_user = User.objects.create_user(
