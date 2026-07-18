@@ -9,12 +9,15 @@ from .models import (
     AttendanceStatus,
     ConfirmationRequester,
     ConfirmationStatus,
+    EnrollmentStatus,
     GroupAttendanceRate,
     Lesson,
     LessonConfirmation,
+    LessonParticipant,
     LessonRescheduleRequest,
     LessonRescheduleStatus,
     LessonStatus,
+    StudentEnrollment,
     StudyGroupFormat,
 )
 
@@ -38,6 +41,51 @@ def group_lesson_teacher_amount(lesson: Lesson) -> Decimal:
 
     _, teacher_rate = lesson.group.get_effective_pricing(lesson.starts_at)
     return teacher_rate
+
+
+def create_lesson_participants_for_enrollments(lesson: Lesson) -> int:
+    enrollments = (
+        StudentEnrollment.objects.filter(
+            group=lesson.group,
+            status=EnrollmentStatus.ACTIVE,
+        )
+        .select_related('student')
+    )
+
+    created_count = 0
+    for enrollment in enrollments:
+        _, created = LessonParticipant.objects.get_or_create(
+            lesson=lesson,
+            student=enrollment.student,
+            defaults={'enrollment': enrollment},
+        )
+        if created:
+            created_count += 1
+    return created_count
+
+
+def sync_enrollment_scheduled_lesson_participants(enrollment: StudentEnrollment) -> int:
+    if enrollment.status != EnrollmentStatus.ACTIVE:
+        return 0
+
+    lessons = Lesson.objects.filter(
+        group=enrollment.group,
+        status=LessonStatus.SCHEDULED,
+        starts_at__date__gte=enrollment.start_date,
+    )
+    if enrollment.end_date is not None:
+        lessons = lessons.filter(starts_at__date__lte=enrollment.end_date)
+
+    created_count = 0
+    for lesson in lessons:
+        _, created = LessonParticipant.objects.get_or_create(
+            lesson=lesson,
+            student=enrollment.student,
+            defaults={'enrollment': enrollment},
+        )
+        if created:
+            created_count += 1
+    return created_count
 
 
 def ensure_lesson_teacher_or_admin(user, lesson: Lesson, action_label: str) -> None:

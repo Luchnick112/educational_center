@@ -15,9 +15,8 @@ from .models import (
     LessonParticipant,
     LessonStatus,
     StudyGroupFormat,
-    StudentEnrollment,
 )
-from .services import group_lesson_teacher_amount
+from .services import create_lesson_participants_for_enrollments, group_lesson_teacher_amount
 
 
 def completed_lessons_count(group) -> int:
@@ -188,17 +187,7 @@ def create_lesson_participants(sender, instance: Lesson, created: bool, **kwargs
     if kwargs.get('raw') or not created:
         return
 
-    enrollments = StudentEnrollment.objects.filter(
-        group=instance.group,
-        status='active',
-    ).select_related('student')
-
-    for enrollment in enrollments:
-        LessonParticipant.objects.get_or_create(
-            lesson=instance,
-            student=enrollment.student,
-            defaults={'enrollment': enrollment},
-        )
+    create_lesson_participants_for_enrollments(instance)
 
 
 @receiver(post_save, sender=Lesson)
