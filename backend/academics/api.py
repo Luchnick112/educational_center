@@ -43,6 +43,7 @@ from .services import (
     confirm_lesson_reschedule_by_parent,
     create_lesson_reschedule_request,
     mark_lesson_attendance,
+    sync_enrollment_scheduled_lesson_participants,
 )
 
 
@@ -158,6 +159,7 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         today = timezone.localdate()
         desired_ids = set(serializer.validated_data['student_ids'])
         existing = {enrollment.student_id: enrollment for enrollment in group.enrollments.all()}
+        active_enrollments = []
 
         for student_id in desired_ids:
             enrollment = existing.get(student_id)
@@ -166,20 +168,25 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
                     enrollment.status = 'active'
                     enrollment.end_date = None
                     enrollment.save(update_fields=['status', 'end_date'])
+                active_enrollments.append(enrollment)
                 continue
 
-            StudentEnrollment.objects.create(
+            enrollment = StudentEnrollment.objects.create(
                 group=group,
                 student_id=student_id,
                 status='active',
                 start_date=today,
             )
+            active_enrollments.append(enrollment)
 
         for student_id, enrollment in existing.items():
             if enrollment.status == 'active' and student_id not in desired_ids:
                 enrollment.status = 'cancelled'
                 enrollment.end_date = today
                 enrollment.save(update_fields=['status', 'end_date'])
+
+        for enrollment in active_enrollments:
+            sync_enrollment_scheduled_lesson_participants(enrollment)
 
         queryset = StudentEnrollment.objects.filter(group=group).select_related('group', 'student', 'student__user')
         return response.Response(StudentEnrollmentSerializer(queryset, many=True, context={'request': request}).data)
@@ -208,7 +215,8 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             if group.teacher_id != user.teacher_profile.id:
                 raise exceptions.PermissionDenied('You can only enroll students in your own groups.')
-        serializer.save()
+        enrollment = serializer.save()
+        sync_enrollment_scheduled_lesson_participants(enrollment)
 
     def create(self, request, *args, **kwargs):
         group_id = request.data.get('group')
@@ -231,7 +239,8 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             if group.teacher_id != user.teacher_profile.id:
                 raise exceptions.PermissionDenied('You can only manage enrollments in your own groups.')
-        serializer.save()
+        enrollment = serializer.save()
+        sync_enrollment_scheduled_lesson_participants(enrollment)
 
 
 class GroupPricingViewSet(viewsets.ModelViewSet):

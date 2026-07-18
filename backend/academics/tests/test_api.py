@@ -722,6 +722,45 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.data['notes'], 'Updated notes')
 
+    def test_group_student_sync_adds_student_to_scheduled_lessons(self):
+        other_student_user = User.objects.create_user(
+            username='new_group_student',
+            email='new_group_student@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        other_student = StudentProfile.objects.create(user=other_student_user)
+        self.client.force_authenticate(self.teacher_user)
+
+        sync_response = self.client.post(
+            f'/api/academics/groups/{self.group.id}/students/',
+            {'student_ids': [self.student.id, other_student.id]},
+            format='json',
+        )
+
+        self.assertEqual(sync_response.status_code, 200)
+        self.assertCountEqual(
+            self.lesson.participants.values_list('student_id', flat=True),
+            [self.student.id, other_student.id],
+        )
+
+        create_response = self.client.post(
+            '/api/academics/lessons/',
+            {
+                'group': self.group.id,
+                'starts_at': (timezone.now() + timedelta(days=1)).isoformat(),
+                'notes': 'After adding a student',
+            },
+            format='json',
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        created_lesson = Lesson.objects.get(pk=create_response.data['id'])
+        self.assertCountEqual(
+            created_lesson.participants.values_list('student_id', flat=True),
+            [self.student.id, other_student.id],
+        )
+
     def test_teacher_can_update_lesson_status_and_payroll_amount(self):
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
