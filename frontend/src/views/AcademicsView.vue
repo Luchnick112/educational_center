@@ -1,12 +1,12 @@
 <template>
-  <AppShell title="Навчання">
+  <AppShell :title="isCreateRoute ? `Створити: ${currentTab.label}` : 'Навчання'">
     <div v-if="!isAllowed" class="panel">
       <div class="panel__title">Доступ заборонено</div>
       <div class="muted">Сторінка доступна лише для admin/staff.</div>
     </div>
 
-    <div v-else class="layout">
-      <div class="panel">
+    <div v-else class="layout" :class="{ 'layout--single': isCreateRoute }">
+      <div v-if="!isCreateRoute" class="panel">
         <div class="row">
           <div class="tabs" role="tablist" aria-label="Academics resources">
             <button
@@ -45,7 +45,7 @@
         />
       </div>
 
-      <div class="panel">
+      <div v-if="!isCreateRoute || mode === 'create'" class="panel">
         <div class="formwrap">
           <div class="formwrap__header">
             <div class="formwrap__title">{{ formTitle }}</div>
@@ -297,6 +297,7 @@ const detail = ref<any | null>(null)
 const selectedId = ref<number | null>(null)
 
 const currentTab = computed(() => tabs.find((t) => t.key === active.value)!)
+const isCreateRoute = computed(() => route.name === 'academics-create')
 const detailTitle = computed(() => {
   const id = selectedId.value
   return id ? `${currentTab.value.label} #${id}` : `${currentTab.value.label} detail`
@@ -512,6 +513,10 @@ function reload() {
 }
 
 function startCreate() {
+  router.push({ name: 'academics-create', query: { tab: active.value } })
+}
+
+function resetCreateForm() {
   mode.value = 'create'
   formError.value = null
   participants.value = []
@@ -525,12 +530,19 @@ function startEdit() {
 }
 
 function cancelEdit() {
+  if (isCreateRoute.value) {
+    router.push({ name: 'academics', query: { tab: active.value } })
+    return
+  }
   mode.value = 'view'
   formError.value = null
   hydrateFormFromDetail()
 }
 
 function closeEditor() {
+  if (isCreateRoute.value) {
+    router.push({ name: 'academics', query: { tab: active.value } })
+  }
   selectedId.value = null
   detail.value = null
   participants.value = []
@@ -919,7 +931,11 @@ onMounted(async () => {
   await auth.bootstrap()
   if (isAllowed.value) {
     await ensureLookups()
-    await loadList()
+    if (isCreateRoute.value) {
+      resetCreateForm()
+    } else {
+      await loadList()
+    }
   }
 })
 
@@ -930,7 +946,25 @@ watch(
     participants.value = []
     formError.value = null
     await ensureLookups()
-    await loadList()
+    if (isCreateRoute.value) {
+      resetCreateForm()
+    } else {
+      await loadList()
+    }
+  },
+)
+
+watch(
+  () => route.name,
+  async (name) => {
+    if (!isAllowed.value) return
+    if (name === 'academics-create') {
+      await ensureLookups()
+      resetCreateForm()
+    } else if (mode.value === 'create') {
+      closeEditor()
+      await loadList()
+    }
   },
 )
 </script>
@@ -941,6 +975,9 @@ watch(
   grid-template-columns: 1.2fr 0.8fr;
   gap: 14px;
   align-items: start;
+}
+.layout--single {
+  grid-template-columns: minmax(0, 760px);
 }
 
 .actions {
@@ -1008,6 +1045,35 @@ watch(
 
 @media (max-width: 980px) {
   .layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .actions,
+  .formwrap__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    width: 100%;
+  }
+  .actions .btn,
+  .formwrap__actions .btn,
+  .tab {
+    width: 100%;
+  }
+  .formwrap__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .actions,
+  .formwrap__actions,
+  .tabs {
     grid-template-columns: 1fr;
   }
 }

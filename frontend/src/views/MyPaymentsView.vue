@@ -875,6 +875,7 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -943,11 +944,26 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tab {
+    min-height: 40px;
+  }
+
   .payment-form {
     grid-template-columns: 1fr;
   }
 
   .summary-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .tabs {
     grid-template-columns: 1fr;
   }
 }

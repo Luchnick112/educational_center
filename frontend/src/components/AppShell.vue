@@ -363,11 +363,22 @@ onUnmounted(() => {
   line-height: 1.35;
 }
 @media (max-width: 560px) {
+  .notification-button {
+    width: 40px;
+    height: 40px;
+  }
+
   .theme-switch__text {
     display: none;
   }
+
   .notifications-menu {
-    right: -92px;
+    position: fixed;
+    top: 58px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100dvh - 74px);
   }
 }
 </style>
