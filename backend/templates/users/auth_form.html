@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }}</title>
+</head>
+<body>
+  <main>
+    <h1>{{ page_title }}</h1>
+    <p>{{ page_lead }}</p>
+    <form method="post" action="{{ endpoint }}">
+      {% csrf_token %}
+      {% for field in fields %}
+        <label>
+          {{ field.label }}
+          <input
+            name="{{ field.name }}"
+            type="{{ field.type }}"
+            {% if field.required %}required{% endif %}
+          >
+        </label>
+      {% endfor %}
+      <button type="submit">{{ button_label }}</button>
+    </form>
+  </main>
+</body>
+</html>

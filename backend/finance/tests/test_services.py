@@ -19,6 +19,8 @@ from users.models import User, UserRole
 class FinanceServicesTestCase(AcademicBaseTestCase):
     def setUp(self):
         super().setUp()
+        self.make_group_individual()
+        self.move_lesson_after_end_time()
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])

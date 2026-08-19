@@ -1,0 +1,30 @@
+name: CD Pipeline
+
+on:
+  workflow_run:
+    workflows: [ "CI Pipeline" ]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up SSH Agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CONTABO_SSH_KEY }}
+
+      - name: Add Contabo Host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.CONTABO_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Contabo
+        run: |
+          ssh ${{ secrets.CONTABO_USER }}@${{ secrets.CONTABO_HOST }} \
+                "bash /opt/educational-center/educational_center/deploy.sh"

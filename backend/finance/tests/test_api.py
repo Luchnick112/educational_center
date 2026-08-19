@@ -22,6 +22,9 @@ class MyPaymentsApiTestCase(AcademicBaseTestCase):
         )
 
     def complete_lesson_with_finance_docs(self, lesson):
+        self.make_group_individual()
+        if lesson.end_at > timezone.now():
+            self.move_lesson_after_end_time(lesson)
         participant = lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])

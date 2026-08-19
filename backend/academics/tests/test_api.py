@@ -148,7 +148,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             role=UserRole.ADMIN,
             is_staff=True,
         )
-        participant = LessonParticipant.objects.create(lesson=self.lesson, enrollment=self.enrollment)
+        participant = self.lesson.participants.get()
         ParentCharge.objects.create(
             participant=participant,
             parent=self.parent,
@@ -258,6 +258,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data[0]['billed_amount'], '600.00')
 
     def test_admin_can_update_lesson_detail_and_participant_amounts(self):
+        self.make_group_individual()
         admin_user = User.objects.create_user(
             username='lesson_detail_admin',
             email='lesson_detail_admin@example.com',
@@ -666,6 +667,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertIn('refresh', response.data)
 
     def test_teacher_can_mark_attendance_and_complete_lesson(self):
+        self.make_group_individual()
         participant = self.lesson.participants.get()
         self.client.force_authenticate(self.teacher_user)
 
@@ -807,6 +809,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(self.lesson.status, LessonStatus.CANCELLED)
 
     def test_teacher_cannot_change_paid_lesson_status(self):
+        self.make_group_individual()
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])
@@ -1265,18 +1268,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(self.lesson.notes, 'Teacher sick leave')
 
     def test_admin_can_run_finance_workflow_actions(self):
-        participant = self.lesson.participants.get()
-        participant.attendance_status = AttendanceStatus.PRESENT
-        participant.save(update_fields=['attendance_status'])
-        self.client.force_authenticate(self.teacher_user)
-        self.client.post(
-            f'/api/academics/lessons/{self.lesson.id}/complete/',
-            {'notes': 'Completed for finance workflow'},
-            format='json',
-        )
-
-        charge = ParentCharge.objects.get(participant=participant)
-        payout = LessonTeacherPayout.objects.get(lesson=self.lesson)
+        payout = self.create_completed_group_billing_batch()
+        charge = ParentCharge.objects.get(participant__lesson=payout.lesson)
 
         admin_user = User.objects.create_user(
             username='finance_admin',

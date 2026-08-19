@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create a new account</title>
+</head>
+<body>
+  <main>
+    <h1>Create a new account</h1>
+    <form method="post" action="/api/users/register/">
+      {% csrf_token %}
+      <label>
+        First name
+        <input name="first_name" type="text">
+      </label>
+      <label>
+        Last name
+        <input name="last_name" type="text">
+      </label>
+      <label>
+        Telegram username
+        <input name="telegram_username" type="text">
+      </label>
+      <label>
+        Email
+        <input name="email" type="email">
+      </label>
+      <label>
+        Phone
+        <input name="phone" type="tel">
+      </label>
+      <label>
+        Role
+        <select name="role" required>
+          {% for value, label in roles %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Password
+        <input name="password" type="password">
+      </label>
+      <button type="submit">Create account</button>
+    </form>
+  </main>
+</body>
+</html>
