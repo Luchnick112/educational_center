@@ -30,7 +30,7 @@ jobs:
 
     env:
       DJANGO_SETTINGS_MODULE: educational_center.settings_dev
-      SECRET_KEY: django-insecure-ci-only
+      SECRET_KEY: django-insecure-ci-only-32-byte-minimum-key
       POSTGRES_DB: educational_center
       POSTGRES_USER: educational_center
       POSTGRES_PASSWORD: educational_center
@@ -104,4 +104,4 @@ jobs:
       - name: Validate production images build
         env:
           ENV_FILE: .env.prod.example
-        run: docker compose -f docker-compose.prod.yml build
+        run: docker compose --env-file .env.prod.example -f docker-compose.prod.yml build
