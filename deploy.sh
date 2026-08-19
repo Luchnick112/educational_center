@@ -4,14 +4,14 @@ set -euo pipefail
 
 PROJECT_DIR="/opt/educational-center/educational_center"
 COMPOSE_FILE="docker-compose.prod.yml"
-ENV_FILE="${ENV_FILE:-.env.prod}"
+ENV_FILE="${ENV_FILE:-/opt/educational-center/.env.prod}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/educational-center/backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 
 cd "$PROJECT_DIR"
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "Missing environment file: $PROJECT_DIR/$ENV_FILE" >&2
+  echo "Missing environment file: $ENV_FILE" >&2
   exit 1
 fi
 
@@ -38,6 +38,7 @@ echo "=== Creating database backup ==="
 "${COMPOSE[@]}" exec -T db sh -c 'until pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do sleep 2; done'
 "${COMPOSE[@]}" exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$tmp_backup_file"
 mv "$tmp_backup_file" "$backup_file"
+trap - EXIT
 echo "Backup saved to $backup_file"
 
 echo "=== Removing old database backups ==="
