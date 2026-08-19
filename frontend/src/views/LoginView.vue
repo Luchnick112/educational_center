@@ -40,7 +40,7 @@ const password = ref('')
 async function onSubmit() {
   const value = login.value.trim()
   await auth.logIn({ login: value, password: password.value })
-  const next = typeof route.query.next === 'string' ? route.query.next : '/me'
+  const next = typeof route.query.next === 'string' ? route.query.next : '/my/lessons'
   await router.push(next)
 }
 </script>

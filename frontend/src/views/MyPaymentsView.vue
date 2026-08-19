@@ -39,19 +39,19 @@
       <div class="tabs" role="tablist" aria-label="Розрахунки">
         <button
           class="tab"
-          :class="{ 'tab--active': activeTab === 'students' }"
-          type="button"
-          @click="setActiveTab('students')"
-        >
-          Учні
-        </button>
-        <button
-          class="tab"
           :class="{ 'tab--active': activeTab === 'teachers' }"
           type="button"
           @click="setActiveTab('teachers')"
         >
           Викладачі
+        </button>
+        <button
+          class="tab"
+          :class="{ 'tab--active': activeTab === 'students' }"
+          type="button"
+          @click="setActiveTab('students')"
+        >
+          Учні
         </button>
       </div>
 
@@ -345,7 +345,7 @@ const auth = useAuthStore()
 const loading = ref(true)
 const savingPayment = ref(false)
 const error = ref<string | null>(null)
-const activeTab = ref<'students' | 'teachers'>('students')
+const activeTab = ref<'students' | 'teachers'>('teachers')
 const selectedTeacherLessonPayout = ref<TeacherLessonPayout | null>(null)
 const filters = reactive({ date_from: '', date_to: '', student: '', teacher: '' })
 const data = ref<PaymentsData>({

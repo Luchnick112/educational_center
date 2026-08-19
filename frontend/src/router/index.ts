@@ -6,7 +6,7 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
     { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue') },
-    { path: '/', name: 'dashboard', redirect: '/me' },
+    { path: '/', name: 'dashboard', redirect: '/my/lessons' },
     { path: '/me', name: 'me', component: () => import('@/views/MeView.vue'), meta: { requiresAuth: true } },
     { path: '/my/lessons', name: 'my-lessons', component: () => import('@/views/MyLessonsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/groups', name: 'my-groups', component: () => import('@/views/MyGroupsView.vue'), meta: { requiresAuth: true } },
@@ -21,7 +21,7 @@ const router = createRouter({
     { path: '/academics', name: 'academics', component: () => import('@/views/AcademicsView.vue'), meta: { requiresAuth: true, requiresStaff: true } },
 
     // Prevent blank screen on unknown routes.
-    { path: '/:pathMatch(.*)*', redirect: '/me' },
+    { path: '/:pathMatch(.*)*', redirect: '/my/lessons' },
   ],
 })
 
@@ -33,7 +33,7 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { next: to.fullPath } }
   }
   if ((to.name === 'login' || to.name === 'register') && auth.isAuthed) {
-    return { name: 'me' }
+    return { name: 'my-lessons' }
   }
 
   if (to.meta.requiresStaff) {

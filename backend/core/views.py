@@ -137,15 +137,18 @@ class MyLessonsView(APIView):
                 filter=Q(teacher_payout__lesson_count=1),
             ),
             billed_amount_total=Sum('participants__billed_amount'),
-        ).order_by('starts_at')
+        ).order_by('starts_at', 'id')
 
         uses_pagination = 'page' in request.query_params or 'page_size' in request.query_params
         if uses_pagination:
             page = positive_int(request.query_params.get('page'), 1)
             page_size = positive_int(request.query_params.get('page_size'), 20, maximum=100)
             count = queryset.count()
-            start = (page - 1) * page_size
-            end = start + page_size
+            end = count - (page - 1) * page_size
+            start = max(end - page_size, 0)
+            if end <= 0:
+                start = 0
+                end = 0
             serializer = LessonSerializer(queryset[start:end], many=True, context={'request': request})
             return Response(
                 {
@@ -157,7 +160,8 @@ class MyLessonsView(APIView):
             )
 
         if not has_filter:
-            queryset = queryset[:20]
+            count = queryset.count()
+            queryset = queryset[max(count - 20, 0):count]
 
         serializer = LessonSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
