@@ -1,0 +1,236 @@
+[
+  {
+    "model": "users.user",
+    "pk": 1,
+    "fields": {
+      "password": "pbkdf2_sha256$870000$wc38Hk4LCgQJSZcqjoVAm5$e6bnhEPNEKfTt/3owOBi5qaQr7HByEx/OaTKfBIYAZc=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "admin@example.com",
+      "first_name": "Admin",
+      "last_name": "User",
+      "email": "admin@example.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-03-19T08:00:00Z",
+      "role": "admin",
+      "phone": "+380000000001",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 2,
+    "fields": {
+      "password": "pbkdf2_sha256$870000$wc38Hk4LCgQJSZcqjoVAm5$e6bnhEPNEKfTt/3owOBi5qaQr7HByEx/OaTKfBIYAZc=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "teacher@example.com",
+      "first_name": "Olena",
+      "last_name": "Teacher",
+      "email": "teacher@example.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-03-19T08:05:00Z",
+      "role": "teacher",
+      "phone": "+380000000002",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 3,
+    "fields": {
+      "password": "pbkdf2_sha256$870000$wc38Hk4LCgQJSZcqjoVAm5$e6bnhEPNEKfTt/3owOBi5qaQr7HByEx/OaTKfBIYAZc=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "student@example.com",
+      "first_name": "Andrii",
+      "last_name": "Student",
+      "email": "student@example.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-03-19T08:10:00Z",
+      "role": "student",
+      "phone": "+380000000003",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.user",
+    "pk": 4,
+    "fields": {
+      "password": "pbkdf2_sha256$870000$wc38Hk4LCgQJSZcqjoVAm5$e6bnhEPNEKfTt/3owOBi5qaQr7HByEx/OaTKfBIYAZc=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "parent@example.com",
+      "first_name": "Iryna",
+      "last_name": "Parent",
+      "email": "parent@example.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-03-19T08:15:00Z",
+      "role": "parent",
+      "phone": "+380000000004",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "users.teacherprofile",
+    "pk": 1,
+    "fields": {
+      "user": 2,
+      "hourly_rate": "350.00",
+      "bio": "Physics and math teacher."
+    }
+  },
+  {
+    "model": "users.studentprofile",
+    "pk": 1,
+    "fields": {
+      "user": 3,
+      "notes": "Prefers evening lessons."
+    }
+  },
+  {
+    "model": "users.parentprofile",
+    "pk": 1,
+    "fields": {
+      "user": 4,
+      "billing_notes": "Primary billing contact."
+    }
+  },
+  {
+    "model": "users.studentparentrelation",
+    "pk": 1,
+    "fields": {
+      "parent": 1,
+      "student": 1,
+      "is_primary": true,
+      "is_financial_contact": true
+    }
+  },
+  {
+    "model": "academics.subject",
+    "pk": 1,
+    "fields": {
+      "name": "Physics",
+      "description": "Core physics course."
+    }
+  },
+  {
+    "model": "academics.studygroup",
+    "pk": 1,
+    "fields": {
+      "name": "Physics Pro",
+      "subject": 1,
+      "teacher": 1,
+      "format": "group",
+      "capacity": 10,
+      "student_price": "600.00",
+      "teacher_rate": "350.00",
+      "is_active": true
+    }
+  },
+  {
+    "model": "academics.studentenrollment",
+    "pk": 1,
+    "fields": {
+      "group": 1,
+      "student": 1,
+      "status": "active",
+      "start_date": "2026-03-01",
+      "end_date": null,
+      "student_price_override": null,
+      "teacher_rate_override": null
+    }
+  },
+  {
+    "model": "academics.lesson",
+    "pk": 1,
+    "fields": {
+      "group": 1,
+      "starts_at": "2026-03-20T15:00:00Z",
+      "status": "completed",
+      "notes": "Completed on time."
+    }
+  },
+  {
+    "model": "academics.lessonparticipant",
+    "pk": 1,
+    "fields": {
+      "lesson": 1,
+      "enrollment": 1,
+      "student": 1,
+      "attendance_status": "present",
+      "billed_amount": "600.00",
+      "payroll_amount": "350.00"
+    }
+  },
+  {
+    "model": "academics.lessonconfirmation",
+    "pk": 1,
+    "fields": {
+      "participant": 1,
+      "requested_from": "student",
+      "confirmer": 3,
+      "status": "confirmed",
+      "confirmed_at": "2026-03-20T16:10:00Z",
+      "comment": "Confirmed by student."
+    }
+  },
+  {
+    "model": "academics.lessonconfirmation",
+    "pk": 2,
+    "fields": {
+      "participant": 1,
+      "requested_from": "parent",
+      "confirmer": null,
+      "status": "pending",
+      "confirmed_at": null,
+      "comment": ""
+    }
+  },
+  {
+    "model": "academics.lessonconfirmation",
+    "pk": 3,
+    "fields": {
+      "participant": 1,
+      "requested_from": "teacher",
+      "confirmer": 2,
+      "status": "confirmed",
+      "confirmed_at": "2026-03-20T16:05:00Z",
+      "comment": "Lesson delivered."
+    }
+  },
+  {
+    "model": "finance.parentcharge",
+    "pk": 1,
+    "fields": {
+      "participant": 1,
+      "parent": 1,
+      "student": 1,
+      "amount": "600.00",
+      "status": "issued",
+      "due_date": "2026-03-31",
+      "issued_at": "2026-03-20T16:01:00Z",
+      "paid_at": null
+    }
+  },
+  {
+    "model": "finance.teacherpayout",
+    "pk": 1,
+    "fields": {
+      "participant": 1,
+      "teacher": 1,
+      "amount": "350.00",
+      "status": "approved",
+      "approved_at": "2026-03-20T16:02:00Z",
+      "paid_at": null
+    }
+  }
+]
