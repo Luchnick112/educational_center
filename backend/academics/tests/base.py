@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from users.models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, User, UserRole
 
-from academics.models import Lesson, StudentEnrollment, StudyGroup, Subject
+from academics.models import Lesson, StudentEnrollment, StudyGroup, StudyGroupFormat, Subject
 
 
 class AcademicBaseTestCase(TestCase):
@@ -63,3 +63,12 @@ class AcademicBaseTestCase(TestCase):
             group=self.group,
             starts_at=timezone.now(),
         )
+
+    def make_group_individual(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+
+    def move_lesson_after_end_time(self, lesson=None):
+        lesson = lesson or self.lesson
+        lesson.starts_at = timezone.now() - lesson.DEFAULT_DURATION - timedelta(minutes=1)
+        lesson.save(update_fields=['starts_at'])

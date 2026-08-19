@@ -21,6 +21,8 @@ class AcademicPermissionsTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_teacher_cannot_access_other_teacher_payout_by_direct_url(self):
+        self.make_group_individual()
+        self.move_lesson_after_end_time()
         participant = self.lesson.participants.get()
         participant.attendance_status = AttendanceStatus.PRESENT
         participant.save(update_fields=['attendance_status'])

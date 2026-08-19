@@ -24,5 +24,8 @@ htmlcov/
 Thumbs.db
 
 *fixtures/
+!backend/fixtures/
+backend/fixtures/*
+!backend/fixtures/demo_data.json
 *.dump
 *.sql

@@ -17,6 +17,7 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
         self.lesson.save(update_fields=['starts_at'])
 
     def test_mark_lesson_attendance_updates_participant(self):
+        self.make_group_individual()
         participant = self.lesson.participants.get()
 
         result = mark_lesson_attendance(

@@ -46,6 +46,11 @@ class UserViewSet(viewsets.ModelViewSet):
     # like "/api/users/student-parent-relations/".
     lookup_value_regex = r'\d+'
 
+    def get_permissions(self):
+        if getattr(self, 'action', None) == 'me':
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
