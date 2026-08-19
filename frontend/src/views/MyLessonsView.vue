@@ -80,8 +80,14 @@
       </template>
     </div>
 
-    <div v-if="!isCreateRoute && selectedLesson" ref="lessonDetailPanel" class="panel form">
-      <div class="panel__title">Деталізація уроку #{{ selectedLesson.id }}</div>
+    <div v-if="!isCreateRoute && selectedLesson" class="lesson-modal" @click.self="closeLessonDetail">
+      <div ref="lessonDetailPanel" class="panel form lesson-modal__window" role="dialog" aria-modal="true">
+        <div class="lesson-modal__header">
+          <div class="panel__title">Деталізація уроку #{{ selectedLesson.id }}</div>
+          <button class="btn btn--ghost lesson-modal__close" type="button" :disabled="savingLesson || savingReschedule" @click="closeLessonDetail">
+            Закрити
+          </button>
+        </div>
       <div v-if="detailError" class="error">{{ detailError }}</div>
       <div v-else-if="detailLoading" class="muted">Завантаження...</div>
       <div v-else class="lesson-detail">
@@ -203,6 +209,7 @@
           Видалити урок
         </button>
       </div>
+      </div>
     </div>
   </AppShell>
 </template>
@@ -282,9 +289,15 @@ const isCreateRoute = computed(() => route.name === 'my-lessons-create')
 
 const columns = computed(() => {
   const items: LessonColumn[] = [
-    { key: 'id', label: 'ID' },
+    { key: 'id', label: 'ID', className: isAdmin.value ? 'admin-mobile-hidden' : undefined },
     { key: 'group', label: 'Група', render: (r: Lesson) => groupLabel(r.group) },
-    { key: 'status', label: 'Статус', render: (r: Lesson) => lessonStatusLabel(r.status), cellClass: (r: Lesson) => lessonStatusClass(r.status) },
+    {
+      key: 'status',
+      label: 'Статус',
+      className: isAdmin.value ? 'admin-mobile-hidden' : undefined,
+      render: (r: Lesson) => lessonStatusLabel(r.status),
+      cellClass: (r: Lesson) => lessonStatusClass(r.status),
+    },
     { key: 'starts_at', label: 'Початок', render: (r: Lesson) => formatLessonDateTime(r.starts_at) },
   ]
   if (isAdmin.value) {
@@ -294,7 +307,12 @@ const columns = computed(() => {
     items.push({ key: 'payroll_amount', label: 'Винагорода вчителя', render: (r: Lesson) => formatPayrollAmount(r.payroll_amount) })
   }
   if (isAdmin.value) {
-    items.push({ key: 'billed_amount', label: 'Вартість заняття', render: (r: Lesson) => formatPayrollAmount(r.billed_amount) })
+    items.push({
+      key: 'billed_amount',
+      label: 'Вартість заняття',
+      className: 'admin-mobile-hidden',
+      render: (r: Lesson) => formatPayrollAmount(r.billed_amount),
+    })
   }
   items.push({ key: 'notes', label: 'Нотатки', className: 'col-notes', render: (r: Lesson) => r.notes || '-' })
   return items
@@ -963,6 +981,31 @@ watch(
   display: grid;
   gap: 12px;
 }
+.lesson-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.48);
+}
+.lesson-modal__window {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 36px);
+  margin: 0;
+  overflow: auto;
+}
+.lesson-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.lesson-modal__close {
+  flex: 0 0 auto;
+}
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -1058,8 +1101,20 @@ watch(
   .filter-clear {
     width: 100%;
   }
-  :deep(.lessons-table .col-notes) {
+  :deep(.lessons-table .admin-mobile-hidden) {
     display: none;
+  }
+  .lesson-modal {
+    align-items: stretch;
+    padding: 0;
+  }
+  .lesson-modal__window {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .lesson-modal__header {
+    align-items: flex-start;
   }
   .detail-grid {
     grid-template-columns: 1fr;

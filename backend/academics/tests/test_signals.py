@@ -160,6 +160,53 @@ class LessonSignalsTestCase(TestCase):
         self.assertEqual(payout.amount, Decimal('4500.00'))
         self.assertEqual(payout.lesson_count, 10)
 
+    def test_completed_group_lesson_notes_store_number_since_last_billing(self):
+        first_lesson = self.create_completed_lesson(days_offset=0)
+
+        self.assertEqual(first_lesson.notes, '1')
+
+        tenth_lesson = None
+        for index in range(1, 10):
+            tenth_lesson = self.create_completed_lesson(days_offset=index)
+
+        self.assertIsNotNone(tenth_lesson)
+        self.assertEqual(tenth_lesson.notes, '10')
+
+        eleventh_lesson = self.create_completed_lesson(days_offset=10)
+
+        self.assertEqual(eleventh_lesson.notes, '1')
+
+    def test_completed_group_lesson_notes_keep_existing_text_after_billing_number(self):
+        lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() - timedelta(days=1),
+            notes='Covered fractions',
+        )
+        lesson.participants.update(attendance_status=AttendanceStatus.PRESENT)
+        lesson.status = LessonStatus.COMPLETED
+        lesson.save(update_fields=['status'])
+
+        lesson.refresh_from_db()
+
+        self.assertEqual(lesson.notes, '1. Covered fractions')
+
+    def test_completed_individual_lesson_keeps_manual_notes(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+
+        lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() - timedelta(days=1),
+            notes='Manual note',
+        )
+        lesson.participants.update(attendance_status=AttendanceStatus.PRESENT)
+        lesson.status = LessonStatus.COMPLETED
+        lesson.save(update_fields=['status'])
+
+        lesson.refresh_from_db()
+
+        self.assertEqual(lesson.notes, 'Manual note')
+
     def test_attendance_rate_change_recalculates_draft_group_lesson_payout(self):
         lesson = self.create_completed_lesson(days_offset=0)
         payout = LessonTeacherPayout.objects.create(
