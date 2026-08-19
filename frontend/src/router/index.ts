@@ -8,16 +8,22 @@ const router = createRouter({
     { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue') },
     { path: '/', name: 'dashboard', redirect: '/my/lessons' },
     { path: '/me', name: 'me', component: () => import('@/views/MeView.vue'), meta: { requiresAuth: true } },
+    { path: '/my/lessons/create', name: 'my-lessons-create', component: () => import('@/views/MyLessonsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/lessons', name: 'my-lessons', component: () => import('@/views/MyLessonsView.vue'), meta: { requiresAuth: true } },
+    { path: '/my/groups/create', name: 'my-groups-create', component: () => import('@/views/MyGroupsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/groups', name: 'my-groups', component: () => import('@/views/MyGroupsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/confirmations', name: 'my-confirmations', component: () => import('@/views/MyConfirmationsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/payments', name: 'my-payments', component: () => import('@/views/MyPaymentsView.vue'), meta: { requiresAuth: true } },
     { path: '/my/children', name: 'my-children', component: () => import('@/views/MyChildrenView.vue'), meta: { requiresAuth: true } },
 
+    { path: '/users/students/create', name: 'students-create', component: () => import('@/views/StudentsView.vue'), meta: { requiresAuth: true } },
     { path: '/users/students', name: 'students', component: () => import('@/views/StudentsView.vue'), meta: { requiresAuth: true } },
+    { path: '/users/parents/create', name: 'parents-create', component: () => import('@/views/ParentsView.vue'), meta: { requiresAuth: true } },
     { path: '/users/parents', name: 'parents', component: () => import('@/views/ParentsView.vue'), meta: { requiresAuth: true } },
+    { path: '/users/teachers/create', name: 'teachers-create', component: () => import('@/views/TeachersView.vue'), meta: { requiresAuth: true } },
     { path: '/users/teachers', name: 'teachers', component: () => import('@/views/TeachersView.vue'), meta: { requiresAuth: true } },
 
+    { path: '/academics/create', name: 'academics-create', component: () => import('@/views/AcademicsView.vue'), meta: { requiresAuth: true, requiresStaff: true } },
     { path: '/academics', name: 'academics', component: () => import('@/views/AcademicsView.vue'), meta: { requiresAuth: true, requiresStaff: true } },
 
     // Prevent blank screen on unknown routes.

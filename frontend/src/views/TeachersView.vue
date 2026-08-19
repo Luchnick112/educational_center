@@ -1,7 +1,7 @@
 <template>
-  <AppShell title="Вчителі">
-    <div class="layout">
-      <div class="panel">
+  <AppShell :title="isCreateRoute ? 'Створити вчителя' : 'Вчителі'">
+    <div class="layout" :class="{ 'layout--single': isCreateRoute }">
+      <div v-if="!isCreateRoute" class="panel">
         <div class="row">
           <div class="panel__title">Список</div>
           <div class="actions">
@@ -22,7 +22,7 @@
         />
       </div>
 
-      <div class="panel">
+      <div v-if="!isCreateRoute || mode === 'create'" class="panel">
         <div class="formwrap">
           <div class="formwrap__header">
             <div class="formwrap__title">{{ formTitle }}</div>
@@ -66,7 +66,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import UserAccountForm from '@/components/UserAccountForm.vue'
@@ -90,6 +91,9 @@ const rows = ref<Teacher[]>([])
 const selectedId = ref<number | null>(null)
 const detail = ref<Teacher | null>(null)
 const mode = ref<Mode>('view')
+const route = useRoute()
+const router = useRouter()
+const isCreateRoute = computed(() => route.name === 'teachers-create')
 
 const createUser = ref({
   first_name: '',
@@ -184,6 +188,10 @@ async function loadDetail(id: number) {
 }
 
 function startCreate() {
+  router.push({ name: 'teachers-create' })
+}
+
+function resetCreateForm() {
   mode.value = 'create'
   selectedId.value = null
   detail.value = null
@@ -200,6 +208,10 @@ function startEdit() {
 }
 
 function cancelEdit() {
+  if (isCreateRoute.value) {
+    router.push({ name: 'teachers' })
+    return
+  }
   mode.value = 'view'
   formError.value = null
   if (detail.value) {
@@ -209,6 +221,9 @@ function cancelEdit() {
 }
 
 function closeEditor() {
+  if (isCreateRoute.value) {
+    router.push({ name: 'teachers' })
+  }
   selectedId.value = null
   detail.value = null
   mode.value = 'view'
@@ -286,7 +301,27 @@ async function onDelete() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  if (isCreateRoute.value) {
+    resetCreateForm()
+    loading.value = false
+    return
+  }
+  reload()
+})
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'teachers-create') {
+      resetCreateForm()
+      loading.value = false
+    } else if (mode.value === 'create') {
+      closeEditor()
+      void reload()
+    }
+  },
+)
 </script>
 
 <style scoped>
@@ -295,6 +330,9 @@ onMounted(reload)
   grid-template-columns: 1.2fr 0.8fr;
   gap: 14px;
   align-items: start;
+}
+.layout--single {
+  grid-template-columns: minmax(0, 720px);
 }
 .actions {
   display: flex;
@@ -334,6 +372,28 @@ onMounted(reload)
 }
 @media (max-width: 980px) {
   .layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .actions,
+  .formwrap__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .actions .btn,
+  .formwrap__actions .btn {
+    width: 100%;
+  }
+  .formwrap__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (max-width: 420px) {
+  .actions,
+  .formwrap__actions {
     grid-template-columns: 1fr;
   }
 }

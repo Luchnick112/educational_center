@@ -1,6 +1,6 @@
 <template>
-  <AppShell title="Мої групи">
-    <div class="panel">
+  <AppShell :title="isCreateRoute ? 'Створити групу' : 'Мої групи'">
+    <div v-if="!isCreateRoute" class="panel">
       <div class="panel__title">Список груп</div>
       <div v-if="notice" class="notice">{{ notice }}</div>
       <div class="toolbar">
@@ -98,8 +98,11 @@
       </div>
     </div>
 
-    <div v-if="showCreateForm && canManageGroups" class="panel form">
-      <div class="panel__title">Створити групу</div>
+    <div v-if="(showCreateForm || isCreateRoute) && canManageGroups" class="panel form create-page">
+      <div class="form-title-row">
+        <div class="panel__title">Створити групу</div>
+        <button class="btn btn--ghost" type="button" :disabled="saving" @click="closeCreatePage">Скасувати</button>
+      </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div class="grid">
         <div class="dropdown">
@@ -273,7 +276,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
 import { apiRequest } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
@@ -314,6 +318,8 @@ const groupFormatOptions: Array<{ value: GroupFormat; label: string }> = [
 ]
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const canManageGroups = ref(false)
 const isAdmin = ref(false)
 const loading = ref(true)
@@ -367,6 +373,7 @@ const attendanceRateForm = ref({
   effective_from_date: '',
   rates: Object.fromEntries(attendanceRateTiers.map((tier) => [tier.present_count, ''])) as Record<number, string>,
 })
+const isCreateRoute = computed(() => route.name === 'my-groups-create')
 
 const editableGroup = computed(() => groups.value.find((g) => g.id === selectedGroupId.value) || null)
 const selectedGroupPricingRules = computed(() => {
@@ -711,6 +718,10 @@ async function loadAttendanceRateRules(groupId?: number | null) {
 }
 
 function openCreateForm() {
+  router.push({ name: 'my-groups-create' })
+}
+
+function resetCreateForm() {
   notice.value = null
   error.value = null
   createForm.value = {
@@ -727,6 +738,10 @@ function openCreateForm() {
   createStudentsOpen.value = false
   showEditForm.value = false
   showCreateForm.value = true
+}
+
+function closeCreatePage() {
+  router.push({ name: 'my-groups' })
 }
 
 function openEditForm() {
@@ -785,6 +800,7 @@ async function createGroup() {
     selectedGroupId.value = created.id
     showCreateForm.value = false
     notice.value = `Групу створено. Активних учнів: ${activeEnrollmentCount(updatedGroupEnrollments)}`
+    if (isCreateRoute.value) router.push({ name: 'my-groups' })
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося створити групу')
   } finally {
@@ -954,17 +970,39 @@ onMounted(async () => {
       await loadPricingRules()
       await loadAttendanceRateRules()
     }
+    if (isCreateRoute.value) resetCreateForm()
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося завантажити дані')
   } finally {
     loading.value = false
   }
 })
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'my-groups-create') {
+      resetCreateForm()
+    } else {
+      showCreateForm.value = false
+    }
+  },
+)
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .form { margin-bottom: 12px; }
+.create-page {
+  max-width: 720px;
+}
+.form-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
 .grid { display: grid; gap: 10px; }
 .dropdown { position: relative; }
 .dropdown__trigger { width: 100%; text-align: left; }
@@ -1068,6 +1106,20 @@ onMounted(async () => {
   border-collapse: collapse;
 }
 @media (max-width: 760px) {
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .toolbar .btn {
+    width: 100%;
+  }
+  .groups-table,
+  .pricing-table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
   .groups-table .col-teacher,
   .groups-table .col-student-price,
   .groups-table .col-student-list {

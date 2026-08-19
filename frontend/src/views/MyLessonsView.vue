@@ -1,10 +1,15 @@
 <template>
-  <AppShell title="Мої уроки">
-    <div v-if="canManageLessons" class="panel form">
-      <button class="btn create-toggle" type="button" @click="createLessonFormOpen = !createLessonFormOpen">
-        {{ createLessonFormOpen ? 'Сховати' : 'Створити урок' }}
-      </button>
-      <div v-if="createLessonFormOpen" class="grid">
+  <AppShell :title="isCreateRoute ? 'Створити урок' : 'Мої уроки'">
+    <div v-if="canManageLessons && !isCreateRoute" class="panel form">
+      <button class="btn create-toggle" type="button" @click="openCreateLessonPage">Створити урок</button>
+    </div>
+
+    <div v-if="canManageLessons && isCreateRoute" class="panel form create-page">
+      <div class="form-title-row">
+        <div class="panel__title">Створити урок</div>
+        <button class="btn btn--ghost" type="button" :disabled="savingLesson" @click="cancelCreateLesson">Скасувати</button>
+      </div>
+      <div class="grid">
         <div class="dropdown">
           <button class="input dropdown__trigger" type="button" @click="lessonGroupOpen = !lessonGroupOpen">
             {{ selectedLessonGroupLabel }}
@@ -22,7 +27,7 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div v-if="!isCreateRoute" class="panel">
       <div class="panel__title">Останні</div>
       <div class="filters">
         <label class="field">
@@ -75,7 +80,7 @@
       </template>
     </div>
 
-    <div v-if="selectedLesson" ref="lessonDetailPanel" class="panel form">
+    <div v-if="!isCreateRoute && selectedLesson" ref="lessonDetailPanel" class="panel form">
       <div class="panel__title">Деталізація уроку #{{ selectedLesson.id }}</div>
       <div v-if="detailError" class="error">{{ detailError }}</div>
       <div v-else-if="detailLoading" class="muted">Завантаження...</div>
@@ -208,7 +213,7 @@ import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import { apiRequest } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number; can_request_reschedule?: boolean }
 type LessonParticipant = {
@@ -242,6 +247,7 @@ type LessonRescheduleRequest = {
 
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const canManageLessons = ref(false)
 const isAdmin = ref(false)
 const loading = ref(true)
@@ -252,7 +258,6 @@ const detailError = ref<string | null>(null)
 const rescheduleError = ref<string | null>(null)
 const savingReschedule = ref(false)
 const lessonGroupOpen = ref(false)
-const createLessonFormOpen = ref(false)
 const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
@@ -273,6 +278,7 @@ const lessonForm = ref({ group: null as number | null, starts_at_local: '', note
 const editLessonForm = ref({ group: null as number | null, status: 'scheduled', starts_at_local: '', notes: '' })
 const rescheduleForm = ref({ requested_starts_at_local: '', reason: '' })
 const applyRescheduleForm = ref({ starts_at_local: '', teacher_comment: '' })
+const isCreateRoute = computed(() => route.name === 'my-lessons-create')
 
 const columns = computed(() => {
   const items: LessonColumn[] = [
@@ -679,6 +685,21 @@ function clearFilters() {
   void reloadLessons()
 }
 
+function resetCreateLessonForm() {
+  lessonForm.value = { group: null, starts_at_local: '', notes: '' }
+  lessonGroupOpen.value = false
+  selectedLesson.value = null
+  error.value = null
+}
+
+function openCreateLessonPage() {
+  router.push({ name: 'my-lessons-create' })
+}
+
+function cancelCreateLesson() {
+  router.push({ name: 'my-lessons' })
+}
+
 async function createLesson() {
   if (!lessonForm.value.group || !lessonForm.value.starts_at_local) return
   savingLesson.value = true
@@ -694,9 +715,12 @@ async function createLesson() {
       },
     })
     lessonForm.value = { group: null, starts_at_local: '', notes: '' }
-    createLessonFormOpen.value = false
     lessonGroupOpen.value = false
-    await reloadLessons()
+    if (isCreateRoute.value) {
+      router.push({ name: 'my-lessons' })
+    } else {
+      await reloadLessons()
+    }
   } catch (e: any) {
     error.value = e?.payload?.detail || e?.message || 'Не вдалося створити урок'
   } finally {
@@ -825,8 +849,12 @@ onMounted(async () => {
     canManageLessons.value = auth.me?.role === 'teacher' || auth.me?.role === 'admin' || !!auth.me?.is_staff
     isAdmin.value = auth.me?.role === 'admin' || !!auth.me?.is_staff
     await loadTeacherGroups()
-    await loadLessons()
-    await openLessonFromRoute()
+    if (isCreateRoute.value) {
+      resetCreateLessonForm()
+    } else {
+      await loadLessons()
+      await openLessonFromRoute()
+    }
   } catch (e: any) {
     error.value = e?.payload?.detail || e?.message || 'Не вдалося завантажити дані'
   } finally {
@@ -837,7 +865,18 @@ onMounted(async () => {
 watch(
   () => route.query.lesson,
   () => {
-    if (!loading.value) void openLessonFromRoute()
+    if (!loading.value && !isCreateRoute.value) void openLessonFromRoute()
+  },
+)
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'my-lessons-create') {
+      resetCreateLessonForm()
+    } else if (name === 'my-lessons') {
+      void reloadLessons()
+    }
   },
 )
 
@@ -869,6 +908,16 @@ watch(
 <style scoped>
 .form {
   margin-bottom: 12px;
+}
+.create-page {
+  max-width: 720px;
+}
+.form-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 .grid {
   display: grid;
@@ -1004,7 +1053,7 @@ watch(
 @media (max-width: 640px) {
   .filters {
     grid-template-columns: 1fr;
-    width: calc(100% - 12px);
+    width: 100%;
   }
   .filter-clear {
     width: 100%;
@@ -1017,6 +1066,30 @@ watch(
   }
   .reschedule-form {
     grid-template-columns: 1fr;
+  }
+  .pagination {
+    justify-content: stretch;
+  }
+  .pagination .btn {
+    flex: 1 1 120px;
+  }
+  .pagination__label {
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+  .participants-table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .participants-table th,
+  .participants-table td {
+    padding: 8px 10px;
+  }
+  .amount-input {
+    min-width: 108px;
   }
   .save-detail {
     width: 100%;
