@@ -466,11 +466,12 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual([item['id'] for item in response.data], [self.lesson.id])
 
     def test_my_lessons_supports_explicit_pagination(self):
+        created_lessons = []
         for index in range(25):
-            Lesson.objects.create(
+            created_lessons.append(Lesson.objects.create(
                 group=self.group,
                 starts_at=timezone.now() + timedelta(days=index + 1),
-            )
+            ))
         admin_user = User.objects.create_user(
             username='lesson_pagination_admin',
             email='lesson_pagination_admin@example.com',
@@ -487,10 +488,18 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(first_page.data['count'], 26)
         self.assertEqual(first_page.data['page'], 1)
         self.assertEqual(len(first_page.data['results']), 20)
+        self.assertEqual(
+            [item['id'] for item in first_page.data['results']],
+            [lesson.id for lesson in created_lessons[5:]],
+        )
         self.assertEqual(second_page.status_code, 200)
         self.assertEqual(second_page.data['count'], 26)
         self.assertEqual(second_page.data['page'], 2)
         self.assertEqual(len(second_page.data['results']), 6)
+        self.assertEqual(
+            [item['id'] for item in second_page.data['results']],
+            [self.lesson.id] + [lesson.id for lesson in created_lessons[:5]],
+        )
 
     def test_admin_lessons_api_can_be_filtered_by_group(self):
         other_group = StudyGroup.objects.create(
