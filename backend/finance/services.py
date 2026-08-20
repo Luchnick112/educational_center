@@ -37,7 +37,7 @@ def mark_parent_charge_paid(*, user, charge: ParentCharge, paid_at=None) -> Pare
     StudentPayment.objects.get_or_create(
         student=charge.student,
         amount=charge.amount,
-        paid_at=charge.paid_at.date(),
+        paid_at=timezone.localdate(charge.paid_at),
         comment=f'Charge #{charge.id}',
         defaults={'created_by': user},
     )
@@ -70,7 +70,7 @@ def mark_teacher_payout_paid(*, user, payout: TeacherPayout, paid_at=None) -> Te
     TeacherPayment.objects.get_or_create(
         teacher=payout.teacher,
         amount=payout.amount,
-        paid_at=payout.paid_at.date(),
+        paid_at=timezone.localdate(payout.paid_at),
         comment=f'Payout #{payout.id}',
         defaults={'created_by': user},
     )

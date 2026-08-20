@@ -45,6 +45,33 @@ def _completed_lesson_batch(lesson: Lesson) -> tuple[int, list[Lesson]]:
     return batch_number, completed_lessons[-BILLING_LESSON_COUNT:]
 
 
+def _completed_lesson_number_since_billing(lesson: Lesson) -> int:
+    completed_lessons = list(
+        Lesson.objects.filter(
+            group=lesson.group,
+            status=LessonStatus.COMPLETED,
+        ).order_by('completed_at', 'id')
+    )
+    for index, completed_lesson in enumerate(completed_lessons, start=1):
+        if completed_lesson.pk == lesson.pk:
+            return ((index - 1) % BILLING_LESSON_COUNT) + 1
+    return 0
+
+
+def _update_group_lesson_notes_with_billing_number(lesson: Lesson) -> None:
+    lesson_number = _completed_lesson_number_since_billing(lesson)
+    if lesson_number <= 0:
+        return
+    billing_note = str(lesson_number)
+    if lesson.notes == billing_note or lesson.notes.startswith(f'{billing_note}. '):
+        return
+    notes = f'{billing_note}. {lesson.notes}' if lesson.notes else billing_note
+    if lesson.notes == notes:
+        return
+    lesson.notes = notes
+    Lesson.objects.filter(pk=lesson.pk).update(notes=notes)
+
+
 def _batch_period(batch: list[Lesson]):
     starts = [lesson.starts_at for lesson in batch]
     return min(starts), max(starts)
@@ -202,6 +229,8 @@ def create_financial_documents(sender, instance: Lesson, created: bool, **kwargs
     if instance.group.format != StudyGroupFormat.GROUP:
         _create_individual_financial_documents(instance)
         return
+
+    _update_group_lesson_notes_with_billing_number(instance)
 
     batch_number, batch = _completed_lesson_batch(instance)
     if not batch:
