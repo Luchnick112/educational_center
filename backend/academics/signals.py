@@ -59,6 +59,8 @@ def _completed_lesson_number_since_billing(lesson: Lesson) -> int:
 
 
 def _update_group_lesson_notes_with_billing_number(lesson: Lesson) -> None:
+    if lesson.group.format != StudyGroupFormat.GROUP:
+        return
     lesson_number = _completed_lesson_number_since_billing(lesson)
     if lesson_number <= 0:
         return

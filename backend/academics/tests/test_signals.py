@@ -207,6 +207,22 @@ class LessonSignalsTestCase(TestCase):
 
         self.assertEqual(lesson.notes, 'Manual note')
 
+    def test_completed_individual_lesson_does_not_add_billing_number(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+
+        lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() - timedelta(days=1),
+        )
+        lesson.participants.update(attendance_status=AttendanceStatus.PRESENT)
+        lesson.status = LessonStatus.COMPLETED
+        lesson.save(update_fields=['status'])
+
+        lesson.refresh_from_db()
+
+        self.assertEqual(lesson.notes, '')
+
     def test_attendance_rate_change_recalculates_draft_group_lesson_payout(self):
         lesson = self.create_completed_lesson(days_offset=0)
         payout = LessonTeacherPayout.objects.create(
