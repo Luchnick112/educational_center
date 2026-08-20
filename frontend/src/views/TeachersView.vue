@@ -1,7 +1,7 @@
 <template>
   <AppShell :title="isCreateRoute ? 'Створити вчителя' : 'Вчителі'">
     <div class="layout" :class="{ 'layout--single': isCreateRoute }">
-      <div v-if="!isCreateRoute" class="panel">
+      <div v-if="!isCreateRoute" class="panel list-panel" :class="{ 'mobile-hidden-when-detail': selectedId }">
         <div class="row">
           <div class="panel__title">Список</div>
           <div class="actions">
@@ -18,15 +18,16 @@
           :columns="columns"
           :rows="rows"
           :rowKey="(r) => r.id"
-          :onRowClick="(r) => loadDetail(r.id)"
+          :onRowClick="(r) => openDetail(r.id)"
         />
       </div>
 
-      <div v-if="!isCreateRoute || mode === 'create'" class="panel">
+      <div v-if="!isCreateRoute || mode === 'create'" class="panel detail-panel" :class="{ 'detail-panel--active': selectedId || mode === 'create' }">
         <div class="formwrap">
           <div class="formwrap__header">
             <div class="formwrap__title">{{ formTitle }}</div>
             <div class="formwrap__actions">
+              <button v-if="mode === 'view' && selectedId" class="btn btn--ghost" type="button" @click="closeEditorAndRoute">Назад</button>
               <button v-if="mode === 'view'" class="btn btn--ghost" type="button" :disabled="!selectedId" @click="startEdit">Редагувати</button>
               <button v-else class="btn btn--ghost" type="button" :disabled="saving" @click="cancelEdit">Скасувати</button>
               <button v-if="mode !== 'view'" class="btn" type="button" :disabled="saving" @click="submitForm">
@@ -72,6 +73,7 @@ import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import UserAccountForm from '@/components/UserAccountForm.vue'
 import { apiRequest } from '@/lib/api'
+import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
 
 type Teacher = {
   id: number
@@ -94,6 +96,8 @@ const mode = ref<Mode>('view')
 const route = useRoute()
 const router = useRouter()
 const isCreateRoute = computed(() => route.name === 'teachers-create')
+const DETAIL_QUERY_KEY = 'teacher'
+const LIST_ROUTE_NAME = 'teachers'
 
 const createUser = ref({
   first_name: '',
@@ -187,6 +191,11 @@ async function loadDetail(id: number) {
   }
 }
 
+async function openDetail(id: number) {
+  if (await pushDetailRoute(router, route, DETAIL_QUERY_KEY, id)) return
+  await loadDetail(id)
+}
+
 function startCreate() {
   router.push({ name: 'teachers-create' })
 }
@@ -220,10 +229,7 @@ function cancelEdit() {
   }
 }
 
-function closeEditor() {
-  if (isCreateRoute.value) {
-    router.push({ name: 'teachers' })
-  }
+function clearEditorState() {
   selectedId.value = null
   detail.value = null
   mode.value = 'view'
@@ -231,6 +237,34 @@ function closeEditor() {
   createUser.value = { first_name: '', last_name: '', telegram_username: '', email: '', phone: '', password: '' }
   hourly_rate.value = ''
   bio.value = ''
+}
+
+function closeEditor() {
+  if (isCreateRoute.value) {
+    router.push({ name: LIST_ROUTE_NAME })
+  }
+  clearEditorState()
+}
+
+async function closeEditorAndRoute() {
+  clearEditorState()
+  if (!isCreateRoute.value) {
+    await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
+  }
+}
+
+function openDetailFromRoute() {
+  if (isCreateRoute.value) return
+
+  const id = routeQueryId(route, DETAIL_QUERY_KEY)
+  if (id) {
+    void loadDetail(id)
+    return
+  }
+
+  if (selectedId.value) {
+    clearEditorState()
+  }
 }
 
 async function submitForm() {
@@ -271,7 +305,7 @@ async function submitForm() {
         body: teacherProfilePayload(),
       })
       await reload()
-      closeEditor()
+      await closeEditorAndRoute()
     }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'
@@ -290,10 +324,7 @@ async function onDelete() {
   try {
     await apiRequest(`/api/users/teachers/${id}/`, { method: 'DELETE' })
     await reload()
-    selectedId.value = null
-    detail.value = null
-    hourly_rate.value = ''
-    bio.value = ''
+    await closeEditorAndRoute()
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося видалити'
   } finally {
@@ -307,7 +338,7 @@ onMounted(() => {
     loading.value = false
     return
   }
-  reload()
+  void reload().then(openDetailFromRoute)
 })
 
 watch(
@@ -319,8 +350,15 @@ watch(
     } else if (mode.value === 'create') {
       closeEditor()
       void reload()
+    } else {
+      openDetailFromRoute()
     }
   },
+)
+
+watch(
+  () => route.query[DETAIL_QUERY_KEY],
+  () => openDetailFromRoute(),
 )
 </script>
 
@@ -376,6 +414,12 @@ watch(
   }
 }
 @media (max-width: 640px) {
+  .mobile-hidden-when-detail {
+    display: none;
+  }
+  .detail-panel--active {
+    min-height: calc(100vh - 96px);
+  }
   .actions,
   .formwrap__actions {
     display: grid;
@@ -387,8 +431,25 @@ watch(
     width: 100%;
   }
   .formwrap__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: 10px;
+    background: var(--surface);
     flex-direction: column;
     align-items: stretch;
+  }
+  .formwrap__title {
+    font-size: 18px;
+  }
+  .formwrap {
+    gap: 14px;
+  }
+  .input {
+    min-height: 42px;
+  }
+  .ta {
+    min-height: 140px;
   }
 }
 @media (max-width: 420px) {
