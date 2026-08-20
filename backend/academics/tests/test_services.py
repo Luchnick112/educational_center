@@ -77,7 +77,7 @@ class AcademicServicesTestCase(AcademicBaseTestCase):
         )
 
         self.assertEqual(lesson.status, LessonStatus.COMPLETED)
-        self.assertEqual(lesson.notes, 'Service completed lesson')
+        self.assertEqual(lesson.notes, '1. Service completed lesson')
         self.assertFalse(ParentCharge.objects.filter(participant=participant).exists())
         self.assertFalse(TeacherPayout.objects.filter(participant=participant).exists())
         self.assertFalse(LessonTeacherPayout.objects.filter(lesson=lesson).exists())
