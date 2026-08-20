@@ -1,8 +1,9 @@
 <template>
   <AppShell :title="isCreateRoute ? 'Створити групу' : 'Мої групи'">
-    <div v-if="!isCreateRoute" class="panel">
+    <div v-if="!isCreateRoute" class="panel groups-panel" :class="{ 'groups-panel--detail-open': selectedGroupId }">
       <div class="panel__title">Список груп</div>
       <div v-if="notice" class="notice">{{ notice }}</div>
+      <div class="groups-list">
       <div class="toolbar">
         <button v-if="canManageGroups" class="btn" type="button" @click="openCreateForm">Створити групу</button>
         <button v-if="canManageGroups" class="btn btn--ghost" type="button" :disabled="!selectedGroupId" @click="openEditForm">Редагувати</button>
@@ -45,7 +46,7 @@
             v-for="row in filteredGroupRows"
             :key="row.group.id"
             :class="{ selected: selectedGroupId === row.group.id }"
-            @click="selectedGroupId = row.group.id"
+            @click="openGroupDetail(row.group.id)"
           >
             <td class="col-teacher">{{ teacherLabel(row.group.teacher) }}</td>
             <td>{{ row.group.name || `Група #${row.group.id}` }}</td>
@@ -59,8 +60,12 @@
           </tr>
         </tbody>
       </table>
+      </div>
       <div v-if="selectedGroupDetail" class="group-detail">
-        <div class="group-detail__title">{{ selectedGroupDetail.group.name || `Група #${selectedGroupDetail.group.id}` }}</div>
+        <div class="group-detail__header">
+          <div class="group-detail__title">{{ selectedGroupDetail.group.name || `Група #${selectedGroupDetail.group.id}` }}</div>
+          <button class="btn btn--ghost" type="button" @click="closeGroupDetail">Назад</button>
+        </div>
         <div class="group-detail__grid">
           <div class="detail-item col-teacher">
             <span class="detail-item__label">Вчитель</span>
@@ -280,6 +285,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
 import { apiRequest } from '@/lib/api'
+import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
 import { useAuthStore } from '@/stores/auth'
 
 type Subject = { id: number; name: string }
@@ -374,6 +380,8 @@ const attendanceRateForm = ref({
   rates: Object.fromEntries(attendanceRateTiers.map((tier) => [tier.present_count, ''])) as Record<number, string>,
 })
 const isCreateRoute = computed(() => route.name === 'my-groups-create')
+const DETAIL_QUERY_KEY = 'group'
+const LIST_ROUTE_NAME = 'my-groups'
 
 const editableGroup = computed(() => groups.value.find((g) => g.id === selectedGroupId.value) || null)
 const selectedGroupPricingRules = computed(() => {
@@ -741,7 +749,23 @@ function resetCreateForm() {
 }
 
 function closeCreatePage() {
-  router.push({ name: 'my-groups' })
+  router.push({ name: LIST_ROUTE_NAME })
+}
+
+async function openGroupDetail(id: number) {
+  if (await pushDetailRoute(router, route, DETAIL_QUERY_KEY, id)) return
+  selectedGroupId.value = id
+}
+
+async function closeGroupDetail() {
+  selectedGroupId.value = null
+  showEditForm.value = false
+  await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
+}
+
+function syncGroupDetailFromRoute() {
+  if (isCreateRoute.value) return
+  selectedGroupId.value = routeQueryId(route, DETAIL_QUERY_KEY)
 }
 
 function openEditForm() {
@@ -800,7 +824,11 @@ async function createGroup() {
     selectedGroupId.value = created.id
     showCreateForm.value = false
     notice.value = `Групу створено. Активних учнів: ${activeEnrollmentCount(updatedGroupEnrollments)}`
-    if (isCreateRoute.value) router.push({ name: 'my-groups' })
+    if (isCreateRoute.value) {
+      await router.push({ name: LIST_ROUTE_NAME, query: { [DETAIL_QUERY_KEY]: String(created.id) } })
+    } else {
+      await pushDetailRoute(router, route, DETAIL_QUERY_KEY, created.id)
+    }
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося створити групу')
   } finally {
@@ -833,6 +861,7 @@ async function saveEditedGroup() {
     editSubjectOpen.value = false
     editStudentsOpen.value = false
     notice.value = `Групу збережено. Активних учнів: ${activeEnrollmentCount(updatedGroupEnrollments)}`
+    await pushDetailRoute(router, route, DETAIL_QUERY_KEY, groupId)
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося зберегти групу')
   } finally {
@@ -855,6 +884,7 @@ async function deleteSelectedGroup() {
     selectedGroupId.value = null
     showCreateForm.value = false
     showEditForm.value = false
+    await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
     notice.value = 'Групу видалено'
   } catch (e: any) {
     if (e?.status === 404) {
@@ -862,6 +892,7 @@ async function deleteSelectedGroup() {
       selectedGroupId.value = null
       showCreateForm.value = false
       showEditForm.value = false
+      await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
       notice.value = 'Групу вже видалено'
       return
     }
@@ -971,6 +1002,7 @@ onMounted(async () => {
       await loadAttendanceRateRules()
     }
     if (isCreateRoute.value) resetCreateForm()
+    else syncGroupDetailFromRoute()
   } catch (e: any) {
     error.value = apiErrorMessage(e, 'Не вдалося завантажити дані')
   } finally {
@@ -985,8 +1017,14 @@ watch(
       resetCreateForm()
     } else {
       showCreateForm.value = false
+      syncGroupDetailFromRoute()
     }
   },
+)
+
+watch(
+  () => route.query[DETAIL_QUERY_KEY],
+  () => syncGroupDetailFromRoute(),
 )
 </script>
 
@@ -1051,9 +1089,15 @@ watch(
   border-top: 1px solid var(--border);
   padding-top: 12px;
 }
+.group-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
 .group-detail__title {
   font-weight: 650;
-  margin-bottom: 8px;
 }
 .group-detail__grid {
   display: grid;
@@ -1106,6 +1150,33 @@ watch(
   border-collapse: collapse;
 }
 @media (max-width: 760px) {
+  .groups-panel--detail-open > .panel__title,
+  .groups-panel--detail-open > .notice,
+  .groups-panel--detail-open > .groups-list {
+    display: none;
+  }
+  .groups-panel--detail-open {
+    min-height: calc(100vh - 96px);
+  }
+  .group-detail {
+    margin-top: 0;
+    border-top: 0;
+    padding-top: 0;
+  }
+  .group-detail__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: 10px;
+    background: var(--surface);
+  }
+  .group-detail__header .btn {
+    min-width: 92px;
+  }
+  .group-detail__title {
+    font-size: 18px;
+    line-height: 1.25;
+  }
   .toolbar {
     display: grid;
     grid-template-columns: 1fr;

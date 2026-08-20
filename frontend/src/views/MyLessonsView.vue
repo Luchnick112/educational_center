@@ -80,12 +80,12 @@
       </template>
     </div>
 
-    <div v-if="!isCreateRoute && selectedLesson" class="lesson-modal" @click.self="closeLessonDetail">
+    <div v-if="!isCreateRoute && selectedLesson" class="lesson-modal" @click.self="closeLessonDetailAndRoute">
       <div ref="lessonDetailPanel" class="panel form lesson-modal__window" role="dialog" aria-modal="true">
         <div class="lesson-modal__header">
           <div class="panel__title">Деталізація уроку #{{ selectedLesson.id }}</div>
-          <button class="btn btn--ghost lesson-modal__close" type="button" :disabled="savingLesson || savingReschedule" @click="closeLessonDetail">
-            Закрити
+          <button class="btn btn--ghost lesson-modal__close" type="button" :disabled="savingLesson || savingReschedule" @click="closeLessonDetailAndRoute">
+            Назад
           </button>
         </div>
       <div v-if="detailError" class="error">{{ detailError }}</div>
@@ -152,6 +152,29 @@
             </tr>
           </tbody>
         </table>
+        <div v-if="participantForms.length" class="participants-list">
+          <div v-for="participant in participantForms" :key="participant.id" class="participant-card">
+            <div class="participant-card__name">{{ participant.studentLabel }}</div>
+            <label class="participant-card__row">
+              <span>Присутній</span>
+              <input
+                class="presence-checkbox"
+                type="checkbox"
+                :checked="isParticipantPresent(participant)"
+                :disabled="savingLesson || !canMarkAttendance"
+                @change="toggleParticipantPresence(participant, $event)"
+              />
+            </label>
+            <label v-if="canSeeLessonBilledAmount" class="participant-card__row">
+              <span>Вартість заняття</span>
+              <input class="input amount-input" type="number" min="0" step="0.01" v-model="participant.billed_amount" :disabled="savingLesson || !isAdmin" />
+            </label>
+            <div v-if="showParticipantPayrollAmount" class="participant-card__row">
+              <span>Винагорода викладача</span>
+              <span>{{ participantPayrollAmount(participant) }}</span>
+            </div>
+          </div>
+        </div>
 
         <div class="section-title">Перенесення</div>
         <div class="reschedule-panel">
@@ -219,6 +242,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import { apiRequest } from '@/lib/api'
+import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -286,6 +310,8 @@ const editLessonForm = ref({ group: null as number | null, status: 'scheduled', 
 const rescheduleForm = ref({ requested_starts_at_local: '', reason: '' })
 const applyRescheduleForm = ref({ starts_at_local: '', teacher_comment: '' })
 const isCreateRoute = computed(() => route.name === 'my-lessons-create')
+const DETAIL_QUERY_KEY = 'lesson'
+const LIST_ROUTE_NAME = 'my-lessons'
 
 const columns = computed(() => {
   const items: LessonColumn[] = [
@@ -498,6 +524,11 @@ function closeLessonDetail() {
   rescheduleError.value = null
 }
 
+async function closeLessonDetailAndRoute() {
+  closeLessonDetail()
+  await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
+}
+
 async function toggleParticipantPresence(participant: ParticipantForm, event: Event) {
   if (!selectedLesson.value) return
   const checkbox = event.target as HTMLInputElement
@@ -589,8 +620,11 @@ async function openLessonById(lessonId: number) {
 }
 
 async function openLessonFromRoute() {
-  const lessonId = Number(route.query.lesson)
-  if (!Number.isFinite(lessonId) || lessonId <= 0) return
+  const lessonId = routeQueryId(route, DETAIL_QUERY_KEY)
+  if (!lessonId) {
+    if (selectedLesson.value) closeLessonDetail()
+    return
+  }
   try {
     await openLessonById(lessonId)
   } catch (e: any) {
@@ -611,6 +645,8 @@ function normalizeToQuarterHour(localDateTime: string) {
 }
 
 async function onLessonClick(lesson: Lesson) {
+  if (await pushDetailRoute(router, route, DETAIL_QUERY_KEY, lesson.id)) return
+
   const requestSeq = ++detailRequestSeq
   selectedLesson.value = lesson
   fillLessonDetailForm({ ...lesson, participants: [] })
@@ -770,7 +806,7 @@ async function updateLesson() {
       body,
     })
     await reloadLessons()
-    closeLessonDetail()
+    await closeLessonDetailAndRoute()
   } catch (e: any) {
     detailError.value = e?.payload?.detail || e?.message || 'Не вдалося оновити урок'
   } finally {
@@ -788,7 +824,7 @@ async function deleteLesson() {
   detailError.value = null
   try {
     await apiRequest(`/api/academics/lessons/${selectedLesson.value.id}/`, { method: 'DELETE' })
-    closeLessonDetail()
+    await closeLessonDetailAndRoute()
     await reloadLessons()
   } catch (e: any) {
     detailError.value = apiErrorMessage(e, 'Не вдалося видалити урок')
@@ -881,7 +917,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => route.query.lesson,
+  () => route.query[DETAIL_QUERY_KEY],
   () => {
     if (!loading.value && !isCreateRoute.value) void openLessonFromRoute()
   },
@@ -1018,6 +1054,28 @@ watch(
   width: 100%;
   border-collapse: collapse;
 }
+.participants-list {
+  display: none;
+}
+.participant-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.participant-card__name {
+  font-weight: 650;
+}
+.participant-card__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  color: var(--text-soft);
+  font-size: 13px;
+}
 .participants-table th,
 .participants-table td {
   text-align: left;
@@ -1107,17 +1165,36 @@ watch(
   .lesson-modal {
     align-items: stretch;
     padding: 0;
+    place-items: stretch;
   }
   .lesson-modal__window {
     width: 100%;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     border-radius: 0;
+    overflow: auto;
+    padding-bottom: 20px;
   }
   .lesson-modal__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: -14px -14px 14px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
     align-items: flex-start;
+  }
+  .lesson-modal__header .panel__title {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+  .lesson-modal__close {
+    min-width: 92px;
   }
   .detail-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
   .reschedule-form {
     grid-template-columns: 1fr;
@@ -1134,14 +1211,14 @@ watch(
     text-align: center;
   }
   .participants-table {
-    display: block;
-    max-width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
+    display: none;
   }
-  .participants-table th,
-  .participants-table td {
-    padding: 8px 10px;
+  .participants-list {
+    display: grid;
+    gap: 10px;
+  }
+  .participant-card__row .amount-input {
+    width: min(150px, 42vw);
   }
   .amount-input {
     min-width: 108px;

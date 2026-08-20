@@ -6,7 +6,7 @@
     </div>
 
     <div v-else class="layout" :class="{ 'layout--single': isCreateRoute }">
-      <div v-if="!isCreateRoute" class="panel">
+      <div v-if="!isCreateRoute" class="panel list-panel" :class="{ 'mobile-hidden-when-detail': selectedId }">
         <div class="row">
           <div class="tabs" role="tablist" aria-label="Academics resources">
             <button
@@ -45,11 +45,14 @@
         />
       </div>
 
-      <div v-if="!isCreateRoute || mode === 'create'" class="panel">
+      <div v-if="!isCreateRoute || mode === 'create'" class="panel detail-panel" :class="{ 'detail-panel--active': selectedId || mode === 'create' }">
         <div class="formwrap">
           <div class="formwrap__header">
             <div class="formwrap__title">{{ formTitle }}</div>
             <div class="formwrap__actions">
+              <button v-if="mode === 'view' && selectedId" class="btn btn--ghost" type="button" @click="closeEditorAndRoute">
+                Назад
+              </button>
               <button v-if="mode === 'view'" class="btn btn--ghost" type="button" :disabled="!selectedId" @click="startEdit">
                 Редагувати
               </button>
@@ -265,6 +268,7 @@ import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import JsonViewer from '@/components/JsonViewer.vue'
 import { apiRequest } from '@/lib/api'
+import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
 import { useAuthStore } from '@/stores/auth'
 
 type TabKey = 'subjects' | 'groups' | 'enrollments' | 'lessons' | 'confirmations'
@@ -298,6 +302,8 @@ const selectedId = ref<number | null>(null)
 
 const currentTab = computed(() => tabs.find((t) => t.key === active.value)!)
 const isCreateRoute = computed(() => route.name === 'academics-create')
+const DETAIL_QUERY_KEY = 'item'
+const LIST_ROUTE_NAME = 'academics'
 const detailTitle = computed(() => {
   const id = selectedId.value
   return id ? `${currentTab.value.label} #${id}` : `${currentTab.value.label} detail`
@@ -491,25 +497,47 @@ async function loadDetail(id: number) {
   }
 }
 
+async function openDetail(id: number) {
+  if (await pushDetailRoute(router, route, DETAIL_QUERY_KEY, id)) return
+  await loadDetail(id)
+}
+
+function openDetailFromRoute() {
+  if (isCreateRoute.value) return
+
+  const id = routeQueryId(route, DETAIL_QUERY_KEY)
+  if (id) {
+    void loadDetail(id)
+    return
+  }
+
+  if (selectedId.value) {
+    clearEditorState()
+  }
+}
+
 function onRowClick(row: any) {
   if (currentTab.value.key === 'lessons') {
     const lessonId = row?.id
     if (typeof lessonId !== 'number') return
-    loadDetail(lessonId)
+    void openDetail(lessonId)
     return
   }
 
   const id = row?.id
   if (typeof id !== 'number') return
-  loadDetail(id)
+  void openDetail(id)
 }
 
 function setActive(key: TabKey) {
-  router.replace({ query: { ...route.query, tab: key } })
+  const query: Record<string, any> = { ...route.query, tab: key }
+  delete query[DETAIL_QUERY_KEY]
+  router.replace({ query })
 }
 
-function reload() {
-  loadList()
+async function reload() {
+  await loadList()
+  openDetailFromRoute()
 }
 
 function startCreate() {
@@ -539,16 +567,27 @@ function cancelEdit() {
   hydrateFormFromDetail()
 }
 
-function closeEditor() {
-  if (isCreateRoute.value) {
-    router.push({ name: 'academics', query: { tab: active.value } })
-  }
+function clearEditorState() {
   selectedId.value = null
   detail.value = null
   participants.value = []
   mode.value = 'view'
   formError.value = null
   hydrateFormFromDetail(true)
+}
+
+function closeEditor() {
+  if (isCreateRoute.value) {
+    router.push({ name: LIST_ROUTE_NAME, query: { tab: active.value } })
+  }
+  clearEditorState()
+}
+
+async function closeEditorAndRoute() {
+  clearEditorState()
+  if (!isCreateRoute.value) {
+    await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
+  }
 }
 
 function isoFromLocal(dtLocal: string) {
@@ -891,7 +930,12 @@ async function submitForm() {
           await syncGroupStudents(created.id, form.value.group.students || [])
         }
         await loadList()
-        closeEditor()
+        if (typeof created?.id === 'number') {
+          clearEditorState()
+          await router.push({ name: LIST_ROUTE_NAME, query: { tab: active.value, [DETAIL_QUERY_KEY]: String(created.id) } })
+        } else {
+          closeEditor()
+        }
         return
       }
 
@@ -901,7 +945,7 @@ async function submitForm() {
           await syncGroupStudents(updated.id, form.value.group.students || [])
         }
         await loadList()
-        closeEditor()
+        await closeEditorAndRoute()
       }
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося зберегти'
@@ -920,6 +964,7 @@ async function onDelete() {
   try {
     await apiRequest(currentTab.value.detailPath(id), { method: 'DELETE' })
     await loadList()
+    await closeEditorAndRoute()
   } catch (e: any) {
     formError.value = e?.payload ? JSON.stringify(e.payload) : e?.message || 'Не вдалося видалити'
   } finally {
@@ -935,6 +980,7 @@ onMounted(async () => {
       resetCreateForm()
     } else {
       await loadList()
+      openDetailFromRoute()
     }
   }
 })
@@ -950,6 +996,7 @@ watch(
       resetCreateForm()
     } else {
       await loadList()
+      openDetailFromRoute()
     }
   },
 )
@@ -964,8 +1011,16 @@ watch(
     } else if (mode.value === 'create') {
       closeEditor()
       await loadList()
+      openDetailFromRoute()
+    } else {
+      openDetailFromRoute()
     }
   },
+)
+
+watch(
+  () => route.query[DETAIL_QUERY_KEY],
+  () => openDetailFromRoute(),
 )
 </script>
 
@@ -1049,6 +1104,12 @@ watch(
   }
 }
 @media (max-width: 640px) {
+  .mobile-hidden-when-detail {
+    display: none;
+  }
+  .detail-panel--active {
+    min-height: calc(100vh - 96px);
+  }
   .actions,
   .formwrap__actions {
     display: grid;
@@ -1062,8 +1123,26 @@ watch(
     width: 100%;
   }
   .formwrap__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: 10px;
+    background: var(--surface);
     flex-direction: column;
     align-items: stretch;
+  }
+  .formwrap__title {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  .formwrap {
+    gap: 14px;
+  }
+  .input {
+    min-height: 42px;
+  }
+  .ta {
+    min-height: 140px;
   }
   .tabs {
     display: grid;

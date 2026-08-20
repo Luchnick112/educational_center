@@ -37,10 +37,18 @@ const route = useRoute()
 const login = ref('')
 const password = ref('')
 
+function redirectTargetAfterLogin() {
+  const next = typeof route.query.next === 'string' ? route.query.next : ''
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return { name: 'my-lessons' }
+
+  const resolved = router.resolve(next)
+  if (resolved.name === 'login' || resolved.name === 'register') return { name: 'my-lessons' }
+  return resolved
+}
+
 async function onSubmit() {
   const value = login.value.trim()
   await auth.logIn({ login: value, password: password.value })
-  const next = typeof route.query.next === 'string' ? route.query.next : '/my/lessons'
-  await router.push(next)
+  await router.replace(redirectTargetAfterLogin())
 }
 </script>
