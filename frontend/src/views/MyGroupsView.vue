@@ -48,18 +48,66 @@
             :class="{ selected: selectedGroupId === row.group.id }"
             @click="openGroupDetail(row.group.id)"
           >
-            <td class="col-teacher">{{ teacherLabel(row.group.teacher) }}</td>
-            <td>{{ row.group.name || `Група #${row.group.id}` }}</td>
-            <td>{{ groupFormatLabel(row.group.format) }}</td>
-            <td v-if="isAdmin" class="col-student-price">{{ priceLabel(row.group.student_price) }}</td>
-            <td>{{ priceLabel(row.group.teacher_rate) }}</td>
-            <td>{{ row.studentIds.length }}</td>
-            <td>{{ groupCompletedLessonsLabel(row.group) }}</td>
-            <td>{{ groupLessonsUntilBillingLabel(row.group) }}</td>
-            <td class="col-student-list">{{ row.studentNames.join(', ') || '-' }}</td>
+            <td class="col-teacher" data-label="Вчитель">{{ teacherLabel(row.group.teacher) }}</td>
+            <td class="col-group-name" data-label="Назва групи">{{ row.group.name || `Група #${row.group.id}` }}</td>
+            <td data-label="Тип">{{ groupFormatLabel(row.group.format) }}</td>
+            <td v-if="isAdmin" class="col-student-price" data-label="Ціна за навчання">{{ priceLabel(row.group.student_price) }}</td>
+            <td data-label="Ставка вчителя">{{ priceLabel(row.group.teacher_rate) }}</td>
+            <td data-label="Кількість учнів">{{ row.studentIds.length }}</td>
+            <td data-label="Завершено уроків">{{ groupCompletedLessonsLabel(row.group) }}</td>
+            <td data-label="До рахунку">{{ groupLessonsUntilBillingLabel(row.group) }}</td>
+            <td class="col-student-list" data-label="Список студентів">{{ row.studentNames.join(', ') || '-' }}</td>
           </tr>
         </tbody>
       </table>
+      <div v-if="!loading && !error" class="mobile-groups-list" aria-label="Список груп">
+        <button
+          v-for="row in filteredGroupRows"
+          :key="row.group.id"
+          class="mobile-group-card"
+          :class="{ 'mobile-group-card--selected': selectedGroupId === row.group.id }"
+          type="button"
+          @click="openGroupDetail(row.group.id)"
+        >
+          <span class="mobile-group-card__header">
+            <span class="mobile-group-card__title">{{ row.group.name || `Група #${row.group.id}` }}</span>
+            <span class="mobile-group-card__format">{{ groupFormatLabel(row.group.format) }}</span>
+          </span>
+          <span class="mobile-group-card__teacher">
+            <span class="mobile-group-card__label">Вчитель</span>
+            <span>{{ teacherLabel(row.group.teacher) }}</span>
+          </span>
+          <span class="mobile-group-card__stats">
+            <span class="mobile-group-card__stat">
+              <span class="mobile-group-card__value">{{ row.studentIds.length }}</span>
+              <span class="mobile-group-card__label">Учнів</span>
+            </span>
+            <span class="mobile-group-card__stat">
+              <span class="mobile-group-card__value">{{ groupCompletedLessonsLabel(row.group) }}</span>
+              <span class="mobile-group-card__label">Завершено</span>
+            </span>
+            <span class="mobile-group-card__stat">
+              <span class="mobile-group-card__value">{{ groupLessonsUntilBillingLabel(row.group) }}</span>
+              <span class="mobile-group-card__label">До рахунку</span>
+            </span>
+          </span>
+          <span class="mobile-group-card__prices">
+            <span v-if="isAdmin">
+              <span class="mobile-group-card__label">Навчання</span>
+              <span>{{ priceLabel(row.group.student_price) }}</span>
+            </span>
+            <span>
+              <span class="mobile-group-card__label">Ставка вчителя</span>
+              <span>{{ priceLabel(row.group.teacher_rate) }}</span>
+            </span>
+          </span>
+          <span class="mobile-group-card__students">
+            <span class="mobile-group-card__label">Студенти</span>
+            <span>{{ row.studentNames.join(', ') || 'Немає студентів' }}</span>
+          </span>
+        </button>
+        <div v-if="filteredGroupRows.length === 0" class="mobile-groups-list__empty">Груп не знайдено</div>
+      </div>
       </div>
       <div v-if="selectedGroupDetail" class="group-detail">
         <div class="group-detail__header">
@@ -1076,6 +1124,7 @@ watch(
 .dropdown__item { display: flex; align-items: center; gap: 8px; padding: 6px; }
 .notice { color: var(--success); font-size: 13px; margin-bottom: 10px; }
 .groups-table { width: 100%; border-collapse: collapse; }
+.mobile-groups-list { display: none; }
 .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .groups-table th, .groups-table td, .pricing-table th, .pricing-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
 .groups-table tbody tr { cursor: pointer; }
@@ -1184,17 +1233,114 @@ watch(
   .toolbar .btn {
     width: 100%;
   }
-  .groups-table,
   .pricing-table {
     display: block;
     max-width: 100%;
     overflow-x: auto;
     white-space: nowrap;
   }
-  .groups-table .col-teacher,
-  .groups-table .col-student-price,
-  .groups-table .col-student-list {
+
+  .groups-table {
     display: none;
+  }
+  .mobile-groups-list {
+    display: grid;
+    gap: 8px;
+  }
+  .mobile-group-card {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .mobile-group-card:active {
+    border-color: var(--accent-border);
+    background: var(--accent-hover);
+  }
+  .mobile-group-card--selected {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .mobile-group-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .mobile-group-card__title {
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .mobile-group-card__format {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--text-soft);
+    font-size: 12px;
+  }
+  .mobile-group-card__teacher,
+  .mobile-group-card__students {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .mobile-group-card__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-block: 1px solid var(--border);
+  }
+  .mobile-group-card__stat {
+    display: grid;
+    gap: 2px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .mobile-group-card__stat + .mobile-group-card__stat {
+    border-left: 1px solid var(--border);
+  }
+  .mobile-group-card__value {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .mobile-group-card__label {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .mobile-group-card__prices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    font-size: 13px;
+  }
+  .mobile-group-card__prices > span {
+    display: grid;
+    gap: 3px;
+  }
+  .mobile-group-card__prices > span:only-child {
+    grid-column: 1 / -1;
+  }
+  .mobile-groups-list__empty {
+    padding: 20px 12px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+    color: var(--muted);
+    text-align: center;
   }
   .filters {
     grid-template-columns: 1fr;

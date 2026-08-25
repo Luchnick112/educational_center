@@ -340,3 +340,15 @@ Example `mark-paid` payload:
 python backend/manage.py check
 python backend/manage.py test academics finance
 ```
+
+## Mobile Client
+
+The Ionic Vue + Capacitor mobile client lives in `mobile/`.
+
+```powershell
+cd mobile
+npm.cmd install
+npm.cmd run dev
+```
+
+See `mobile/README.md` for environment, build and native-platform setup.

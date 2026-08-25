@@ -15,6 +15,8 @@ DATABASES = {
 DEV_CORS_ALLOWED_ORIGINS = env_list(  # noqa: F405
     "DEV_CORS_ALLOWED_ORIGINS",
     [
+        "https://localhost",
+        "capacitor://localhost",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
