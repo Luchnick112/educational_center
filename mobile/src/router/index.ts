@@ -19,6 +19,12 @@ const routes: RouteRecordRaw[] = [
       { path: 'groups', name: 'groups', component: () => import('@/views/GroupsPage.vue') },
       { path: 'children', name: 'children', component: () => import('@/views/ChildrenPage.vue') },
       { path: 'payments', name: 'payments', component: () => import('@/views/PaymentsPage.vue') },
+      {
+        path: 'users',
+        name: 'users',
+        component: () => import('@/views/UsersPage.vue'),
+        meta: { adminOnly: true },
+      },
       { path: 'profile', name: 'profile', component: () => import('@/views/ProfilePage.vue') },
     ],
   },
@@ -32,6 +38,10 @@ router.beforeEach(async (to) => {
   await auth.bootstrap()
   if (to.matched.some((route) => route.meta.requiresAuth) && !auth.isAuthenticated) return { name: 'login' }
   if (to.name === 'login' && auth.isAuthenticated) return { name: 'lessons' }
+  if (
+    to.matched.some((route) => route.meta.adminOnly)
+    && !(auth.me?.is_staff || auth.me?.role === 'admin')
+  ) return { name: 'lessons' }
 })
 
 export default router

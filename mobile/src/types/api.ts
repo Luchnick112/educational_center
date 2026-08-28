@@ -12,6 +12,17 @@ export type MeResponse = {
   my?: Array<{ key: string; url: string }>
 }
 
+export type UserAccount = {
+  id: number
+  first_name: string
+  last_name: string
+  telegram_username?: string | null
+  email: string
+  phone?: string
+  role: UserRole
+  is_active: boolean
+}
+
 export type Lesson = {
   id: number
   status: string
