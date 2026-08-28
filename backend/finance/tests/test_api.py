@@ -36,6 +36,7 @@ class MyPaymentsApiTestCase(AcademicBaseTestCase):
         mark_parent_charge_paid(
             user=self.admin_user,
             charge=current_participant.parent_charge,
+            paid_at=self.lesson.starts_at,
         )
 
         old_lesson = Lesson.objects.create(
@@ -44,10 +45,10 @@ class MyPaymentsApiTestCase(AcademicBaseTestCase):
         )
         self.complete_lesson_with_finance_docs(old_lesson)
 
-        today = timezone.localdate().isoformat()
+        lesson_date = timezone.localdate(self.lesson.starts_at).isoformat()
         self.client.force_authenticate(self.admin_user)
 
-        response = self.client.get('/api/my/payments/', {'date_from': today, 'date_to': today})
+        response = self.client.get('/api/my/payments/', {'date_from': lesson_date, 'date_to': lesson_date})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data['charges']), 1)
