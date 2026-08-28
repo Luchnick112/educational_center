@@ -281,6 +281,28 @@ ion-tab-button ion-label {
   align-items: flex-start;
 }
 
+.finance-mode {
+  margin-bottom: 14px;
+}
+
+.finance-section + .finance-section {
+  margin-top: 20px;
+}
+
+.finance-section > h2 {
+  margin: 0 0 9px;
+  color: var(--app-ink);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.payment-item ion-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #38845a;
+  font-size: 20px;
+}
+
 .money {
   white-space: nowrap;
   font-size: 14px;
@@ -451,6 +473,201 @@ ion-tab-button ion-label {
   line-height: 1.4;
 }
 
+.form-error--panel {
+  margin: 0;
+  padding: 11px 12px;
+  border: 1px solid #e8c7c1;
+  border-radius: 6px;
+  background: #fff4f2;
+}
+
+.action-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #bcd9c8;
+  border-radius: 6px;
+  background: #edf8f1;
+  color: #27633f;
+  font-size: 13px;
+}
+
+.icon-action {
+  width: 40px;
+  height: 40px;
+  margin: -8px -8px -8px 0;
+}
+
+.mobile-form {
+  display: grid;
+  gap: 16px;
+  width: min(620px, 100%);
+  margin: 0 auto;
+  padding: 20px 16px max(32px, env(safe-area-inset-bottom));
+}
+
+.mobile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mobile-field {
+  display: grid;
+  gap: 7px;
+  color: var(--app-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mobile-control {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 11px;
+  border: 1px solid #bdc9c5;
+  border-radius: 6px;
+  outline: none;
+  background: #fff;
+  color: var(--app-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+textarea.mobile-control {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.mobile-control:focus {
+  border-color: #285f55;
+  box-shadow: 0 0 0 2px rgba(40, 95, 85, 0.12);
+}
+
+.choice-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.choice-list legend {
+  margin-left: 10px;
+  padding: 0 5px;
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.choice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 9px 12px;
+  color: var(--app-ink);
+  font-size: 13px;
+}
+
+.choice-row + .choice-row {
+  border-top: 1px solid var(--app-border);
+}
+
+.choice-row--standalone {
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.field-hint {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.mobile-submit {
+  --border-radius: 6px;
+  min-height: 48px;
+  margin: 4px 0 0;
+  text-transform: none;
+}
+
+.interactive-item {
+  cursor: pointer;
+}
+
+.interactive-item:focus-visible {
+  outline: 2px solid #285f55;
+  outline-offset: 2px;
+}
+
+.item-chevron {
+  flex: 0 0 auto;
+  color: #8a9893;
+  font-size: 18px;
+}
+
+.detail-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.detail-summary div {
+  display: grid;
+  gap: 3px;
+}
+
+.detail-summary div span {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.detail-summary strong {
+  font-size: 15px;
+}
+
+.participant-list .choice-row {
+  align-items: center;
+}
+
+.attendance-select {
+  width: min(148px, 48%);
+  min-height: 38px;
+  padding: 7px 8px;
+  border: 1px solid #bdc9c5;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--app-ink);
+  font-size: 12px;
+}
+
+.workflow-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.workflow-actions ion-button {
+  --border-radius: 6px;
+  min-height: 44px;
+  margin: 0;
+  text-transform: none;
+}
+
+.workflow-actions ion-button:only-child {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 360px) {
   .data-item__topline {
     display: grid;
@@ -462,5 +679,13 @@ ion-tab-button ion-label {
 
   .login-panel {
     padding: 18px;
+  }
+
+  .mobile-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-actions {
+    grid-template-columns: 1fr;
   }
 }

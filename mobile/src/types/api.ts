@@ -20,6 +20,18 @@ export type Lesson = {
   group: number
   payroll_amount?: string
   billed_amount?: string
+  can_request_reschedule?: boolean
+  participants?: LessonParticipant[]
+}
+
+export type LessonParticipant = {
+  id: number
+  student: number
+  student_first_name?: string
+  student_last_name?: string
+  attendance_status: 'pending' | 'present' | 'absent' | string
+  billed_amount?: string
+  payroll_amount?: string
 }
 
 export type LessonPage = {
@@ -36,6 +48,34 @@ export type StudyGroup = {
   capacity?: number | null
   completed_lessons_count?: number | null
   lessons_until_next_billing?: number | null
+  subject?: number
+  teacher?: number | null
+  student_price?: string
+  teacher_rate?: string
+  is_active?: boolean
+}
+
+export type Subject = {
+  id: number
+  name: string
+}
+
+export type ProfileOption = {
+  id: number
+  user_detail?: {
+    first_name?: string
+    last_name?: string
+    email?: string
+    telegram_username?: string
+  }
+}
+
+export type Enrollment = {
+  id: number
+  group: number
+  student: number
+  status: string
+  end_date?: string | null
 }
 
 export type Student = {
@@ -50,6 +90,7 @@ export type Student = {
 
 export type Charge = {
   id: number
+  student?: number
   status: string
   amount: string
   student_name?: string
@@ -65,6 +106,25 @@ export type Payout = {
   teacher_name?: string
   student_name?: string
   lesson_starts_at?: string
+  teacher?: number
+}
+
+export type StudentPayment = {
+  id: number
+  student: number
+  student_name?: string
+  amount: string
+  paid_at: string
+  comment?: string
+}
+
+export type TeacherPayment = {
+  id: number
+  teacher: number
+  teacher_name?: string
+  amount: string
+  paid_at: string
+  comment?: string
 }
 
 export type StudentSummary = {
@@ -88,4 +148,6 @@ export type PaymentsResponse = {
   payouts?: Payout[]
   student_summaries?: StudentSummary[]
   teacher_summaries?: TeacherSummary[]
+  student_payments?: StudentPayment[]
+  teacher_payments?: TeacherPayment[]
 }
