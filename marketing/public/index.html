@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Helper Lesson</title>
+    <title>Helper Educational Center</title>
     <meta
       name="description"
       content="Helper - навчальний центр з особистим кабінетом для учнів, батьків і викладачів."
@@ -52,9 +52,22 @@
       }
 
       .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         font-size: 22px;
         font-weight: 700;
-        letter-spacing: -0.03em;
+      }
+
+      .brand img {
+        width: 180px;
+        height: auto;
+        margin-left: 0;
+        transform: translateX(-40px);
+      }
+
+      .brand h2 {
+        margin: 0 0 0 -72px;
       }
 
       .login {
@@ -75,7 +88,7 @@
       h1 {
         margin: 0;
         max-width: 760px;
-        font-size: clamp(48px, 8vw, 94px);
+        font-size: 62px;
         line-height: 0.92;
         letter-spacing: -0.07em;
       }
@@ -93,7 +106,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: 14px;
-        margin-top: 34px;
+        margin-top: 70px;
       }
 
       .button {
@@ -145,11 +158,34 @@
       }
 
       @media (max-width: 820px) {
+        h1 {
+          font-size: 44px;
+        }
+
         .hero {
           grid-template-columns: 1fr;
         }
 
+        .brand img {
+          width: 90px;
+          margin-left: 0;
+          transform: translateX(-24px);
+        }
+
+        .brand h2 {
+          margin-left: -42px;
+          font-size: 20px;
+        }
+
+        .login {
+          flex-shrink: 0;
+          padding: 10px 12px;
+          font-size: 14px;
+          white-space: nowrap;
+        }
+
         header {
+          gap: 8px;
           padding-bottom: 34px;
         }
       }
@@ -158,13 +194,17 @@
   <body>
     <main>
       <header>
-        <div class="brand">Helper Lesson</div>
+        <div class="brand">
+          <img src="/logo.png" alt="Helper Education" />
+          <h2>HELPER</h2>
+        </div>
         <a class="login" href="https://app.helper-lesson.net">Увійти в кабінет</a>
       </header>
 
       <section class="hero">
         <div>
-          <h2>Навчальний центр без хаосу в розкладі.</h2>
+          <h1>Навчальний центр</h1><p></p>
+          <h1>без хаосу в розкладі</h1>
           <p class="lead">
 
           </p>

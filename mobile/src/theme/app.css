@@ -618,6 +618,53 @@ textarea.mobile-control {
   margin-bottom: 14px;
 }
 
+.filter-panel {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.filter-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  margin-bottom: 8px;
+}
+
+.filter-panel__header h2 {
+  margin: 0;
+  color: var(--app-ink);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.filter-panel__header ion-button {
+  min-height: 36px;
+  margin: 0;
+  text-transform: none;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.filter-grid--lessons,
+.filter-grid--payments {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.filter-submit {
+  --border-radius: 6px;
+  min-height: 46px;
+  margin: 0;
+  text-transform: none;
+}
+
 .user-item {
   align-items: flex-start;
 }
@@ -750,6 +797,12 @@ textarea.mobile-control {
   }
 
   .list-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-grid,
+  .filter-grid--lessons,
+  .filter-grid--payments {
     grid-template-columns: 1fr;
   }
 

@@ -11,12 +11,58 @@
       <div class="page-intro">
         <p class="eyebrow">Мій розклад</p>
         <h1>{{ greeting }}</h1>
-        <p>{{ lessons.length ? `${lessons.length} останніх занять` : 'Ваші заняття з’являться тут' }}</p>
+        <p>{{ lessonsCaption }}</p>
       </div>
 
       <div class="page-body">
         <p v-if="notice" class="action-notice">{{ notice }}</p>
-        <PageState :loading="loading" :error="error" :empty="lessons.length === 0" :retry="load" empty-text="Уроків ще немає">
+
+        <section class="filter-panel" aria-label="Фільтри уроків">
+          <div class="filter-panel__header">
+            <h2>Фільтри</h2>
+            <ion-button fill="clear" size="small" :disabled="!hasLessonFilters || loading" @click="clearLessonFilters">
+              Очистити
+            </ion-button>
+          </div>
+          <div class="filter-grid filter-grid--lessons">
+            <label class="mobile-field">
+              <span>З</span>
+              <input v-model="lessonFilters.date_from" class="mobile-control" type="date" @change="load" />
+            </label>
+            <label class="mobile-field">
+              <span>До</span>
+              <input v-model="lessonFilters.date_to" class="mobile-control" type="date" @change="load" />
+            </label>
+            <label v-if="isAdmin" class="mobile-field">
+              <span>Викладач</span>
+              <select v-model="lessonFilters.teacher" class="mobile-control" @change="load">
+                <option value="">Усі викладачі</option>
+                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
+                  {{ profileLabel(teacher, 'Викладач') }}
+                </option>
+              </select>
+            </label>
+            <label v-if="canManage" class="mobile-field">
+              <span>Група</span>
+              <select v-model="lessonFilters.group" class="mobile-control" @change="load">
+                <option value="">Усі групи</option>
+                <option value="individual">Індивідуальні</option>
+                <option value="group">Групові</option>
+                <option v-for="group in groups" :key="group.id" :value="String(group.id)">
+                  {{ group.name || `Група #${group.id}` }}
+                </option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <PageState
+          :loading="loading"
+          :error="error"
+          :empty="lessons.length === 0"
+          :retry="load"
+          :empty-text="hasLessonFilters ? 'За вибраними фільтрами уроків немає' : 'Уроків ще немає'"
+        >
           <div class="item-list">
             <article
               v-for="lesson in lessons"
@@ -196,12 +242,13 @@ import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
-import type { Lesson, LessonPage, LessonParticipant, StudyGroup } from '@/types/api'
+import type { Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
 import { formatDateTime, statusLabel } from '@/utils/format'
 
 const auth = useAuthStore()
 const lessons = ref<Lesson[]>([])
 const groups = ref<StudyGroup[]>([])
+const teachers = ref<ProfileOption[]>([])
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -220,6 +267,19 @@ const canEditTime = computed(() => {
   return isAdmin.value || ['scheduled', 'cancelled'].includes(selectedLesson.value.status)
 })
 const activeGroups = computed(() => groups.value.filter((group) => group.is_active !== false))
+
+const lessonFilters = reactive({
+  date_from: '',
+  date_to: '',
+  teacher: '',
+  group: '',
+})
+
+const hasLessonFilters = computed(() => Object.values(lessonFilters).some(Boolean))
+const lessonsCaption = computed(() => {
+  if (lessons.value.length) return `${lessons.value.length} занять`
+  return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
+})
 
 const createForm = reactive({ group: null as number | null, starts_at: '', notes: '' })
 const detailForm = reactive({ starts_at: '', notes: '' })
@@ -240,6 +300,15 @@ function datePart(value: string, part: 'day' | 'month') {
 const day = (value: string) => datePart(value, 'day')
 const month = (value: string) => datePart(value, 'month')
 const groupName = (id: number) => groups.value.find((group) => group.id === id)?.name || `Група #${id}`
+
+function profileLabel(profile: ProfileOption, fallback: string) {
+  const user = profile.user_detail
+  if (!user) return `${fallback} #${profile.id}`
+  return [user.first_name, user.last_name].filter(Boolean).join(' ')
+    || user.telegram_username
+    || user.email
+    || `${fallback} #${profile.id}`
+}
 
 function participantName(participant: LessonParticipant) {
   return [participant.student_first_name, participant.student_last_name].filter(Boolean).join(' ')
@@ -265,15 +334,35 @@ function toIso(value: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+function lessonsPath() {
+  const params = new URLSearchParams({ page: '1', page_size: '20' })
+  if (lessonFilters.date_from) params.set('date_from', lessonFilters.date_from)
+  if (lessonFilters.date_to) params.set('date_to', lessonFilters.date_to)
+  if (lessonFilters.teacher) params.set('teacher', lessonFilters.teacher)
+  if (lessonFilters.group === 'individual' || lessonFilters.group === 'group') {
+    params.set('group_format', lessonFilters.group)
+  } else if (lessonFilters.group) {
+    params.set('group', lessonFilters.group)
+  }
+  return `/api/my/lessons/?${params.toString()}`
+}
+
 function load() {
   return run(async () => {
-    const [lessonPayload, groupPayload] = await Promise.all([
-      apiRequest<Lesson[] | LessonPage>('/api/my/lessons/?page=1&page_size=20'),
+    const [lessonPayload, groupPayload, teacherPayload] = await Promise.all([
+      apiRequest<Lesson[] | LessonPage>(lessonsPath()),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
+      isAdmin.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
     ])
     lessons.value = Array.isArray(lessonPayload) ? lessonPayload : lessonPayload.results
     groups.value = groupPayload
+    teachers.value = teacherPayload
   })
+}
+
+async function clearLessonFilters() {
+  Object.assign(lessonFilters, { date_from: '', date_to: '', teacher: '', group: '' })
+  await load()
 }
 
 function openCreate() {

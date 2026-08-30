@@ -15,9 +15,45 @@
       </div>
       <div class="page-body">
         <p v-if="notice" class="action-notice">{{ notice }}</p>
-        <PageState :loading="loading" :error="error" :empty="groups.length === 0" :retry="load" empty-text="Активних груп немає">
+
+        <section v-if="canManage" class="filter-panel" aria-label="Фільтри груп">
+          <div class="filter-panel__header">
+            <h2>Фільтри</h2>
+            <ion-button fill="clear" size="small" :disabled="!hasGroupFilters" @click="clearGroupFilters">
+              Очистити
+            </ion-button>
+          </div>
+          <div class="filter-grid">
+            <label v-if="isAdmin" class="mobile-field">
+              <span>Викладач</span>
+              <select v-model="groupFilters.teacher" class="mobile-control">
+                <option value="">Усі викладачі</option>
+                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
+                  {{ profileLabel(teacher, 'Викладач') }}
+                </option>
+              </select>
+            </label>
+            <label class="mobile-field">
+              <span>Учень</span>
+              <select v-model="groupFilters.student" class="mobile-control">
+                <option value="">Усі учні</option>
+                <option v-for="student in students" :key="student.id" :value="String(student.id)">
+                  {{ profileLabel(student, 'Учень') }}
+                </option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <PageState
+          :loading="loading"
+          :error="error"
+          :empty="filteredGroups.length === 0"
+          :retry="load"
+          :empty-text="hasGroupFilters ? 'За вибраними фільтрами груп немає' : 'Активних груп немає'"
+        >
           <div class="item-list">
-            <article v-for="group in groups" :key="group.id" class="data-item data-item--stacked">
+            <article v-for="group in filteredGroups" :key="group.id" class="data-item data-item--stacked">
               <div class="data-item__topline">
                 <div>
                   <h2>{{ group.name || `Група #${group.id}` }}</h2>
@@ -169,6 +205,21 @@ const { loading, error, run } = usePageData()
 const isAdmin = computed(() => Boolean(auth.me?.is_staff || auth.me?.role === 'admin'))
 const canManage = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 
+const groupFilters = reactive({ teacher: '', student: '' })
+const hasGroupFilters = computed(() => Boolean(groupFilters.teacher || groupFilters.student))
+const filteredGroups = computed(() => groups.value.filter((group) => {
+  if (groupFilters.teacher && String(group.teacher ?? '') !== groupFilters.teacher) return false
+  if (groupFilters.student) {
+    const hasStudent = enrollments.value.some((item) => (
+      item.group === group.id
+      && item.status === 'active'
+      && String(item.student) === groupFilters.student
+    ))
+    if (!hasStudent) return false
+  }
+  return true
+}))
+
 const form = reactive({
   subject: null as number | null,
   teacher: null as number | null,
@@ -179,6 +230,10 @@ const form = reactive({
   students: [] as number[],
   is_active: true,
 })
+
+function clearGroupFilters() {
+  Object.assign(groupFilters, { teacher: '', student: '' })
+}
 
 function profileLabel(profile: ProfileOption, fallback: string) {
   const user = profile.user_detail
