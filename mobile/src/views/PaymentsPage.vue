@@ -14,10 +14,48 @@
         <p>Актуальні нарахування та заборгованість.</p>
       </div>
       <div class="page-body">
-        <ion-segment v-if="isAdmin" v-model="financeMode" class="finance-mode" value="students">
+        <ion-segment v-if="isAdmin" v-model="financeMode" class="finance-mode" value="teachers">
           <ion-segment-button value="students"><ion-label>Учні</ion-label></ion-segment-button>
           <ion-segment-button value="teachers"><ion-label>Викладачі</ion-label></ion-segment-button>
         </ion-segment>
+
+        <section class="filter-panel" aria-label="Фільтри оплат">
+          <div class="filter-panel__header">
+            <h2>Фільтри</h2>
+            <ion-button fill="clear" size="small" :disabled="!hasPaymentFilters || loading" @click="clearPaymentFilters">
+              Очистити
+            </ion-button>
+          </div>
+          <form class="filter-grid filter-grid--payments" @submit.prevent="load">
+            <label class="mobile-field">
+              <span>Від</span>
+              <input v-model="paymentFilters.date_from" class="mobile-control" type="date" />
+            </label>
+            <label class="mobile-field">
+              <span>До</span>
+              <input v-model="paymentFilters.date_to" class="mobile-control" type="date" />
+            </label>
+            <label v-if="isAdmin && !showingTeachers" class="mobile-field">
+              <span>Учень</span>
+              <select v-model="paymentFilters.student" class="mobile-control">
+                <option value="">Усі учні</option>
+                <option v-for="student in students" :key="student.id" :value="String(student.id)">
+                  {{ profileLabel(student, 'Учень') }}
+                </option>
+              </select>
+            </label>
+            <label v-if="isAdmin && showingTeachers" class="mobile-field">
+              <span>Викладач</span>
+              <select v-model="paymentFilters.teacher" class="mobile-control">
+                <option value="">Усі викладачі</option>
+                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
+                  {{ profileLabel(teacher, 'Викладач') }}
+                </option>
+              </select>
+            </label>
+            <ion-button class="filter-submit" type="submit" :disabled="loading">Застосувати</ion-button>
+          </form>
+        </section>
 
         <p v-if="notice" class="action-notice">{{ notice }}</p>
         <PageState :loading="loading" :error="error" :empty="items.length === 0 && paymentHistory.length === 0" :retry="load" empty-text="Фінансових операцій немає">
@@ -160,12 +198,19 @@ const auth = useAuthStore()
 const data = ref<PaymentsResponse>({})
 const students = ref<ProfileOption[]>([])
 const teachers = ref<ProfileOption[]>([])
-const financeMode = ref<'students' | 'teachers'>('students')
+const financeMode = ref<'students' | 'teachers'>('teachers')
 const paymentOpen = ref(false)
 const saving = ref(false)
 const formError = ref('')
 const notice = ref('')
 const { loading, error, run } = usePageData()
+
+const paymentFilters = reactive({
+  date_from: '',
+  date_to: '',
+  student: '',
+  teacher: '',
+})
 
 const isTeacher = computed(() => auth.me?.role === 'teacher')
 const isAdmin = computed(() => Boolean(auth.me?.is_staff || auth.me?.role === 'admin'))
@@ -181,6 +226,7 @@ const summaryTotal = computed(() => summaries.value.reduce((total, row) => total
 const summaryName = computed(() => summaries.value.length === 1
   ? ('teacher_name' in summaries.value[0] ? summaries.value[0].teacher_name : summaries.value[0].student_name)
   : showingTeachers.value ? `${summaries.value.length} викладачів` : `${summaries.value.length} учнів`)
+const hasPaymentFilters = computed(() => Object.values(paymentFilters).some(Boolean))
 
 const paymentForm = reactive({
   kind: 'student' as 'student' | 'teacher',
@@ -214,9 +260,23 @@ function today() {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+function paymentsPath() {
+  const params = new URLSearchParams()
+  if (paymentFilters.date_from) params.set('date_from', paymentFilters.date_from)
+  if (paymentFilters.date_to) params.set('date_to', paymentFilters.date_to)
+  if (isAdmin.value && !showingTeachers.value && paymentFilters.student) {
+    params.set('student', paymentFilters.student)
+  }
+  if (isAdmin.value && showingTeachers.value && paymentFilters.teacher) {
+    params.set('teacher', paymentFilters.teacher)
+  }
+  const query = params.toString()
+  return `/api/my/payments/${query ? `?${query}` : ''}`
+}
+
 const load = () => run(async () => {
   const [payments, studentRows, teacherRows] = await Promise.all([
-    apiRequest<PaymentsResponse>('/api/my/payments/'),
+    apiRequest<PaymentsResponse>(paymentsPath()),
     isAdmin.value ? apiRequest<ProfileOption[]>('/api/users/students/') : Promise.resolve([]),
     isAdmin.value ? apiRequest<ProfileOption[]>('/api/users/teachers/') : Promise.resolve([]),
   ])
@@ -224,6 +284,11 @@ const load = () => run(async () => {
   students.value = studentRows
   teachers.value = teacherRows
 })
+
+async function clearPaymentFilters() {
+  Object.assign(paymentFilters, { date_from: '', date_to: '', student: '', teacher: '' })
+  await load()
+}
 
 function openPayment() {
   paymentForm.kind = financeMode.value === 'teachers' ? 'teacher' : 'student'
