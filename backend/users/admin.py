@@ -1,13 +1,45 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 from .models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, TelegramLinkToken, User
 
 
 @admin.register(User)
-class UserAdmin(admin.ModelAdmin):
+class UserAdmin(DjangoUserAdmin):
     list_display = ('telegram_username', 'telegram_chat_id', 'email', 'username', 'role', 'is_staff')
     list_filter = ('role', 'is_staff', 'is_active')
     search_fields = ('telegram_username', 'email', 'username', 'first_name', 'last_name')
+    fieldsets = DjangoUserAdmin.fieldsets + (
+        (
+            'Profile',
+            {
+                'fields': (
+                    'role',
+                    'phone',
+                    'telegram_username',
+                    'telegram_chat_id',
+                    'telegram_user_id',
+                ),
+            },
+        ),
+    )
+    add_fieldsets = DjangoUserAdmin.add_fieldsets + (
+        (
+            'Profile',
+            {
+                'fields': (
+                    'role',
+                    'phone',
+                    'telegram_username',
+                    'telegram_chat_id',
+                    'telegram_user_id',
+                    'email',
+                    'first_name',
+                    'last_name',
+                ),
+            },
+        ),
+    )
 
 
 @admin.register(StudentProfile)
