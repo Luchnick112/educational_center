@@ -1,9 +1,51 @@
+import secrets
+
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from academics.models import Lesson, LessonConfirmation, LessonParticipant, StudentEnrollment, StudyGroup, Subject
 from finance.models import ParentCharge, TeacherPayout
 from users.models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, TelegramLinkToken, User, UserRole
+
+
+class UserAdminPasswordChangeTestCase(TestCase):
+    def setUp(self):
+        self.admin_password = secrets.token_urlsafe(24)
+        self.original_password = secrets.token_urlsafe(24)
+        self.updated_password = secrets.token_urlsafe(24)
+        self.admin_user = User.objects.create_superuser(
+            username='admin',
+            password=self.admin_password,
+            role=UserRole.ADMIN,
+        )
+        self.user = User.objects.create_user(
+            username='teacher',
+            password=self.original_password,
+            role=UserRole.TEACHER,
+        )
+        self.client.force_login(self.admin_user)
+
+    def test_admin_can_change_user_password(self):
+        password_change_url = reverse('admin:auth_user_password_change', args=(self.user.pk,))
+        change_url = reverse('admin:users_user_change', args=(self.user.pk,))
+
+        change_response = self.client.get(change_url)
+        self.assertEqual(change_response.status_code, 200)
+        self.assertContains(change_response, 'href="../password/"')
+
+        response = self.client.post(
+            password_change_url,
+            {
+                'password1': self.updated_password,
+                'password2': self.updated_password,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.updated_password))
+        self.assertFalse(self.user.check_password(self.original_password))
 
 
 class DemoFixtureTestCase(TestCase):

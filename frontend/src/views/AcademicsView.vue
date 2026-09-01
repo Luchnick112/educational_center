@@ -5,8 +5,12 @@
       <div class="muted">Сторінка доступна лише для admin/staff.</div>
     </div>
 
-    <div v-else class="layout" :class="{ 'layout--single': isCreateRoute }">
-      <div v-if="!isCreateRoute" class="panel list-panel" :class="{ 'mobile-hidden-when-detail': selectedId }">
+    <div v-else class="layout" :class="{ 'layout--single': isCreateRoute, 'layout--group-list': isGroupList }">
+      <div
+        v-if="!isCreateRoute"
+        class="panel list-panel"
+        :class="{ 'mobile-hidden-when-detail': selectedId && !isGroupList }"
+      >
         <div class="row">
           <div class="tabs" role="tablist" aria-label="Academics resources">
             <button
@@ -45,13 +49,27 @@
         />
       </div>
 
-      <div v-if="!isCreateRoute || mode === 'create'" class="panel detail-panel" :class="{ 'detail-panel--active': selectedId || mode === 'create' }">
-        <div class="formwrap">
+      <div
+        v-if="isEditorVisible"
+        :class="isGroupDialog ? 'group-dialog' : 'detail-slot'"
+        @click.self="onEditorBackdropClick"
+      >
+        <div
+          class="panel detail-panel"
+          :class="{
+            'detail-panel--active': selectedId || mode === 'create',
+            'group-dialog__window': isGroupDialog,
+          }"
+          :role="isGroupDialog ? 'dialog' : undefined"
+          :aria-modal="isGroupDialog ? 'true' : undefined"
+          :aria-labelledby="isGroupDialog ? 'group-dialog-title' : undefined"
+        >
+          <div class="formwrap">
           <div class="formwrap__header">
-            <div class="formwrap__title">{{ formTitle }}</div>
+            <div :id="isGroupDialog ? 'group-dialog-title' : undefined" class="formwrap__title">{{ formTitle }}</div>
             <div class="formwrap__actions">
               <button v-if="mode === 'view' && selectedId" class="btn btn--ghost" type="button" @click="closeEditorAndRoute">
-                Назад
+                {{ isGroupDialog ? 'Закрити' : 'Назад' }}
               </button>
               <button v-if="mode === 'view'" class="btn btn--ghost" type="button" :disabled="!selectedId" @click="startEdit">
                 Редагувати
@@ -255,6 +273,7 @@
 
           <div style="height: 10px"></div>
           <JsonViewer v-if="mode === 'view'" :title="detailTitle" :value="detail" emptyText="" />
+          </div>
         </div>
       </div>
     </div>
@@ -262,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
@@ -302,6 +321,13 @@ const selectedId = ref<number | null>(null)
 
 const currentTab = computed(() => tabs.find((t) => t.key === active.value)!)
 const isCreateRoute = computed(() => route.name === 'academics-create')
+const isGroupList = computed(() => currentTab.value.key === 'groups' && !isCreateRoute.value)
+const isGroupDialog = computed(() => isGroupList.value && selectedId.value !== null)
+const isEditorVisible = computed(() => {
+  if (isCreateRoute.value) return mode.value === 'create'
+  if (isGroupList.value) return selectedId.value !== null
+  return true
+})
 const DETAIL_QUERY_KEY = 'item'
 const LIST_ROUTE_NAME = 'academics'
 const detailTitle = computed(() => {
@@ -312,6 +338,7 @@ const detailTitle = computed(() => {
 const mode = ref<Mode>('view')
 const saving = ref(false)
 const formError = ref<string | null>(null)
+let bodyOverflowBeforeGroupDialog: string | null = null
 const formTitle = computed(() => {
   const id = selectedId.value
   if (mode.value === 'create') return `Create ${currentTab.value.label}`
@@ -587,6 +614,18 @@ async function closeEditorAndRoute() {
   clearEditorState()
   if (!isCreateRoute.value) {
     await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
+  }
+}
+
+function onEditorBackdropClick() {
+  if (isGroupDialog.value && !saving.value) {
+    void closeEditorAndRoute()
+  }
+}
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isGroupDialog.value && !saving.value) {
+    void closeEditorAndRoute()
   }
 }
 
@@ -973,6 +1012,7 @@ async function onDelete() {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onWindowKeydown)
   await auth.bootstrap()
   if (isAllowed.value) {
     await ensureLookups()
@@ -982,6 +1022,26 @@ onMounted(async () => {
       await loadList()
       openDetailFromRoute()
     }
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
+  if (bodyOverflowBeforeGroupDialog !== null) {
+    document.body.style.overflow = bodyOverflowBeforeGroupDialog
+  }
+})
+
+watch(isGroupDialog, (open) => {
+  if (open) {
+    bodyOverflowBeforeGroupDialog = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return
+  }
+
+  if (bodyOverflowBeforeGroupDialog !== null) {
+    document.body.style.overflow = bodyOverflowBeforeGroupDialog
+    bodyOverflowBeforeGroupDialog = null
   }
 })
 
@@ -1033,6 +1093,27 @@ watch(
 }
 .layout--single {
   grid-template-columns: minmax(0, 760px);
+}
+.layout--group-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.detail-slot {
+  min-width: 0;
+}
+.group-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.48);
+}
+.group-dialog__window {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 36px);
+  margin: 0;
+  overflow: auto;
 }
 
 .actions {
@@ -1104,6 +1185,17 @@ watch(
   }
 }
 @media (max-width: 640px) {
+  .group-dialog {
+    place-items: stretch;
+    padding: 0;
+  }
+  .group-dialog__window {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-bottom: 20px;
+  }
   .mobile-hidden-when-detail {
     display: none;
   }
