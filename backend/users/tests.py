@@ -1,3 +1,5 @@
+import secrets
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -9,14 +11,17 @@ from users.models import ParentProfile, StudentParentRelation, StudentProfile, T
 
 class UserAdminPasswordChangeTestCase(TestCase):
     def setUp(self):
+        self.admin_password = secrets.token_urlsafe(24)
+        self.original_password = secrets.token_urlsafe(24)
+        self.updated_password = secrets.token_urlsafe(24)
         self.admin_user = User.objects.create_superuser(
             username='admin',
-            password='admin-pass-123',
+            password=self.admin_password,
             role=UserRole.ADMIN,
         )
         self.user = User.objects.create_user(
             username='teacher',
-            password='old-pass-123',
+            password=self.original_password,
             role=UserRole.TEACHER,
         )
         self.client.force_login(self.admin_user)
@@ -32,15 +37,15 @@ class UserAdminPasswordChangeTestCase(TestCase):
         response = self.client.post(
             password_change_url,
             {
-                'password1': 'new-pass-456',
-                'password2': 'new-pass-456',
+                'password1': self.updated_password,
+                'password2': self.updated_password,
             },
         )
 
         self.assertEqual(response.status_code, 302)
         self.user.refresh_from_db()
-        self.assertTrue(self.user.check_password('new-pass-456'))
-        self.assertFalse(self.user.check_password('old-pass-123'))
+        self.assertTrue(self.user.check_password(self.updated_password))
+        self.assertFalse(self.user.check_password(self.original_password))
 
 
 class DemoFixtureTestCase(TestCase):
