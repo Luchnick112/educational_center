@@ -38,22 +38,27 @@
           <span class="field__label">До</span>
           <input class="input" type="date" v-model="dateFilterTo" @change="reloadLessons()" />
         </label>
-        <label v-if="isAdmin" class="field">
-          <span class="field__label">Викладач</span>
-          <select class="input dropdown-list" v-model.number="teacherFilter" @change="reloadLessons()">
-            <option :value="null">Всі викладачі</option>
-            <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacherLabel(teacher) }}</option>
-          </select>
-        </label>
-        <label v-if="canManageLessons" class="field">
-          <span class="field__label">Група</span>
-          <select class="input dropdown-list" v-model="groupFilter" @change="reloadLessons()">
-            <option value="">Всі групи</option>
-            <option value="individual">Індивідуальні</option>
-            <option value="group">Групові</option>
-            <option v-for="group in groups" :key="group.id" :value="String(group.id)">{{ group.name || `Група #${group.id}` }}</option>
-          </select>
-        </label>
+        <SearchableSelect
+          v-if="isAdmin"
+          v-model="teacherFilter"
+          label="Викладач"
+          :options="teacherFilterOptions"
+          @change="reloadLessons()"
+        />
+        <SearchableSelect
+          v-if="canManageLessons"
+          v-model="studentFilter"
+          label="Учні"
+          :options="studentFilterOptions"
+          @change="reloadLessons()"
+        />
+        <SearchableSelect
+          v-if="canManageLessons"
+          v-model="groupFilter"
+          label="Група"
+          :options="groupFilterOptions"
+          @change="reloadLessons()"
+        />
         <button class="btn btn--ghost filter-clear" type="button" :disabled="!hasFilters" @click="clearFilters">
           Очистити
         </button>
@@ -241,6 +246,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import { apiRequest } from '@/lib/api'
 import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
 import { useAuthStore } from '@/stores/auth'
@@ -260,6 +266,7 @@ type LessonDetail = Lesson & { participants?: LessonParticipant[] }
 type ParticipantForm = { id: number; studentLabel: string; attendance_status: string; billed_amount: string; payroll_amount: string }
 type Group = { id: number; name?: string; teacher?: number | null; format?: string }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
+type Student = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string; cellClass?: (row: Lesson) => string }
 type LessonPageResponse = { count: number; page: number; page_size: number; results: Lesson[] }
 type LessonRescheduleRequest = {
@@ -292,6 +299,7 @@ const lessonGroupOpen = ref(false)
 const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
+const studentFilter = ref<number | null>(null)
 const groupFilter = ref('')
 const lessonPage = ref(1)
 const lessonPageSize = ref(20)
@@ -301,6 +309,7 @@ const selectedLesson = ref<Lesson | null>(null)
 const lessonDetailPanel = ref<HTMLElement | null>(null)
 const groups = ref<Group[]>([])
 const teachers = ref<Teacher[]>([])
+const students = ref<Student[]>([])
 const participantForms = ref<ParticipantForm[]>([])
 const rescheduleRequests = ref<LessonRescheduleRequest[]>([])
 let detailRequestSeq = 0
@@ -345,7 +354,12 @@ const columns = computed(() => {
 })
 
 const hasDateInterval = computed(() => Boolean(dateFilterFrom.value || dateFilterTo.value))
-const hasFilters = computed(() => hasDateInterval.value || teacherFilter.value !== null || groupFilter.value !== '')
+const hasFilters = computed(() => (
+  hasDateInterval.value
+  || teacherFilter.value !== null
+  || studentFilter.value !== null
+  || groupFilter.value !== ''
+))
 const canSeePayroll = computed(() => canManageLessons.value)
 const canSeeLessonBilledAmount = computed(() => isAdmin.value || !canManageLessons.value)
 const canSeeLessonPayrollAmount = computed(() => canManageLessons.value)
@@ -379,6 +393,20 @@ const filteredRows = computed(() => {
   if (!isAdmin.value || teacherFilter.value === null) return rows.value
   return rows.value.filter((lesson) => groupTeacherId(lesson.group) === teacherFilter.value)
 })
+const teacherFilterOptions = computed(() => [
+  { value: null, label: 'Всі викладачі' },
+  ...teachers.value.map((teacher) => ({ value: teacher.id, label: teacherLabel(teacher) })),
+])
+const studentFilterOptions = computed(() => [
+  { value: null, label: 'Всі учні' },
+  ...students.value.map((student) => ({ value: student.id, label: studentProfileLabel(student) })),
+])
+const groupFilterOptions = computed(() => [
+  { value: '', label: 'Всі групи' },
+  { value: 'individual', label: 'Індивідуальні' },
+  { value: 'group', label: 'Групові' },
+  ...groups.value.map((group) => ({ value: String(group.id), label: group.name || `Група #${group.id}` })),
+])
 const lessonPageCount = computed(() => Math.max(1, Math.ceil(lessonCount.value / lessonPageSize.value)))
 const lessonPageStart = computed(() => (lessonCount.value === 0 ? 0 : (lessonPage.value - 1) * lessonPageSize.value + 1))
 const lessonPageEnd = computed(() => Math.min(lessonCount.value, lessonPage.value * lessonPageSize.value))
@@ -484,6 +512,14 @@ function groupTeacherId(groupId: number | null) {
 function teacherLabel(teacher: Teacher) {
   const u = teacher.user_detail || {}
   return [u.first_name, u.last_name].filter(Boolean).join(' ') || u.telegram_username || u.email || `Викладач #${teacher.id}`
+}
+
+function studentProfileLabel(student: Student) {
+  const user = student.user_detail || {}
+  return [user.first_name, user.last_name].filter(Boolean).join(' ')
+    || user.telegram_username
+    || user.email
+    || `Учень #${student.id}`
 }
 
 function studentLabel(participant: LessonParticipant) {
@@ -674,15 +710,22 @@ async function onLessonClick(lesson: Lesson) {
 
 async function loadTeacherGroups() {
   if (isAdmin.value) {
-    const [groupItems, teacherItems] = await Promise.all([
+    const [groupItems, teacherItems, studentItems] = await Promise.all([
       apiRequest<Group[]>('/api/academics/groups/'),
       apiRequest<Teacher[]>('/api/users/teachers/'),
+      apiRequest<Student[]>('/api/users/students/'),
     ])
     groups.value = groupItems
     teachers.value = teacherItems
+    students.value = studentItems
     return
   }
-  groups.value = await apiRequest<Group[]>('/api/academics/groups/')
+  const [groupItems, studentItems] = await Promise.all([
+    apiRequest<Group[]>('/api/academics/groups/'),
+    canManageLessons.value ? apiRequest<Student[]>('/api/users/students/') : Promise.resolve([]),
+  ])
+  groups.value = groupItems
+  students.value = studentItems
 }
 
 async function loadLessons() {
@@ -690,6 +733,7 @@ async function loadLessons() {
   if (dateFilterFrom.value) params.set('date_from', dateFilterFrom.value)
   if (dateFilterTo.value) params.set('date_to', dateFilterTo.value)
   if (teacherFilter.value !== null) params.set('teacher', String(teacherFilter.value))
+  if (studentFilter.value !== null) params.set('student', String(studentFilter.value))
   if (groupFilter.value === 'individual' || groupFilter.value === 'group') {
     params.set('group_format', groupFilter.value)
   } else if (groupFilter.value) {
@@ -735,6 +779,7 @@ function clearFilters() {
   dateFilterFrom.value = ''
   dateFilterTo.value = ''
   teacherFilter.value = null
+  studentFilter.value = null
   groupFilter.value = ''
   void reloadLessons()
 }

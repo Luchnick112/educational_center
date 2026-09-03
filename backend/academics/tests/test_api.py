@@ -410,6 +410,25 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual([item['id'] for item in response.data], [other_lesson.id])
         self.assertNotIn(self.lesson.id, [item['id'] for item in response.data])
 
+    def test_teacher_my_lessons_can_be_filtered_by_present_student(self):
+        present_participant = self.lesson.participants.get(student=self.student)
+        present_participant.attendance_status = AttendanceStatus.PRESENT
+        present_participant.save(update_fields=['attendance_status'])
+        absent_lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() + timedelta(days=1),
+        )
+        absent_lesson.participants.filter(student=self.student).update(
+            attendance_status=AttendanceStatus.ABSENT,
+        )
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.get('/api/my/lessons/', {'student': self.student.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.data], [self.lesson.id])
+        self.assertNotIn(absent_lesson.id, [item['id'] for item in response.data])
+
     def test_teacher_my_lessons_can_be_filtered_by_group_format(self):
         individual_group = StudyGroup.objects.create(
             subject=self.subject,
