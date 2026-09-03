@@ -66,6 +66,16 @@ export type StudyGroup = {
   is_active?: boolean
 }
 
+export type GroupAttendanceRate = {
+  id: number
+  group: number
+  group_name?: string
+  present_count: number
+  teacher_rate: string | number
+  effective_from: string
+  created_at?: string
+}
+
 export type Subject = {
   id: number
   name: string

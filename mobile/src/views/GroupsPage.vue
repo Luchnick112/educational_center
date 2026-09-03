@@ -85,11 +85,11 @@
       <ion-header class="ion-no-border">
         <ion-toolbar>
           <ion-buttons slot="start">
-            <ion-button @click="closeEditor">Скасувати</ion-button>
+            <ion-button :disabled="saving || savingAttendanceRates" @click="closeEditor">Скасувати</ion-button>
           </ion-buttons>
           <ion-title>{{ editingId ? 'Редагувати групу' : 'Нова група' }}</ion-title>
           <ion-buttons slot="end">
-            <ion-button strong :disabled="saving" @click="saveGroup">Зберегти</ion-button>
+            <ion-button strong :disabled="saving || savingAttendanceRates" @click="saveGroup">Зберегти</ion-button>
           </ion-buttons>
         </ion-toolbar>
       </ion-header>
@@ -137,6 +137,54 @@
             </label>
           </div>
 
+          <fieldset v-if="isAdmin && editingId && form.format === 'group'" class="choice-list attendance-rate-section">
+            <legend>Виплата викладачу за присутніми</legend>
+
+            <div v-if="loadingAttendanceRates" class="attendance-rate-loading">
+              <ion-spinner name="crescent" />
+              <span>Завантаження ставок...</span>
+            </div>
+
+            <template v-else>
+              <label class="mobile-field">
+                <span>Дата початку дії</span>
+                <input
+                  v-model="attendanceRateForm.effective_from_date"
+                  class="mobile-control"
+                  type="date"
+                  @change="hydrateAttendanceRateFormFromRules"
+                />
+              </label>
+
+              <div class="attendance-rate-grid">
+                <label v-for="tier in attendanceRateTiers" :key="tier.present_count" class="mobile-field">
+                  <span>{{ tier.label }}</span>
+                  <input
+                    v-model="attendanceRateForm.rates[tier.present_count]"
+                    class="mobile-control"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputmode="decimal"
+                    placeholder="0.00"
+                  />
+                </label>
+              </div>
+
+              <ion-button
+                class="attendance-rate-submit"
+                expand="block"
+                fill="outline"
+                type="button"
+                :disabled="savingAttendanceRates || !attendanceRateForm.effective_from_date"
+                @click="saveAttendanceRateGrid"
+              >
+                <ion-spinner v-if="savingAttendanceRates" name="crescent" />
+                <span v-else>Зберегти ставки</span>
+              </ion-button>
+            </template>
+          </fieldset>
+
           <fieldset class="choice-list">
             <legend>Учні</legend>
             <p v-if="students.length === 0" class="field-hint">Доступних учнів немає</p>
@@ -155,7 +203,7 @@
             <ion-toggle v-model="form.is_active" aria-label="Активна група" />
           </label>
 
-          <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving">
+          <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving || savingAttendanceRates">
             <ion-spinner v-if="saving" name="crescent" />
             <span v-else>Зберегти групу</span>
           </ion-button>
@@ -187,7 +235,7 @@ import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
-import type { Enrollment, ProfileOption, StudyGroup, Subject } from '@/types/api'
+import type { Enrollment, GroupAttendanceRate, ProfileOption, StudyGroup, Subject } from '@/types/api'
 
 const auth = useAuthStore()
 const groups = ref<StudyGroup[]>([])
@@ -198,6 +246,8 @@ const enrollments = ref<Enrollment[]>([])
 const editorOpen = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
+const loadingAttendanceRates = ref(false)
+const savingAttendanceRates = ref(false)
 const formError = ref('')
 const notice = ref('')
 const { loading, error, run } = usePageData()
@@ -231,6 +281,28 @@ const form = reactive({
   is_active: true,
 })
 
+const attendanceRateTiers = [
+  { present_count: 1, label: '1 учень' },
+  { present_count: 2, label: '2 учні' },
+  { present_count: 3, label: '3 учні' },
+  { present_count: 4, label: '4+ учні' },
+]
+const attendanceRateRules = ref<GroupAttendanceRate[]>([])
+const attendanceRateForm = reactive({
+  effective_from_date: '',
+  rates: emptyAttendanceRateRates(),
+})
+const selectedGroupAttendanceRateRules = computed(() => {
+  if (!editingId.value) return []
+  return attendanceRateRules.value
+    .filter((rule) => Number(rule.group) === Number(editingId.value))
+    .sort((a, b) => (
+      a.present_count - b.present_count
+      || new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime()
+      || b.id - a.id
+    ))
+})
+
 function clearGroupFilters() {
   Object.assign(groupFilters, { teacher: '', student: '' })
 }
@@ -242,6 +314,63 @@ function profileLabel(profile: ProfileOption, fallback: string) {
     || user.telegram_username
     || user.email
     || `${fallback} #${profile.id}`
+}
+
+function todayDate() {
+  const date = new Date()
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function dateInputValue(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function emptyAttendanceRateRates() {
+  return Object.fromEntries(attendanceRateTiers.map((tier) => [tier.present_count, ''])) as Record<number, string>
+}
+
+function resetAttendanceRateForm() {
+  attendanceRateForm.effective_from_date = todayDate()
+  attendanceRateForm.rates = emptyAttendanceRateRates()
+  attendanceRateRules.value = []
+}
+
+function currentAttendanceRateRule(presentCount: number, date: string) {
+  return selectedGroupAttendanceRateRules.value
+    .filter((rule) => Number(rule.present_count) <= presentCount && dateInputValue(rule.effective_from) <= date)
+    .sort((a, b) => {
+      const byPresentCount = Number(b.present_count) - Number(a.present_count)
+      if (byPresentCount !== 0) return byPresentCount
+      const byDate = dateInputValue(b.effective_from).localeCompare(dateInputValue(a.effective_from))
+      if (byDate !== 0) return byDate
+      return b.id - a.id
+    })[0]
+}
+
+function hydrateAttendanceRateFormFromRules() {
+  const date = attendanceRateForm.effective_from_date
+  const rates = emptyAttendanceRateRates()
+  if (!editingId.value || !date) {
+    attendanceRateForm.rates = rates
+    return
+  }
+
+  for (const tier of attendanceRateTiers) {
+    const rule = currentAttendanceRateRule(tier.present_count, date)
+    rates[tier.present_count] = rule ? String(rule.teacher_rate) : ''
+  }
+  attendanceRateForm.rates = rates
+}
+
+async function loadAttendanceRateRules(groupId: number) {
+  const rules = await apiRequest<GroupAttendanceRate[]>(`/api/academics/group-attendance-rates/?group=${groupId}`)
+  attendanceRateRules.value = rules
+  hydrateAttendanceRateFormFromRules()
 }
 
 async function loadLookups() {
@@ -282,6 +411,7 @@ async function openCreate() {
     if (!subjects.value.length) await loadLookups()
     editingId.value = null
     resetForm()
+    resetAttendanceRateForm()
     editorOpen.value = true
   } catch (caught) {
     error.value = caught instanceof ApiError ? errorMessage(caught.payload) : 'Не вдалося завантажити дані форми'
@@ -304,17 +434,31 @@ async function openEdit(group: StudyGroup) {
         .map((item) => item.student),
       is_active: group.is_active ?? true,
     })
+    resetAttendanceRateForm()
     formError.value = ''
     editorOpen.value = true
+    if (isAdmin.value && form.format === 'group') {
+      loadingAttendanceRates.value = true
+      try {
+        await loadAttendanceRateRules(group.id)
+      } catch (caught) {
+        formError.value = caught instanceof ApiError
+          ? errorMessage(caught.payload, 'Не вдалося завантажити ставки за присутніми')
+          : 'Не вдалося завантажити ставки за присутніми'
+      } finally {
+        loadingAttendanceRates.value = false
+      }
+    }
   } catch (caught) {
     error.value = caught instanceof ApiError ? errorMessage(caught.payload) : 'Не вдалося завантажити групу'
   }
 }
 
 function closeEditor() {
-  if (saving.value) return
+  if (saving.value || savingAttendanceRates.value) return
   editorOpen.value = false
   editingId.value = null
+  resetAttendanceRateForm()
   formError.value = ''
 }
 
@@ -366,5 +510,106 @@ async function saveGroup() {
   }
 }
 
+async function saveAttendanceRateGrid() {
+  if (!editingId.value || !attendanceRateForm.effective_from_date) return
+
+  const parsedRates = attendanceRateTiers.map((tier) => {
+    const raw = attendanceRateForm.rates[tier.present_count] ?? ''
+    const rate = Number(String(raw).replace(',', '.'))
+    return { ...tier, raw, rate }
+  })
+  if (parsedRates.some((item) => item.raw === '' || !Number.isFinite(item.rate) || item.rate < 0)) {
+    formError.value = 'Заповніть ставки для 1, 2, 3 та 4+ учнів.'
+    return
+  }
+
+  savingAttendanceRates.value = true
+  formError.value = ''
+  try {
+    const groupId = editingId.value
+    const formDate = attendanceRateForm.effective_from_date
+    const effectiveFrom = new Date(`${formDate}T00:00:00`).toISOString()
+
+    for (const item of parsedRates) {
+      const matchingRules = selectedGroupAttendanceRateRules.value
+        .filter((rule) => Number(rule.present_count) === item.present_count && dateInputValue(rule.effective_from) === formDate)
+        .sort((a, b) => b.id - a.id)
+      const keep = matchingRules[0]
+
+      if (keep) {
+        await apiRequest<GroupAttendanceRate>(`/api/academics/group-attendance-rates/${keep.id}/`, {
+          method: 'PATCH',
+          body: {
+            teacher_rate: item.rate.toFixed(2),
+            effective_from: effectiveFrom,
+          },
+        })
+      } else {
+        await apiRequest<GroupAttendanceRate>('/api/academics/group-attendance-rates/', {
+          method: 'POST',
+          body: {
+            group: groupId,
+            present_count: item.present_count,
+            teacher_rate: item.rate.toFixed(2),
+            effective_from: effectiveFrom,
+          },
+        })
+      }
+
+      for (const duplicate of matchingRules.slice(1)) {
+        await apiRequest(`/api/academics/group-attendance-rates/${duplicate.id}/`, { method: 'DELETE' })
+      }
+    }
+
+    await loadAttendanceRateRules(groupId)
+    notice.value = 'Ставки за присутніми збережено.'
+  } catch (caught) {
+    formError.value = caught instanceof ApiError
+      ? errorMessage(caught.payload, 'Не вдалося зберегти ставки за присутніми')
+      : 'Не вдалося зберегти ставки за присутніми'
+  } finally {
+    savingAttendanceRates.value = false
+  }
+}
+
 onMounted(load)
 </script>
+
+<style scoped>
+.attendance-rate-section {
+  gap: 14px;
+  padding: 14px 12px 12px;
+}
+
+.attendance-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.attendance-rate-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 72px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.attendance-rate-loading ion-spinner {
+  width: 20px;
+  height: 20px;
+}
+
+.attendance-rate-submit {
+  --border-radius: 6px;
+  margin: 0;
+}
+
+@media (max-width: 380px) {
+  .attendance-rate-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

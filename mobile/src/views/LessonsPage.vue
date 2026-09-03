@@ -43,6 +43,15 @@
               </select>
             </label>
             <label v-if="canManage" class="mobile-field">
+              <span>Учні</span>
+              <select v-model="lessonFilters.student" class="mobile-control" @change="load">
+                <option value="">Усі учні</option>
+                <option v-for="student in students" :key="student.id" :value="String(student.id)">
+                  {{ profileLabel(student, 'Учень') }}
+                </option>
+              </select>
+            </label>
+            <label v-if="canManage" class="mobile-field">
               <span>Група</span>
               <select v-model="lessonFilters.group" class="mobile-control" @change="load">
                 <option value="">Усі групи</option>
@@ -83,6 +92,10 @@
                   <span class="status" :data-status="lesson.status">{{ statusLabel(lesson.status) }}</span>
                 </div>
                 <p>{{ formatDateTime(lesson.starts_at) }}</p>
+                <p v-if="canManage" class="lesson-payroll">
+                  <span>Оплата викладача</span>
+                  <strong>{{ formatMoney(lesson.payroll_amount) }}</strong>
+                </p>
                 <p v-if="lesson.notes" class="data-item__note">{{ lesson.notes }}</p>
               </div>
               <ion-icon class="item-chevron" :icon="chevronForwardOutline" aria-hidden="true" />
@@ -148,6 +161,11 @@
             </div>
             <span class="status" :data-status="selectedLesson.status">{{ statusLabel(selectedLesson.status) }}</span>
           </section>
+
+          <div v-if="canManage" class="lesson-payroll lesson-payroll--detail">
+            <span>Оплата викладача за урок</span>
+            <strong>{{ formatMoney(selectedLesson.payroll_amount) }}</strong>
+          </div>
 
           <label class="mobile-field">
             <span>Дата і час</span>
@@ -243,12 +261,13 @@ import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
-import { formatDateTime, statusLabel } from '@/utils/format'
+import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
 
 const auth = useAuthStore()
 const lessons = ref<Lesson[]>([])
 const groups = ref<StudyGroup[]>([])
 const teachers = ref<ProfileOption[]>([])
+const students = ref<ProfileOption[]>([])
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -272,6 +291,7 @@ const lessonFilters = reactive({
   date_from: '',
   date_to: '',
   teacher: '',
+  student: '',
   group: '',
 })
 
@@ -339,6 +359,7 @@ function lessonsPath() {
   if (lessonFilters.date_from) params.set('date_from', lessonFilters.date_from)
   if (lessonFilters.date_to) params.set('date_to', lessonFilters.date_to)
   if (lessonFilters.teacher) params.set('teacher', lessonFilters.teacher)
+  if (lessonFilters.student) params.set('student', lessonFilters.student)
   if (lessonFilters.group === 'individual' || lessonFilters.group === 'group') {
     params.set('group_format', lessonFilters.group)
   } else if (lessonFilters.group) {
@@ -349,19 +370,21 @@ function lessonsPath() {
 
 function load() {
   return run(async () => {
-    const [lessonPayload, groupPayload, teacherPayload] = await Promise.all([
+    const [lessonPayload, groupPayload, teacherPayload, studentPayload] = await Promise.all([
       apiRequest<Lesson[] | LessonPage>(lessonsPath()),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
       isAdmin.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
+      canManage.value ? apiRequest<ProfileOption[]>('/api/users/students/').catch(() => []) : Promise.resolve([]),
     ])
     lessons.value = Array.isArray(lessonPayload) ? lessonPayload : lessonPayload.results
     groups.value = groupPayload
     teachers.value = teacherPayload
+    students.value = studentPayload
   })
 }
 
 async function clearLessonFilters() {
-  Object.assign(lessonFilters, { date_from: '', date_to: '', teacher: '', group: '' })
+  Object.assign(lessonFilters, { date_from: '', date_to: '', teacher: '', student: '', group: '' })
   await load()
 }
 
@@ -551,3 +574,26 @@ function requestError(caught: unknown, fallback: string) {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.lesson-payroll {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 7px 0 0;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.lesson-payroll strong {
+  color: var(--app-ink);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.lesson-payroll--detail {
+  margin: -4px 0 0;
+  padding: 0 2px;
+}
+</style>

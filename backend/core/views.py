@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Max, Q, Sum
+from django.db.models import Exists, Max, OuterRef, Q, Sum
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema
@@ -12,6 +12,7 @@ from academics.models import (
     AttendanceStatus,
     Lesson,
     LessonConfirmation,
+    LessonParticipant,
     LessonRescheduleRequest,
     LessonRescheduleStatus,
     StudyGroupFormat,
@@ -111,6 +112,7 @@ class MyLessonsView(APIView):
         group_id = request.query_params.get('group')
         group_format = request.query_params.get('group_format')
         teacher_id = request.query_params.get('teacher')
+        student_id = request.query_params.get('student')
         has_group_format_filter = group_format in {StudyGroupFormat.INDIVIDUAL, StudyGroupFormat.GROUP}
         has_filter = (
             date_from is not None
@@ -118,6 +120,7 @@ class MyLessonsView(APIView):
             or bool(group_id)
             or has_group_format_filter
             or bool(teacher_id)
+            or bool(student_id)
         )
 
         if group_id:
@@ -126,6 +129,13 @@ class MyLessonsView(APIView):
             queryset = queryset.filter(group__format=group_format)
         if teacher_id:
             queryset = queryset.filter(group__teacher_id=teacher_id)
+        if student_id:
+            present_student = LessonParticipant.objects.filter(
+                lesson_id=OuterRef('pk'),
+                student_id=student_id,
+                attendance_status=AttendanceStatus.PRESENT,
+            )
+            queryset = queryset.filter(Exists(present_student))
         if date_from is not None:
             queryset = queryset.filter(starts_at__date__gte=date_from)
         if date_to is not None:

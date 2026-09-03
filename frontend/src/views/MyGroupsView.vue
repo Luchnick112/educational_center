@@ -1,6 +1,6 @@
 <template>
   <AppShell :title="isCreateRoute ? 'Створити групу' : 'Мої групи'">
-    <div v-if="!isCreateRoute" class="panel groups-panel" :class="{ 'groups-panel--detail-open': selectedGroupId }">
+    <div v-if="!isCreateRoute" class="panel groups-panel">
       <div class="panel__title">Список груп</div>
       <div v-if="notice" class="notice">{{ notice }}</div>
       <div class="groups-list">
@@ -109,10 +109,25 @@
         <div v-if="filteredGroupRows.length === 0" class="mobile-groups-list__empty">Груп не знайдено</div>
       </div>
       </div>
-      <div v-if="selectedGroupDetail" class="group-detail">
-        <div class="group-detail__header">
-          <div class="group-detail__title">{{ selectedGroupDetail.group.name || `Група #${selectedGroupDetail.group.id}` }}</div>
-          <button class="btn btn--ghost" type="button" @click="closeGroupDetail">Назад</button>
+    </div>
+
+    <div
+      v-if="!isCreateRoute && selectedGroupDetail && !showEditForm"
+      class="group-modal"
+      @click.self="closeGroupDetailFromBackdrop"
+    >
+      <div
+        class="panel group-detail group-modal__window group-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="group-detail-title"
+      >
+        <div class="group-detail__header group-modal__header">
+          <div id="group-detail-title" class="group-detail__title">{{ selectedGroupDetail.group.name || `Група #${selectedGroupDetail.group.id}` }}</div>
+          <div class="group-detail__actions">
+            <button v-if="canManageGroups" class="btn" type="button" @click="openEditForm">Редагувати</button>
+            <button class="btn btn--ghost" type="button" @click="closeGroupDetail">Закрити</button>
+          </div>
         </div>
         <div class="group-detail__grid">
           <div class="detail-item col-teacher">
@@ -199,8 +214,21 @@
       </div>
     </div>
 
-    <div v-if="showEditForm && editableGroup && canManageGroups" class="panel form">
-      <div class="panel__title">Редагувати групу {{ editableGroup.name || `#${editableGroup.id}` }}</div>
+    <div
+      v-if="showEditForm && editableGroup && canManageGroups"
+      class="group-modal"
+      @click.self="closeEditFormFromBackdrop"
+    >
+      <div
+        class="panel form group-modal__window group-edit-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="group-edit-title"
+      >
+      <div class="form-title-row group-modal__header">
+        <div id="group-edit-title" class="panel__title">Редагувати групу {{ editableGroup.name || `#${editableGroup.id}` }}</div>
+        <button class="btn btn--ghost" type="button" :disabled="saving || savingPricing || savingAttendanceRate" @click="closeEditForm">Скасувати</button>
+      </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="notice" class="notice">{{ notice }}</div>
       <div v-if="saving" class="muted">Зберігаю...</div>
@@ -324,12 +352,13 @@
         </table>
         <div v-else class="muted">Ставок за присутніми ще немає</div>
       </div>
+      </div>
     </div>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
 import { apiRequest } from '@/lib/api'
@@ -383,6 +412,7 @@ const savingAttendanceRate = ref(false)
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
 const selectedGroupId = ref<number | null>(null)
+let bodyOverflowBeforeGroupModal: string | null = null
 
 const subjectOpen = ref(false)
 const editSubjectOpen = ref(false)
@@ -488,6 +518,7 @@ const filteredGroupRows = computed(() => {
 })
 
 const selectedGroupDetail = computed(() => groupRows.value.find((row) => row.group.id === selectedGroupId.value) || null)
+const isGroupModalOpen = computed(() => !isCreateRoute.value && (!!selectedGroupDetail.value || showEditForm.value))
 
 const selectedTeacherFilterLabel = computed(() => (teacherFilter.value ? teacherLabel(teacherFilter.value) : 'Всі вчителі'))
 const selectedStudentFilterLabel = computed(() => {
@@ -811,6 +842,33 @@ async function closeGroupDetail() {
   await replaceWithoutDetailRoute(router, route, LIST_ROUTE_NAME, DETAIL_QUERY_KEY)
 }
 
+function closeGroupDetailFromBackdrop() {
+  if (!saving.value) void closeGroupDetail()
+}
+
+function closeEditForm() {
+  if (saving.value || savingPricing.value || savingAttendanceRate.value) return
+  showEditForm.value = false
+  editSubjectOpen.value = false
+  editStudentsOpen.value = false
+  error.value = null
+}
+
+function closeEditFormFromBackdrop() {
+  closeEditForm()
+}
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape') return
+  if (showEditForm.value) {
+    closeEditForm()
+    return
+  }
+  if (selectedGroupDetail.value && !saving.value) {
+    void closeGroupDetail()
+  }
+}
+
 function syncGroupDetailFromRoute() {
   if (isCreateRoute.value) return
   selectedGroupId.value = routeQueryId(route, DETAIL_QUERY_KEY)
@@ -1039,6 +1097,7 @@ async function saveAttendanceRateGrid() {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onWindowKeydown)
   loading.value = true
   try {
     await auth.bootstrap()
@@ -1055,6 +1114,26 @@ onMounted(async () => {
     error.value = apiErrorMessage(e, 'Не вдалося завантажити дані')
   } finally {
     loading.value = false
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onWindowKeydown)
+  if (bodyOverflowBeforeGroupModal !== null) {
+    document.body.style.overflow = bodyOverflowBeforeGroupModal
+  }
+})
+
+watch(isGroupModalOpen, (open) => {
+  if (open) {
+    bodyOverflowBeforeGroupModal = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return
+  }
+
+  if (bodyOverflowBeforeGroupModal !== null) {
+    document.body.style.overflow = bodyOverflowBeforeGroupModal
+    bodyOverflowBeforeGroupModal = null
   }
 })
 
@@ -1133,10 +1212,31 @@ watch(
   background: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
+.group-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.48);
+}
+.group-modal__window {
+  width: min(1040px, 100%);
+  max-height: calc(100vh - 36px);
+  margin: 0;
+  overflow: auto;
+}
+.group-detail-modal {
+  width: min(720px, 100%);
+}
+.group-detail__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .group-detail {
-  margin-top: 12px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  margin: 0;
 }
 .group-detail__header {
   display: flex;
@@ -1199,28 +1299,33 @@ watch(
   border-collapse: collapse;
 }
 @media (max-width: 760px) {
-  .groups-panel--detail-open > .panel__title,
-  .groups-panel--detail-open > .notice,
-  .groups-panel--detail-open > .groups-list {
-    display: none;
+  .group-modal {
+    place-items: stretch;
+    padding: 0;
   }
-  .groups-panel--detail-open {
-    min-height: calc(100vh - 96px);
+  .group-modal__window {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-bottom: 20px;
   }
   .group-detail {
     margin-top: 0;
     border-top: 0;
     padding-top: 0;
   }
-  .group-detail__header {
+  .group-modal__header {
     position: sticky;
     top: 0;
     z-index: 2;
-    padding-bottom: 10px;
+    margin: -14px -14px 14px;
+    padding: 12px 14px;
     background: var(--surface);
+    border-bottom: 1px solid var(--border);
   }
-  .group-detail__header .btn {
-    min-width: 92px;
+  .group-detail__actions {
+    flex: 0 0 auto;
   }
   .group-detail__title {
     font-size: 18px;
