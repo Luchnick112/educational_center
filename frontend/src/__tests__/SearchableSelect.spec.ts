@@ -26,9 +26,11 @@ describe('SearchableSelect', () => {
     await search.setValue('олег')
     const options = wrapper.findAll('.searchable-select__option')
     expect(options).toHaveLength(1)
-    expect(options[0].text()).toBe('Олег Бондар')
+    const firstOption = options[0]
+    if (!firstOption) throw new Error('Expected option not found')
+    expect(firstOption.text()).toBe('Олег Бондар')
 
-    await options[0].trigger('click')
+    await firstOption.trigger('click')
     expect(wrapper.emitted('update:modelValue')).toEqual([[2]])
     expect(wrapper.emitted('change')).toHaveLength(1)
     expect(wrapper.find('.searchable-select__menu').exists()).toBe(false)
