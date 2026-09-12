@@ -35,12 +35,19 @@ async function refreshAccessToken(refresh: string): Promise<string> {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ refresh }),
       })
-      const payload = (await parsePayload(response)) as { access?: string } | null
+      const payload = (await parsePayload(response)) as { access?: string; refresh?: string } | null
       if (!response.ok || !payload?.access) {
-        await tokenStorage.clear()
-        throw new ApiError('Сесію завершено. Увійдіть ще раз.', response.status, payload)
+        const sessionExpired = response.status === 400 || response.status === 401 || response.status === 403
+        if (sessionExpired) {
+          await tokenStorage.clear()
+        }
+        throw new ApiError(
+          sessionExpired ? 'Сесію завершено. Увійдіть ще раз.' : 'Не вдалося оновити сесію. Спробуйте ще раз.',
+          response.status,
+          payload,
+        )
       }
-      await tokenStorage.set({ access: payload.access, refresh })
+      await tokenStorage.set({ access: payload.access, refresh: payload.refresh ?? refresh })
       return payload.access
     })().finally(() => {
       refreshRequest = null

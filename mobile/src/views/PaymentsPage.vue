@@ -35,24 +35,18 @@
               <span>До</span>
               <input v-model="paymentFilters.date_to" class="mobile-control" type="date" />
             </label>
-            <label v-if="isAdmin && !showingTeachers" class="mobile-field">
-              <span>Учень</span>
-              <select v-model="paymentFilters.student" class="mobile-control">
-                <option value="">Усі учні</option>
-                <option v-for="student in students" :key="student.id" :value="String(student.id)">
-                  {{ profileLabel(student, 'Учень') }}
-                </option>
-              </select>
-            </label>
-            <label v-if="isAdmin && showingTeachers" class="mobile-field">
-              <span>Викладач</span>
-              <select v-model="paymentFilters.teacher" class="mobile-control">
-                <option value="">Усі викладачі</option>
-                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
-                  {{ profileLabel(teacher, 'Викладач') }}
-                </option>
-              </select>
-            </label>
+            <MobileSearchableSelect
+              v-if="isAdmin && !showingTeachers"
+              v-model="paymentFilters.student"
+              label="Учень"
+              :options="studentFilterOptions"
+            />
+            <MobileSearchableSelect
+              v-if="isAdmin && showingTeachers"
+              v-model="paymentFilters.teacher"
+              label="Викладач"
+              :options="teacherFilterOptions"
+            />
             <ion-button class="filter-submit" type="submit" :disabled="loading">Застосувати</ion-button>
           </form>
         </section>
@@ -178,6 +172,7 @@ import {
 } from '@ionic/vue'
 import { checkmarkCircleOutline } from 'ionicons/icons'
 import MobileHeader from '@/components/MobileHeader.vue'
+import MobileSearchableSelect from '@/components/MobileSearchableSelect.vue'
 import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
@@ -193,6 +188,7 @@ import type {
   TeacherSummary,
 } from '@/types/api'
 import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
+import { userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
 const data = ref<PaymentsResponse>({})
@@ -227,6 +223,8 @@ const summaryName = computed(() => summaries.value.length === 1
   ? ('teacher_name' in summaries.value[0] ? summaries.value[0].teacher_name : summaries.value[0].student_name)
   : showingTeachers.value ? `${summaries.value.length} викладачів` : `${summaries.value.length} учнів`)
 const hasPaymentFilters = computed(() => Object.values(paymentFilters).some(Boolean))
+const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
+const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
 
 const paymentForm = reactive({
   kind: 'student' as 'student' | 'teacher',

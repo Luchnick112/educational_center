@@ -33,24 +33,20 @@
               <span>До</span>
               <input v-model="lessonFilters.date_to" class="mobile-control" type="date" @change="load" />
             </label>
-            <label v-if="isAdmin" class="mobile-field">
-              <span>Викладач</span>
-              <select v-model="lessonFilters.teacher" class="mobile-control" @change="load">
-                <option value="">Усі викладачі</option>
-                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
-                  {{ profileLabel(teacher, 'Викладач') }}
-                </option>
-              </select>
-            </label>
-            <label v-if="canManage" class="mobile-field">
-              <span>Учні</span>
-              <select v-model="lessonFilters.student" class="mobile-control" @change="load">
-                <option value="">Усі учні</option>
-                <option v-for="student in students" :key="student.id" :value="String(student.id)">
-                  {{ profileLabel(student, 'Учень') }}
-                </option>
-              </select>
-            </label>
+            <MobileSearchableSelect
+              v-if="isAdmin"
+              v-model="lessonFilters.teacher"
+              label="Викладач"
+              :options="teacherFilterOptions"
+              @change="load"
+            />
+            <MobileSearchableSelect
+              v-if="canManage"
+              v-model="lessonFilters.student"
+              label="Учні"
+              :options="studentFilterOptions"
+              @change="load"
+            />
             <label v-if="canManage" class="mobile-field">
               <span>Група</span>
               <select v-model="lessonFilters.group" class="mobile-control" @change="load">
@@ -256,12 +252,14 @@ import {
   refreshOutline,
 } from 'ionicons/icons'
 import MobileHeader from '@/components/MobileHeader.vue'
+import MobileSearchableSelect from '@/components/MobileSearchableSelect.vue'
 import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
 import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
+import { userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
 const lessons = ref<Lesson[]>([])
@@ -296,6 +294,8 @@ const lessonFilters = reactive({
 })
 
 const hasLessonFilters = computed(() => Object.values(lessonFilters).some(Boolean))
+const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
+const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
 const lessonsCaption = computed(() => {
   if (lessons.value.length) return `${lessons.value.length} занять`
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'

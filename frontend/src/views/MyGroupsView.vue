@@ -10,20 +10,17 @@
         <button v-if="isAdmin" class="btn btn--ghost" type="button" :disabled="!selectedGroupId || saving" @click="deleteSelectedGroup">Видалити</button>
       </div>
       <div class="filters">
-        <div v-if="isAdmin" class="dropdown">
-          <button class="input dropdown__trigger" type="button" @click="teacherFilterOpen = !teacherFilterOpen">{{ selectedTeacherFilterLabel }}</button>
-          <div v-if="teacherFilterOpen" class="dropdown__menu dropdown-list">
-            <button class="dropdown__option" type="button" @click="setTeacherFilter(null)">Всі вчителі</button>
-            <button class="dropdown__option" v-for="t in teachers" :key="t.id" type="button" @click="setTeacherFilter(t.id)">{{ teacherLabel(t.id) }}</button>
-          </div>
-        </div>
-        <div class="dropdown">
-          <button class="input dropdown__trigger" type="button" @click="studentFilterOpen = !studentFilterOpen">{{ selectedStudentFilterLabel }}</button>
-          <div v-if="studentFilterOpen" class="dropdown__menu dropdown-list">
-            <button class="dropdown__option" type="button" @click="setStudentFilter(null)">Всі студенти</button>
-            <button class="dropdown__option" v-for="s in students" :key="s.id" type="button" @click="setStudentFilter(s.id)">{{ studentLabel(s) }}</button>
-          </div>
-        </div>
+        <SearchableSelect
+          v-if="isAdmin"
+          v-model="teacherFilter"
+          label="Вчитель"
+          :options="teacherFilterOptions"
+        />
+        <SearchableSelect
+          v-model="studentFilter"
+          label="Учень"
+          :options="studentFilterOptions"
+        />
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div v-else-if="loading" class="muted">Завантаження...</div>
@@ -361,8 +358,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import { apiRequest } from '@/lib/api'
 import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
+import { sortFilterOptions, userFilterLabel } from '@/lib/userFilterOptions'
 import { useAuthStore } from '@/stores/auth'
 
 type Subject = { id: number; name: string }
@@ -419,8 +418,6 @@ const editSubjectOpen = ref(false)
 const createTeacherOpen = ref(false)
 const createStudentsOpen = ref(false)
 const editStudentsOpen = ref(false)
-const teacherFilterOpen = ref(false)
-const studentFilterOpen = ref(false)
 
 const showCreateForm = ref(false)
 const showEditForm = ref(false)
@@ -520,12 +517,20 @@ const filteredGroupRows = computed(() => {
 const selectedGroupDetail = computed(() => groupRows.value.find((row) => row.group.id === selectedGroupId.value) || null)
 const isGroupModalOpen = computed(() => !isCreateRoute.value && (!!selectedGroupDetail.value || showEditForm.value))
 
-const selectedTeacherFilterLabel = computed(() => (teacherFilter.value ? teacherLabel(teacherFilter.value) : 'Всі вчителі'))
-const selectedStudentFilterLabel = computed(() => {
-  if (!studentFilter.value) return 'Всі студенти'
-  const s = students.value.find((x) => x.id === studentFilter.value)
-  return s ? studentLabel(s) : `Учень #${studentFilter.value}`
-})
+const teacherFilterOptions = computed(() => [
+  { value: null, label: 'Всі вчителі' },
+  ...sortFilterOptions(teachers.value.map((teacher) => ({
+    value: teacher.id,
+    label: userFilterLabel(teacher, 'Вчитель'),
+  }))),
+])
+const studentFilterOptions = computed(() => [
+  { value: null, label: 'Всі учні' },
+  ...sortFilterOptions(students.value.map((student) => ({
+    value: student.id,
+    label: userFilterLabel(student, 'Учень'),
+  }))),
+])
 
 function studentLabel(s: Student) {
   const u = s.user_detail || {}
@@ -695,16 +700,6 @@ function setCreateTeacher(teacherId: number | null) {
   error.value = null
   createForm.value.teacher = teacherId
   createTeacherOpen.value = false
-}
-
-function setTeacherFilter(teacherId: number | null) {
-  teacherFilter.value = teacherId
-  teacherFilterOpen.value = false
-}
-
-function setStudentFilter(studentId: number | null) {
-  studentFilter.value = studentId
-  studentFilterOpen.value = false
 }
 
 function activeEnrollmentsByGroup(groupId: number) {

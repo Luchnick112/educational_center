@@ -11,24 +11,18 @@
           <span class="field__label">До</span>
           <input class="input" type="date" v-model="filters.date_to" />
         </label>
-        <label v-if="isAdmin && activeTab === 'students'" class="field">
-          <span class="field__label">Учень</span>
-          <select class="input" v-model="filters.student">
-            <option value="">Всі учні</option>
-            <option v-for="student in students" :key="student.id" :value="String(student.id)">
-              {{ profileLabel(student) }}
-            </option>
-          </select>
-        </label>
-        <label v-if="isAdmin && activeTab === 'teachers'" class="field">
-          <span class="field__label">Викладач</span>
-          <select class="input" v-model="filters.teacher">
-            <option value="">Всі викладачі</option>
-            <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
-              {{ profileLabel(teacher) }}
-            </option>
-          </select>
-        </label>
+        <SearchableSelect
+          v-if="isAdmin && activeTab === 'students'"
+          v-model="filters.student"
+          label="Учень"
+          :options="studentFilterOptions"
+        />
+        <SearchableSelect
+          v-if="isAdmin && activeTab === 'teachers'"
+          v-model="filters.teacher"
+          label="Викладач"
+          :options="teacherFilterOptions"
+        />
         <button class="btn" type="submit" :disabled="loading">Оновити</button>
         <button class="btn btn--ghost" type="button" :disabled="loading" @click="clearFilters">Скинути</button>
       </form>
@@ -238,7 +232,9 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import { apiRequest } from '@/lib/api'
+import { sortFilterOptions, userFilterLabel } from '@/lib/userFilterOptions'
 import { useAuthStore } from '@/stores/auth'
 
 type Charge = {
@@ -363,6 +359,20 @@ const teacherPaymentForm = reactive({ teacher: '', paid_at: today(), amount: '',
 
 const isAdmin = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
 const isTeacher = computed(() => auth.me?.role === 'teacher')
+const studentFilterOptions = computed(() => [
+  { value: '', label: 'Всі учні' },
+  ...sortFilterOptions(students.value.map((student) => ({
+    value: String(student.id),
+    label: userFilterLabel(student, 'Учень'),
+  }))),
+])
+const teacherFilterOptions = computed(() => [
+  { value: '', label: 'Всі викладачі' },
+  ...sortFilterOptions(teachers.value.map((teacher) => ({
+    value: String(teacher.id),
+    label: userFilterLabel(teacher, 'Викладач'),
+  }))),
+])
 
 const studentSummaryRows = computed<StudentSummary[]>(() => {
   if (!data.value.charges.length && !data.value.student_payments.length) {

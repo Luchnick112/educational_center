@@ -25,6 +25,15 @@
           <div class="nav__section">Навчання</div>
           <RouterLink class="nav__link" to="/academics">Огляд</RouterLink>
         </template>
+
+        <a
+          class="nav__link"
+          href="https://helper-lesson.net/privacy/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Конфіденційність
+        </a>
       </nav>
     </aside>
 
@@ -107,6 +116,16 @@
           <div class="nav__section">Навчання</div>
           <RouterLink class="nav__link" to="/academics" @click="closeMobileNav">Огляд</RouterLink>
         </template>
+
+        <a
+          class="nav__link"
+          href="https://helper-lesson.net/privacy/"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click="closeMobileNav"
+        >
+          Конфіденційність
+        </a>
       </nav>
       <main class="content">
         <slot />

@@ -24,24 +24,17 @@
             </ion-button>
           </div>
           <div class="filter-grid">
-            <label v-if="isAdmin" class="mobile-field">
-              <span>Викладач</span>
-              <select v-model="groupFilters.teacher" class="mobile-control">
-                <option value="">Усі викладачі</option>
-                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
-                  {{ profileLabel(teacher, 'Викладач') }}
-                </option>
-              </select>
-            </label>
-            <label class="mobile-field">
-              <span>Учень</span>
-              <select v-model="groupFilters.student" class="mobile-control">
-                <option value="">Усі учні</option>
-                <option v-for="student in students" :key="student.id" :value="String(student.id)">
-                  {{ profileLabel(student, 'Учень') }}
-                </option>
-              </select>
-            </label>
+            <MobileSearchableSelect
+              v-if="isAdmin"
+              v-model="groupFilters.teacher"
+              label="Викладач"
+              :options="teacherFilterOptions"
+            />
+            <MobileSearchableSelect
+              v-model="groupFilters.student"
+              label="Учень"
+              :options="studentFilterOptions"
+            />
           </div>
         </section>
 
@@ -231,11 +224,13 @@ import {
 } from '@ionic/vue'
 import { createOutline } from 'ionicons/icons'
 import MobileHeader from '@/components/MobileHeader.vue'
+import MobileSearchableSelect from '@/components/MobileSearchableSelect.vue'
 import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Enrollment, GroupAttendanceRate, ProfileOption, StudyGroup, Subject } from '@/types/api'
+import { userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
 const groups = ref<StudyGroup[]>([])
@@ -257,6 +252,8 @@ const canManage = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 
 const groupFilters = reactive({ teacher: '', student: '' })
 const hasGroupFilters = computed(() => Boolean(groupFilters.teacher || groupFilters.student))
+const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
+const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
 const filteredGroups = computed(() => groups.value.filter((group) => {
   if (groupFilters.teacher && String(group.teacher ?? '') !== groupFilters.teacher) return false
   if (groupFilters.student) {
