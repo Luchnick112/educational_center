@@ -249,6 +249,7 @@ import DataTable from '@/components/DataTable.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
 import { apiRequest } from '@/lib/api'
 import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
+import { sortFilterOptions, userFilterLabel } from '@/lib/userFilterOptions'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -395,11 +396,17 @@ const filteredRows = computed(() => {
 })
 const teacherFilterOptions = computed(() => [
   { value: null, label: 'Всі викладачі' },
-  ...teachers.value.map((teacher) => ({ value: teacher.id, label: teacherLabel(teacher) })),
+  ...sortFilterOptions(teachers.value.map((teacher) => ({
+    value: teacher.id,
+    label: userFilterLabel(teacher, 'Викладач'),
+  }))),
 ])
 const studentFilterOptions = computed(() => [
   { value: null, label: 'Всі учні' },
-  ...students.value.map((student) => ({ value: student.id, label: studentProfileLabel(student) })),
+  ...sortFilterOptions(students.value.map((student) => ({
+    value: student.id,
+    label: userFilterLabel(student, 'Учень'),
+  }))),
 ])
 const groupFilterOptions = computed(() => [
   { value: '', label: 'Всі групи' },

@@ -16,13 +16,19 @@ export const useAuthStore = defineStore('auth', () => {
     return [me.value.first_name, me.value.last_name].filter(Boolean).join(' ') || me.value.telegram_username || me.value.email
   })
 
-  async function bootstrap() {
-    if (ready.value) return
+  async function bootstrap(force = false) {
+    if (ready.value && !force) return
+    error.value = ''
     try {
       const tokens = await tokenStorage.get()
       if (tokens) me.value = await apiRequest<MeResponse>('/api/me/')
-    } catch {
-      await tokenStorage.clear()
+      else me.value = null
+    } catch (caught) {
+      if (caught instanceof ApiError && (caught.status === 401 || caught.status === 403)) {
+        await tokenStorage.clear()
+      } else {
+        error.value = 'Не вдалося підключитися до сервера. Сесію збережено — спробуємо знову автоматично.'
+      }
       me.value = null
     } finally {
       ready.value = true
@@ -32,6 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(loginValue: string, password: string) {
     loading.value = true
     error.value = ''
+    let tokensSaved = false
     try {
       const tokens = await apiRequest<AuthTokens>('/api/users/token/', {
         method: 'POST',
@@ -39,9 +46,12 @@ export const useAuthStore = defineStore('auth', () => {
         body: { login: loginValue.trim(), password },
       })
       await tokenStorage.set(tokens)
+      tokensSaved = true
       me.value = await apiRequest<MeResponse>('/api/me/')
     } catch (caught) {
-      await tokenStorage.clear()
+      if (!tokensSaved || (caught instanceof ApiError && (caught.status === 401 || caught.status === 403))) {
+        await tokenStorage.clear()
+      }
       me.value = null
       error.value = caught instanceof ApiError
         ? errorMessage(caught.payload, 'Перевірте логін і пароль')
@@ -59,6 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     await tokenStorage.clear()
     me.value = null
+    error.value = ''
   }
 
   return { me, ready, loading, error, isAuthenticated, displayName, bootstrap, login, refreshMe, logout }

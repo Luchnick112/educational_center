@@ -21,6 +21,15 @@
 
         <div v-if="auth.error" class="error">{{ auth.error }}</div>
       </form>
+
+      <a
+        class="privacy-link"
+        href="https://helper-lesson.net/privacy/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Політика конфіденційності
+      </a>
     </div>
   </div>
 </template>
@@ -52,3 +61,14 @@ async function onSubmit() {
   await router.replace(redirectTargetAfterLogin())
 }
 </script>
+
+<style scoped>
+.privacy-link {
+  display: block;
+  margin-top: 22px;
+  color: var(--text-soft);
+  font-size: 13px;
+  text-align: center;
+  text-underline-offset: 3px;
+}
+</style>

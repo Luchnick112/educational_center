@@ -20,6 +20,25 @@
           </dl>
         </section>
 
+        <ion-button
+          href="https://helper-lesson.net/privacy/"
+          target="_blank"
+          rel="noopener noreferrer"
+          expand="block"
+          fill="clear"
+        >
+          Політика конфіденційності
+        </ion-button>
+
+        <ion-button
+          href="mailto:hello@helper-lesson.net?subject=%D0%92%D0%B8%D0%B4%D0%B0%D0%BB%D0%B5%D0%BD%D0%BD%D1%8F%20%D0%B0%D0%BA%D0%B0%D1%83%D0%BD%D1%82%D0%B0%20%D1%96%20%D0%B4%D0%B0%D0%BD%D0%B8%D1%85%20Helper"
+          expand="block"
+          fill="clear"
+          color="danger"
+        >
+          Видалити акаунт і дані
+        </ion-button>
+
         <ion-button expand="block" fill="outline" color="danger" @click="logout">
           <ion-icon slot="start" :icon="logOutOutline" />
           Вийти з акаунта

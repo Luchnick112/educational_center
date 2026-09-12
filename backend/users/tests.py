@@ -73,6 +73,36 @@ class DemoFixtureTestCase(TestCase):
         self.assertTrue(hasattr(student, 'student_profile'))
 
 
+class TokenRefreshTestCase(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username='session_user',
+            telegram_username='@session_user',
+            password='pass12345',
+            role=UserRole.TEACHER,
+        )
+
+    def test_refresh_rotates_token_for_sliding_mobile_session(self):
+        token_response = self.client.post(
+            '/api/users/token/',
+            {'login': '@session_user', 'password': 'pass12345'},
+            format='json',
+        )
+        self.assertEqual(token_response.status_code, 200, token_response.data)
+
+        refresh_response = self.client.post(
+            '/api/users/token/refresh/',
+            {'refresh': token_response.data['refresh']},
+            format='json',
+        )
+
+        self.assertEqual(refresh_response.status_code, 200, refresh_response.data)
+        self.assertIn('access', refresh_response.data)
+        self.assertIn('refresh', refresh_response.data)
+        self.assertNotEqual(refresh_response.data['refresh'], token_response.data['refresh'])
+
+
 class TelegramLinkFlowTestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
