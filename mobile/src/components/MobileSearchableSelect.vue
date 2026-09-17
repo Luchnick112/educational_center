@@ -14,7 +14,6 @@
 
     <div v-if="open" class="mobile-searchable-select__menu">
       <input
-        ref="searchInput"
         v-model="query"
         class="mobile-control mobile-searchable-select__search"
         type="search"
@@ -43,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { UserFilterOption } from '@/utils/userFilterOptions'
 
 const props = defineProps<{
@@ -58,7 +57,6 @@ const emit = defineEmits<{
 }>()
 
 const root = ref<HTMLElement | null>(null)
-const searchInput = ref<HTMLInputElement | null>(null)
 const open = ref(false)
 const query = ref('')
 
@@ -79,13 +77,9 @@ function close() {
   query.value = ''
 }
 
-async function toggle() {
+function toggle() {
   open.value = !open.value
   query.value = ''
-  if (open.value) {
-    await nextTick()
-    searchInput.value?.focus()
-  }
 }
 
 function select(value: string) {

@@ -12,6 +12,12 @@ export type MeResponse = {
   my?: Array<{ key: string; url: string }>
 }
 
+export type DashboardResponse = {
+  user: MeResponse
+  role: UserRole
+  stats: Record<string, number>
+}
+
 export type UserAccount = {
   id: number
   first_name: string

@@ -4,12 +4,13 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from finance.models import LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
+from finance.models import ChargeStatus, LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
 from users.models import ParentProfile, StudentParentRelation, StudentProfile, TeacherProfile, User, UserRole
 
 from academics.models import (
     AttendanceStatus,
     GroupAttendanceRate,
+    GroupPricing,
     Lesson,
     LessonStatus,
     StudentEnrollment,
@@ -99,6 +100,99 @@ class LessonSignalsTestCase(TestCase):
         participant = lesson.participants.get()
 
         self.assertEqual(participant.billed_amount, self.student.lesson_price)
+
+    def test_student_lesson_price_change_recalculates_existing_lessons(self):
+        lesson = Lesson.objects.create(group=self.group, starts_at=timezone.now() - timedelta(days=5))
+
+        self.student.lesson_price = Decimal('725.00')
+        self.student.save(update_fields=['lesson_price'])
+
+        self.assertEqual(lesson.participants.get().billed_amount, Decimal('725.00'))
+
+    def test_unrelated_student_change_keeps_manual_lesson_amount(self):
+        lesson = Lesson.objects.create(group=self.group, starts_at=timezone.now() - timedelta(days=5))
+        participant = lesson.participants.get()
+        participant.billed_amount = Decimal('999.00')
+        participant.save(update_fields=['billed_amount'])
+
+        self.student.notes = 'Updated note'
+        self.student.save(update_fields=['notes'])
+
+        participant.refresh_from_db()
+        self.assertEqual(participant.billed_amount, Decimal('999.00'))
+
+    def test_enrollment_price_override_change_recalculates_existing_lessons(self):
+        lesson = Lesson.objects.create(group=self.group, starts_at=timezone.now() - timedelta(days=5))
+
+        self.enrollment.student_price_override = Decimal('640.00')
+        self.enrollment.save(update_fields=['student_price_override'])
+
+        self.assertEqual(lesson.participants.get().billed_amount, Decimal('640.00'))
+
+    def test_backdated_group_pricing_recalculates_existing_lessons(self):
+        lesson = Lesson.objects.create(group=self.group, starts_at=timezone.now() - timedelta(days=5))
+
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('800.00'),
+            teacher_rate=Decimal('400.00'),
+            effective_from=lesson.starts_at - timedelta(days=1),
+        )
+
+        self.assertEqual(lesson.participants.get().billed_amount, Decimal('800.00'))
+
+    def test_lesson_creation_uses_group_price_effective_at_lesson_time(self):
+        effective_from = timezone.now() - timedelta(days=10)
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('800.00'),
+            teacher_rate=Decimal('400.00'),
+            effective_from=effective_from,
+        )
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('900.00'),
+            teacher_rate=Decimal('450.00'),
+            effective_from=timezone.now() + timedelta(days=1),
+        )
+
+        lesson = Lesson.objects.create(group=self.group, starts_at=effective_from + timedelta(days=1))
+
+        self.assertEqual(lesson.participants.get().billed_amount, Decimal('800.00'))
+
+    def test_student_price_change_recalculates_draft_charge_only(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+        lesson = self.create_completed_lesson(days_offset=0)
+        charge = lesson.participants.get().parent_charge
+
+        self.student.lesson_price = Decimal('725.00')
+        self.student.save(update_fields=['lesson_price'])
+        charge.refresh_from_db()
+        self.assertEqual(charge.amount, Decimal('725.00'))
+
+        charge.status = ChargeStatus.PAID
+        charge.save(update_fields=['status'])
+        self.student.lesson_price = Decimal('900.00')
+        self.student.save(update_fields=['lesson_price'])
+        charge.refresh_from_db()
+
+        self.assertEqual(lesson.participants.get().billed_amount, Decimal('900.00'))
+        self.assertEqual(charge.amount, Decimal('725.00'))
+
+    def test_backdated_group_pricing_recalculates_draft_group_charge(self):
+        lessons = [self.create_completed_lesson(days_offset=index) for index in range(10)]
+        charge = ParentCharge.objects.get()
+
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('650.00'),
+            teacher_rate=Decimal('400.00'),
+            effective_from=min(lesson.starts_at for lesson in lessons) - timedelta(days=1),
+        )
+
+        charge.refresh_from_db()
+        self.assertEqual(charge.amount, Decimal('6500.00'))
 
     def test_completed_individual_lesson_creates_parent_charge_and_teacher_payout_immediately(self):
         self.group.format = StudyGroupFormat.INDIVIDUAL

@@ -1,22 +1,29 @@
 from decimal import Decimal
 
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from finance.models import LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
-from users.models import StudentParentRelation
+from finance.models import ChargeStatus, LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
+from users.models import StudentParentRelation, StudentProfile
 
 from .constants import BILLING_LESSON_COUNT
 from .models import (
     AttendanceStatus,
     GroupAttendanceRate,
+    GroupPricing,
     Lesson,
     LessonParticipant,
     LessonStatus,
+    StudentEnrollment,
+    StudyGroup,
     StudyGroupFormat,
 )
-from .services import create_lesson_participants_for_enrollments, group_lesson_teacher_amount
+from .services import (
+    create_lesson_participants_for_enrollments,
+    group_lesson_teacher_amount,
+    recalculate_lesson_participant_billed_amounts,
+)
 
 
 def completed_lessons_count(group) -> int:
@@ -171,6 +178,64 @@ def _recalculate_draft_lesson_teacher_payouts_for_group(group) -> None:
         _recalculate_draft_lesson_teacher_payout(payout)
 
 
+def _parent_charge_participants(charge: ParentCharge):
+    if charge.lesson_count == 1:
+        return LessonParticipant.objects.filter(pk=charge.participant_id)
+
+    batch_start = (charge.billing_period - 1) * BILLING_LESSON_COUNT
+    lesson_ids = list(
+        Lesson.objects.filter(
+            group=charge.participant.lesson.group,
+            status=LessonStatus.COMPLETED,
+        )
+        .order_by('completed_at', 'id')
+        .values_list('id', flat=True)[batch_start:batch_start + BILLING_LESSON_COUNT]
+    )
+    return LessonParticipant.objects.filter(lesson_id__in=lesson_ids, student=charge.student)
+
+
+def _recalculate_draft_parent_charges(*, group=None, student=None, enrollment=None) -> None:
+    charges = ParentCharge.objects.filter(status=ChargeStatus.DRAFT).select_related(
+        'participant__lesson__group',
+    )
+    if group is not None:
+        charges = charges.filter(participant__lesson__group=group)
+    if student is not None:
+        charges = charges.filter(student=student)
+    if enrollment is not None:
+        charges = charges.filter(participant__enrollment=enrollment)
+
+    for charge in charges:
+        amount = sum(
+            _parent_charge_participants(charge).values_list('billed_amount', flat=True),
+            Decimal('0.00'),
+        )
+        if charge.amount != amount:
+            charge.amount = amount
+            charge.save(update_fields=['amount'])
+
+
+def _recalculate_student_billing(*, group=None, student=None, enrollment=None) -> None:
+    recalculate_lesson_participant_billed_amounts(
+        group=group,
+        student=student,
+        enrollment=enrollment,
+    )
+    _recalculate_draft_parent_charges(
+        group=group,
+        student=student,
+        enrollment=enrollment,
+    )
+
+
+def _remember_field_change(instance, field_name: str, attribute_name: str) -> None:
+    if instance.pk is None:
+        setattr(instance, attribute_name, False)
+        return
+    previous_value = type(instance).objects.filter(pk=instance.pk).values_list(field_name, flat=True).first()
+    setattr(instance, attribute_name, previous_value != getattr(instance, field_name))
+
+
 def _create_individual_financial_documents(lesson: Lesson) -> None:
     participants = lesson.participants.select_related(
         'student',
@@ -252,3 +317,54 @@ def recalculate_group_draft_payouts_after_attendance_rate_save(sender, instance:
 @receiver(post_delete, sender=GroupAttendanceRate)
 def recalculate_group_draft_payouts_after_attendance_rate_delete(sender, instance: GroupAttendanceRate, **kwargs):
     _recalculate_draft_lesson_teacher_payouts_for_group(instance.group)
+
+
+@receiver(post_save, sender=GroupPricing)
+def recalculate_student_billing_after_group_pricing_save(sender, instance: GroupPricing, **kwargs):
+    if kwargs.get('raw'):
+        return
+    _recalculate_student_billing(group=instance.group)
+
+
+@receiver(post_delete, sender=GroupPricing)
+def recalculate_student_billing_after_group_pricing_delete(sender, instance: GroupPricing, **kwargs):
+    _recalculate_student_billing(group=instance.group)
+
+
+@receiver(pre_save, sender=StudentProfile)
+def remember_student_lesson_price_change(sender, instance: StudentProfile, **kwargs):
+    if not kwargs.get('raw'):
+        _remember_field_change(instance, 'lesson_price', '_lesson_price_changed')
+
+
+@receiver(post_save, sender=StudentProfile)
+def recalculate_student_billing_after_student_price_save(sender, instance: StudentProfile, **kwargs):
+    if kwargs.get('raw') or not getattr(instance, '_lesson_price_changed', False):
+        return
+    _recalculate_student_billing(student=instance)
+
+
+@receiver(pre_save, sender=StudentEnrollment)
+def remember_enrollment_student_price_change(sender, instance: StudentEnrollment, **kwargs):
+    if not kwargs.get('raw'):
+        _remember_field_change(instance, 'student_price_override', '_student_price_override_changed')
+
+
+@receiver(post_save, sender=StudentEnrollment)
+def recalculate_student_billing_after_enrollment_price_save(sender, instance: StudentEnrollment, **kwargs):
+    if kwargs.get('raw') or not getattr(instance, '_student_price_override_changed', False):
+        return
+    _recalculate_student_billing(enrollment=instance)
+
+
+@receiver(pre_save, sender=StudyGroup)
+def remember_group_student_price_change(sender, instance: StudyGroup, **kwargs):
+    if not kwargs.get('raw'):
+        _remember_field_change(instance, 'student_price', '_student_price_changed')
+
+
+@receiver(post_save, sender=StudyGroup)
+def recalculate_student_billing_after_group_price_save(sender, instance: StudyGroup, created: bool, **kwargs):
+    if kwargs.get('raw') or created or not getattr(instance, '_student_price_changed', False):
+        return
+    _recalculate_student_billing(group=instance)
