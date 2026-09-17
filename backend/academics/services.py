@@ -64,6 +64,31 @@ def create_lesson_participants_for_enrollments(lesson: Lesson) -> int:
     return created_count
 
 
+def recalculate_lesson_participant_billed_amounts(*, group=None, student=None, enrollment=None) -> int:
+    participants = LessonParticipant.objects.select_related(
+        'lesson__group',
+        'enrollment__group',
+        'enrollment__student',
+    )
+    if group is not None:
+        participants = participants.filter(lesson__group=group)
+    if student is not None:
+        participants = participants.filter(student=student)
+    if enrollment is not None:
+        participants = participants.filter(enrollment=enrollment)
+
+    changed = []
+    for participant in participants:
+        billed_amount = participant.enrollment.get_student_price(participant.lesson.starts_at)
+        if participant.billed_amount != billed_amount:
+            participant.billed_amount = billed_amount
+            changed.append(participant)
+
+    if changed:
+        LessonParticipant.objects.bulk_update(changed, ['billed_amount'])
+    return len(changed)
+
+
 def sync_enrollment_scheduled_lesson_participants(enrollment: StudentEnrollment) -> int:
     if enrollment.status != EnrollmentStatus.ACTIVE:
         return 0

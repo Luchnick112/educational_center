@@ -47,17 +47,13 @@
               :options="studentFilterOptions"
               @change="load"
             />
-            <label v-if="canManage" class="mobile-field">
-              <span>Група</span>
-              <select v-model="lessonFilters.group" class="mobile-control" @change="load">
-                <option value="">Усі групи</option>
-                <option value="individual">Індивідуальні</option>
-                <option value="group">Групові</option>
-                <option v-for="group in groups" :key="group.id" :value="String(group.id)">
-                  {{ group.name || `Група #${group.id}` }}
-                </option>
-              </select>
-            </label>
+            <MobileSearchableSelect
+              v-if="canManage"
+              v-model="lessonFilters.group"
+              label="Група"
+              :options="groupFilterOptions"
+              @change="load"
+            />
           </div>
         </section>
 
@@ -296,6 +292,15 @@ const lessonFilters = reactive({
 const hasLessonFilters = computed(() => Object.values(lessonFilters).some(Boolean))
 const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
 const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
+const groupFilterOptions = computed(() => [
+  { value: '', label: 'Усі групи' },
+  { value: 'individual', label: 'Індивідуальні' },
+  { value: 'group', label: 'Групові' },
+  ...groups.value.map((group) => ({
+    value: String(group.id),
+    label: group.name || `Група #${group.id}`,
+  })),
+])
 const lessonsCaption = computed(() => {
   if (lessons.value.length) return `${lessons.value.length} занять`
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
