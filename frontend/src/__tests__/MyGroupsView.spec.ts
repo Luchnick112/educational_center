@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import { apiRequest } from '@/lib/api'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import MyGroupsView from '@/views/MyGroupsView.vue'
+
+const routerState = vi.hoisted(() => ({ name: 'my-groups' }))
 
 vi.mock('@/lib/api', () => ({ apiRequest: vi.fn() }))
 vi.mock('@/lib/detailRoute', () => ({
@@ -17,7 +20,7 @@ vi.mock('@/stores/auth', () => ({
   }),
 }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ name: 'my-groups', query: {} }),
+  useRoute: () => ({ name: routerState.name, query: {} }),
   useRouter: () => ({ push: vi.fn().mockResolvedValue(undefined) }),
 }))
 
@@ -28,6 +31,7 @@ afterEach(() => {
   wrapper?.unmount()
   wrapper = null
   document.body.style.overflow = ''
+  routerState.name = 'my-groups'
   vi.clearAllMocks()
 })
 
@@ -73,5 +77,53 @@ describe('MyGroupsView', () => {
     expect(wrapper.find('.group-detail-modal').exists()).toBe(false)
     expect(wrapper.get('.group-edit-modal').attributes('role')).toBe('dialog')
     expect(wrapper.get('#group-edit-title').text()).toContain('Математика 7')
+  })
+
+  it('shows searchable alphabetic lookups on the create route', async () => {
+    routerState.name = 'my-groups-create'
+    mockedApiRequest.mockImplementation(async (path) => {
+      if (path === '/api/academics/subjects/') {
+        return [{ id: 2, name: 'Японська' }, { id: 1, name: 'Англійська' }] as never
+      }
+      if (path === '/api/users/teachers/') {
+        return [
+          { id: 2, user_detail: { first_name: 'Анна', last_name: 'Яремчук' } },
+          { id: 1, user_detail: { first_name: 'Олег', last_name: 'Андрусенко' } },
+        ] as never
+      }
+      if (path === '/api/users/students/') {
+        return [
+          { id: 2, user_detail: { first_name: 'Анна', last_name: 'Яремчук' } },
+          { id: 1, user_detail: { first_name: 'Олег', last_name: 'Андрусенко' } },
+        ] as never
+      }
+      return [] as never
+    })
+
+    wrapper = mount(MyGroupsView, {
+      global: {
+        stubs: {
+          AppShell: { template: '<main><slot /></main>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    const searchableSelects = wrapper.findAllComponents(SearchableSelect)
+    expect(searchableSelects.map((select) => select.props('label'))).toEqual(['Предмет', 'Вчитель'])
+    expect(searchableSelects[0]?.props('options').map((option: { label: string }) => option.label)).toEqual([
+      'Оберіть предмет',
+      'Англійська',
+      'Японська',
+    ])
+
+    await wrapper.get('.student-picker .dropdown__trigger').trigger('click')
+    expect(wrapper.findAll('.student-picker .dropdown__item').map((item) => item.text())).toEqual([
+      'Андрусенко Олег',
+      'Яремчук Анна',
+    ])
+
+    await wrapper.get<HTMLInputElement>('.student-picker .dropdown__search').setValue('яремчук')
+    expect(wrapper.findAll('.student-picker .dropdown__item').map((item) => item.text())).toEqual(['Яремчук Анна'])
   })
 })

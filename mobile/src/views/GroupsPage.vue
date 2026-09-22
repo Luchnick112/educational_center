@@ -90,21 +90,18 @@
         <form class="mobile-form" @submit.prevent="saveGroup">
           <p v-if="formError" class="form-error form-error--panel">{{ formError }}</p>
 
-          <label class="mobile-field">
-            <span>Предмет</span>
-            <select v-model.number="form.subject" class="mobile-control" required>
-              <option :value="null" disabled>Оберіть предмет</option>
-              <option v-for="subject in subjects" :key="subject.id" :value="subject.id">{{ subject.name }}</option>
-            </select>
-          </label>
+          <MobileSearchableSelect
+            v-model="subjectModel"
+            label="Предмет"
+            :options="subjectOptions"
+          />
 
-          <label v-if="isAdmin" class="mobile-field">
-            <span>Викладач</span>
-            <select v-model.number="form.teacher" class="mobile-control" required>
-              <option :value="null" disabled>Оберіть викладача</option>
-              <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ profileLabel(teacher, 'Викладач') }}</option>
-            </select>
-          </label>
+          <MobileSearchableSelect
+            v-if="isAdmin"
+            v-model="teacherModel"
+            label="Викладач"
+            :options="teacherOptions"
+          />
 
           <label class="mobile-field">
             <span>Формат</span>
@@ -181,7 +178,18 @@
           <fieldset class="choice-list">
             <legend>Учні</legend>
             <p v-if="students.length === 0" class="field-hint">Доступних учнів немає</p>
-            <label v-for="student in students" :key="student.id" class="choice-row">
+            <label v-else class="mobile-field student-search-field">
+              <span>Пошук учня</span>
+              <input
+                v-model="studentQuery"
+                class="mobile-control"
+                type="search"
+                placeholder="Введіть ім’я..."
+                autocomplete="off"
+              />
+            </label>
+            <p v-if="students.length > 0 && filteredStudents.length === 0" class="field-hint">Нічого не знайдено</p>
+            <label v-for="student in filteredStudents" :key="student.id" class="choice-row">
               <span>{{ profileLabel(student, 'Учень') }}</span>
               <ion-checkbox
                 :checked="form.students.includes(student.id)"
@@ -230,7 +238,7 @@ import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Enrollment, GroupAttendanceRate, ProfileOption, StudyGroup, Subject } from '@/types/api'
-import { userFilterOptions } from '@/utils/userFilterOptions'
+import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
 const groups = ref<StudyGroup[]>([])
@@ -254,6 +262,33 @@ const groupFilters = reactive({ teacher: '', student: '' })
 const hasGroupFilters = computed(() => Boolean(groupFilters.teacher || groupFilters.student))
 const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
 const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
+const subjectOptions = computed(() => [
+  { value: '', label: 'Оберіть предмет' },
+  ...sortFilterOptions(subjects.value.map((subject) => ({ value: String(subject.id), label: subject.name }))),
+])
+const teacherOptions = computed(() => [
+  { value: '', label: 'Оберіть викладача' },
+  ...sortFilterOptions(teachers.value.map((teacher) => ({ value: String(teacher.id), label: profileLabel(teacher, 'Викладач') }))),
+])
+const subjectModel = computed({
+  get: () => form.subject == null ? '' : String(form.subject),
+  set: (value: string) => { form.subject = value ? Number(value) : null },
+})
+const teacherModel = computed({
+  get: () => form.teacher == null ? '' : String(form.teacher),
+  set: (value: string) => { form.teacher = value ? Number(value) : null },
+})
+const studentQuery = ref('')
+const sortedStudents = computed(() => sortFilterOptions(
+  students.value.map((student) => ({ student, label: profileLabel(student, 'Учень') })),
+))
+const filteredStudents = computed(() => {
+  const query = studentQuery.value.trim().toLocaleLowerCase('uk-UA')
+  const options = query
+    ? sortedStudents.value.filter((option) => option.label.toLocaleLowerCase('uk-UA').includes(query))
+    : sortedStudents.value
+  return options.map((option) => option.student)
+})
 const filteredGroups = computed(() => groups.value.filter((group) => {
   if (groupFilters.teacher && String(group.teacher ?? '') !== groupFilters.teacher) return false
   if (groupFilters.student) {
@@ -390,6 +425,7 @@ const load = () => run(async () => {
 })
 
 function resetForm() {
+  studentQuery.value = ''
   Object.assign(form, {
     subject: subjects.value[0]?.id ?? null,
     teacher: teachers.value[0]?.id ?? null,
@@ -418,6 +454,7 @@ async function openCreate() {
 async function openEdit(group: StudyGroup) {
   try {
     if (!subjects.value.length) await loadLookups()
+    studentQuery.value = ''
     editingId.value = group.id
     Object.assign(form, {
       subject: group.subject ?? null,
@@ -576,6 +613,10 @@ onMounted(load)
 .attendance-rate-section {
   gap: 14px;
   padding: 14px 12px 12px;
+}
+
+.student-search-field {
+  margin: 4px 0 8px;
 }
 
 .attendance-rate-grid {

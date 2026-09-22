@@ -7,6 +7,10 @@ export type UserFilterOption = {
 
 const ukrainianCollator = new Intl.Collator('uk-UA', { sensitivity: 'base' })
 
+export function sortFilterOptions<T extends { label: string }>(options: T[]) {
+  return [...options].sort((left, right) => ukrainianCollator.compare(left.label, right.label))
+}
+
 export function userFilterLabel(profile: ProfileOption, fallback: string) {
   const user = profile.user_detail
   if (!user) return `${fallback} #${profile.id}`
@@ -21,9 +25,9 @@ export function userFilterOptions(
   allLabel: string,
   fallback: string,
 ): UserFilterOption[] {
-  const options = profiles
-    .map((profile) => ({ value: String(profile.id), label: userFilterLabel(profile, fallback) }))
-    .sort((left, right) => ukrainianCollator.compare(left.label, right.label))
+  const options = sortFilterOptions(
+    profiles.map((profile) => ({ value: String(profile.id), label: userFilterLabel(profile, fallback) })),
+  )
 
   return [{ value: '', label: allLabel }, ...options]
 }
