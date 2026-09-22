@@ -4,6 +4,7 @@
     <button
       class="input searchable-select__trigger"
       type="button"
+      :disabled="disabled"
       :aria-expanded="open"
       aria-haspopup="listbox"
       @click="toggle"
@@ -50,6 +51,7 @@ const props = defineProps<{
   label: string
   modelValue: SelectValue
   options: SelectOption[]
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -80,6 +82,7 @@ function close() {
 }
 
 async function toggle() {
+  if (props.disabled) return
   open.value = !open.value
   query.value = ''
   if (open.value) {

@@ -37,4 +37,19 @@ describe('SearchableSelect', () => {
 
     wrapper.unmount()
   })
+
+  it('does not open when disabled', async () => {
+    const wrapper = mount(SearchableSelect, {
+      props: {
+        label: 'Група',
+        modelValue: 1,
+        options: [{ value: 1, label: 'Англійська' }],
+        disabled: true,
+      },
+    })
+
+    await wrapper.get('.searchable-select__trigger').trigger('click')
+
+    expect(wrapper.find('.searchable-select__menu').exists()).toBe(false)
+  })
 })

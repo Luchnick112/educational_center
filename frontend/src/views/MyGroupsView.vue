@@ -170,20 +170,8 @@
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div class="grid">
-        <div class="dropdown">
-          <button class="input dropdown__trigger" type="button" @click="subjectOpen = !subjectOpen">{{ selectedCreateSubjectLabel }}</button>
-          <div v-if="subjectOpen" class="dropdown__menu dropdown-list">
-            <button class="dropdown__option" type="button" @click="setCreateSubject(null)">Предмет...</button>
-            <button class="dropdown__option" v-for="s in subjects" :key="s.id" type="button" @click="setCreateSubject(s.id)">{{ s.name }}</button>
-          </div>
-        </div>
-        <div v-if="isAdmin" class="dropdown">
-          <button class="input dropdown__trigger" type="button" @click="createTeacherOpen = !createTeacherOpen">{{ selectedCreateTeacherLabel }}</button>
-          <div v-if="createTeacherOpen" class="dropdown__menu dropdown-list">
-            <button class="dropdown__option" type="button" @click="setCreateTeacher(null)">Вчитель...</button>
-            <button class="dropdown__option" v-for="t in teachers" :key="t.id" type="button" @click="setCreateTeacher(t.id)">{{ teacherLabel(t.id) }}</button>
-          </div>
-        </div>
+        <SearchableSelect v-model="createForm.subject" label="Предмет" :options="createSubjectOptions" />
+        <SearchableSelect v-if="isAdmin" v-model="createForm.teacher" label="Вчитель" :options="createTeacherOptions" />
         <label class="field">
           <span class="field__label">Тип</span>
           <select class="input" v-model="createForm.format">
@@ -198,13 +186,22 @@
           <div class="field__label">Ставка вчителя</div>
           <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.teacher_rate" />
         </div>
-        <div class="dropdown">
+        <div class="dropdown student-picker">
           <button class="input dropdown__trigger" type="button" @click="createStudentsOpen = !createStudentsOpen">{{ selectedStudentsLabel(createForm.students) }}</button>
           <div v-if="createStudentsOpen" class="dropdown__menu dropdown-list dropdown__menu--static">
-            <label v-for="s in students" :key="s.id" class="dropdown__item">
-              <input type="checkbox" :checked="createForm.students.includes(s.id)" @change="toggleStudentSelection(createForm.students, s.id)" />
-              <span>{{ studentLabel(s) }}</span>
+            <input
+              v-model="createStudentQuery"
+              class="input dropdown__search"
+              type="search"
+              placeholder="Пошук учня..."
+              autocomplete="off"
+              aria-label="Пошук учня"
+            />
+            <label v-for="option in filteredCreateStudentOptions" :key="option.value" class="dropdown__item">
+              <input type="checkbox" :checked="createForm.students.includes(option.value)" @change="toggleStudentSelection(createForm.students, option.value)" />
+              <span>{{ option.label }}</span>
             </label>
+            <div v-if="filteredCreateStudentOptions.length === 0" class="muted dropdown__empty">Нічого не знайдено</div>
           </div>
         </div>
         <button class="btn" type="button" :disabled="saving" @click="createGroup">{{ saving ? 'Збереження...' : 'Створити групу' }}</button>
@@ -413,11 +410,10 @@ const notice = ref<string | null>(null)
 const selectedGroupId = ref<number | null>(null)
 let bodyOverflowBeforeGroupModal: string | null = null
 
-const subjectOpen = ref(false)
 const editSubjectOpen = ref(false)
-const createTeacherOpen = ref(false)
 const createStudentsOpen = ref(false)
 const editStudentsOpen = ref(false)
+const createStudentQuery = ref('')
 
 const showCreateForm = ref(false)
 const showEditForm = ref(false)
@@ -473,16 +469,6 @@ const selectedGroupAttendanceRateRules = computed(() => {
     .sort((a, b) => a.present_count - b.present_count || new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime() || b.id - a.id)
 })
 
-const selectedCreateSubjectLabel = computed(() => {
-  if (!createForm.value.subject) return 'Предмет...'
-  return subjects.value.find((s) => s.id === createForm.value.subject)?.name || 'Предмет...'
-})
-
-const selectedCreateTeacherLabel = computed(() => {
-  if (!createForm.value.teacher) return 'Вчитель...'
-  return teacherLabel(createForm.value.teacher)
-})
-
 const selectedEditSubjectLabel = computed(() => {
   if (!editForm.value.subject) return 'Предмет...'
   return subjects.value.find((s) => s.id === editForm.value.subject)?.name || 'Предмет...'
@@ -531,6 +517,26 @@ const studentFilterOptions = computed(() => [
     label: userFilterLabel(student, 'Учень'),
   }))),
 ])
+const createSubjectOptions = computed(() => [
+  { value: null, label: 'Оберіть предмет' },
+  ...sortFilterOptions(subjects.value.map((subject) => ({ value: subject.id, label: subject.name }))),
+])
+const createTeacherOptions = computed(() => [
+  { value: null, label: 'Оберіть викладача' },
+  ...sortFilterOptions(teachers.value.map((teacher) => ({
+    value: teacher.id,
+    label: userFilterLabel(teacher, 'Викладач'),
+  }))),
+])
+const createStudentOptions = computed(() => sortFilterOptions(students.value.map((student) => ({
+  value: student.id,
+  label: userFilterLabel(student, 'Учень'),
+}))))
+const filteredCreateStudentOptions = computed(() => {
+  const query = createStudentQuery.value.trim().toLocaleLowerCase('uk-UA')
+  if (!query) return createStudentOptions.value
+  return createStudentOptions.value.filter((option) => option.label.toLocaleLowerCase('uk-UA').includes(query))
+})
 
 function studentLabel(s: Student) {
   const u = s.user_detail || {}
@@ -681,25 +687,11 @@ function toggleStudentSelection(target: number[], studentId: number) {
   else target.push(studentId)
 }
 
-function setCreateSubject(subjectId: number | null) {
-  notice.value = null
-  error.value = null
-  createForm.value.subject = subjectId
-  subjectOpen.value = false
-}
-
 function setEditSubject(subjectId: number | null) {
   notice.value = null
   error.value = null
   editForm.value.subject = subjectId
   editSubjectOpen.value = false
-}
-
-function setCreateTeacher(teacherId: number | null) {
-  notice.value = null
-  error.value = null
-  createForm.value.teacher = teacherId
-  createTeacherOpen.value = false
 }
 
 function activeEnrollmentsByGroup(groupId: number) {
@@ -815,9 +807,8 @@ function resetCreateForm() {
     teacher_rate: 0,
     students: [],
   }
-  subjectOpen.value = false
-  createTeacherOpen.value = false
   createStudentsOpen.value = false
+  createStudentQuery.value = ''
   showEditForm.value = false
   showCreateForm.value = true
 }
@@ -1183,6 +1174,12 @@ watch(
 .dropdown__menu--static {
   position: static;
   margin-top: 4px;
+}
+.dropdown__search {
+  margin-bottom: 6px;
+}
+.dropdown__empty {
+  padding: 8px;
 }
 .dropdown__option {
   width: 100%;

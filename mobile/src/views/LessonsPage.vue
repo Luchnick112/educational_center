@@ -108,13 +108,11 @@
       <ion-content>
         <form class="mobile-form" @submit.prevent="createLesson">
           <p v-if="formError" class="form-error form-error--panel">{{ formError }}</p>
-          <label class="mobile-field">
-            <span>Група</span>
-            <select v-model.number="createForm.group" class="mobile-control" required>
-              <option :value="null" disabled>Оберіть групу</option>
-              <option v-for="group in activeGroups" :key="group.id" :value="group.id">{{ group.name || `Група #${group.id}` }}</option>
-            </select>
-          </label>
+          <MobileSearchableSelect
+            v-model="createGroupModel"
+            label="Група"
+            :options="createGroupOptions"
+          />
           <label class="mobile-field">
             <span>Дата і час</span>
             <input v-model="createForm.starts_at" class="mobile-control" type="datetime-local" required />
@@ -255,7 +253,7 @@ import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
 import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
-import { userFilterOptions } from '@/utils/userFilterOptions'
+import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
 const lessons = ref<Lesson[]>([])
@@ -280,6 +278,17 @@ const canEditTime = computed(() => {
   return isAdmin.value || ['scheduled', 'cancelled'].includes(selectedLesson.value.status)
 })
 const activeGroups = computed(() => groups.value.filter((group) => group.is_active !== false))
+const createGroupOptions = computed(() => [
+  { value: '', label: 'Оберіть групу' },
+  ...sortFilterOptions(activeGroups.value.map((group) => ({
+    value: String(group.id),
+    label: group.name || `Група #${group.id}`,
+  }))),
+])
+const createGroupModel = computed({
+  get: () => createForm.group == null ? '' : String(createForm.group),
+  set: (value: string) => { createForm.group = value ? Number(value) : null },
+})
 
 const lessonFilters = reactive({
   date_from: '',
@@ -394,7 +403,8 @@ async function clearLessonFilters() {
 }
 
 function openCreate() {
-  createForm.group = activeGroups.value[0]?.id ?? null
+  const firstGroup = createGroupOptions.value.find((option) => option.value)
+  createForm.group = firstGroup ? Number(firstGroup.value) : null
   createForm.starts_at = nextLessonTime()
   createForm.notes = ''
   formError.value = ''

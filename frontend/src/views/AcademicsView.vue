@@ -103,20 +103,18 @@
 
             <!-- Groups -->
             <template v-else-if="currentTab.key === 'groups'">
-              <div class="field">
-                <div class="field__label">Предмет</div>
-                <select class="input" v-model.number="form.group.subject" :disabled="mode === 'view'">
-                  <option :value="null">Оберіть...</option>
-                  <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
-                </select>
-              </div>
-              <div class="field">
-                <div class="field__label">Вчитель</div>
-                <select class="input" v-model.number="form.group.teacher" :disabled="mode === 'view'">
-                  <option :value="null">Оберіть...</option>
-                  <option v-for="t in teachers" :key="t.id" :value="t.id">{{ teacherLabel(t) }}</option>
-                </select>
-              </div>
+              <SearchableSelect
+                v-model="form.group.subject"
+                label="Предмет"
+                :options="subjectOptions"
+                :disabled="mode === 'view'"
+              />
+              <SearchableSelect
+                v-model="form.group.teacher"
+                label="Вчитель"
+                :options="teacherOptions"
+                :disabled="mode === 'view'"
+              />
               <div class="field">
                 <div class="field__label">Тип</div>
                 <select class="input" v-model="form.group.format" :disabled="mode === 'view'">
@@ -137,9 +135,27 @@
               </div>
               <div class="field">
                 <div class="field__label">Студенти</div>
-                <select class="input" multiple v-model="form.group.students" :disabled="mode === 'view'">
-                  <option v-for="s in students" :key="s.id" :value="s.id">{{ studentLabel(s) }}</option>
-                </select>
+                <input
+                  v-model="groupStudentQuery"
+                  class="input student-search"
+                  type="search"
+                  placeholder="Пошук учня..."
+                  autocomplete="off"
+                  :disabled="mode === 'view'"
+                  aria-label="Пошук учня"
+                />
+                <div class="student-option-list">
+                  <label v-for="option in filteredStudentOptions" :key="option.value" class="student-option">
+                    <span>{{ option.label }}</span>
+                    <input
+                      type="checkbox"
+                      :checked="form.group.students.includes(option.value)"
+                      :disabled="mode === 'view'"
+                      @change="toggleGroupStudent(option.value, $event)"
+                    />
+                  </label>
+                </div>
+                <div v-if="filteredStudentOptions.length === 0" class="muted">Нічого не знайдено</div>
               </div>
               <label class="check">
                 <input type="checkbox" v-model="form.group.is_active" :disabled="mode === 'view'" />
@@ -193,13 +209,12 @@
 
             <!-- Lessons -->
             <template v-else-if="currentTab.key === 'lessons'">
-              <div class="field">
-                <div class="field__label">Група</div>
-                <select class="input" v-model.number="form.lesson.group" :disabled="mode === 'view'">
-                  <option :value="null">Оберіть...</option>
-                  <option v-for="g in groups" :key="g.id" :value="g.id">{{ groupLabel(g) }}</option>
-                </select>
-              </div>
+              <SearchableSelect
+                v-model="form.lesson.group"
+                label="Група"
+                :options="groupOptions"
+                :disabled="mode === 'view'"
+              />
               <div class="field">
                 <div class="field__label">Початок</div>
                 <input class="input" type="datetime-local" v-model="form.lesson.starts_at_local" :disabled="mode === 'view'" />
@@ -286,8 +301,10 @@ import { useRoute, useRouter } from 'vue-router'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import JsonViewer from '@/components/JsonViewer.vue'
+import SearchableSelect from '@/components/SearchableSelect.vue'
 import { apiRequest } from '@/lib/api'
 import { pushDetailRoute, replaceWithoutDetailRoute, routeQueryId } from '@/lib/detailRoute'
+import { sortFilterOptions } from '@/lib/userFilterOptions'
 import { useAuthStore } from '@/stores/auth'
 
 type TabKey = 'subjects' | 'groups' | 'enrollments' | 'lessons' | 'confirmations'
@@ -400,6 +417,28 @@ const groups = ref<GroupRow[]>([])
   const participants = ref<ParticipantRow[]>([])
   const enrollments = ref<EnrollmentRow[]>([])
   const enrollmentsLoaded = ref(false)
+const groupStudentQuery = ref('')
+
+const subjectOptions = computed(() => [
+  { value: null, label: 'Оберіть предмет' },
+  ...sortFilterOptions(subjects.value.map((subject) => ({ value: subject.id, label: subject.name }))),
+])
+const teacherOptions = computed(() => [
+  { value: null, label: 'Оберіть викладача' },
+  ...sortFilterOptions(teachers.value.map((teacher) => ({ value: teacher.id, label: teacherLabel(teacher) }))),
+])
+const studentOptions = computed(() => sortFilterOptions(
+  students.value.map((student) => ({ value: student.id, label: studentLabel(student) })),
+))
+const filteredStudentOptions = computed(() => {
+  const query = groupStudentQuery.value.trim().toLocaleLowerCase('uk-UA')
+  if (!query) return studentOptions.value
+  return studentOptions.value.filter((option) => option.label.toLocaleLowerCase('uk-UA').includes(query))
+})
+const groupOptions = computed(() => [
+  { value: null, label: 'Оберіть групу' },
+  ...sortFilterOptions(groups.value.map((group) => ({ value: group.id, label: groupLabel(group) }))),
+])
 
 const form = ref({
   subject: { name: '', description: '' },
@@ -646,6 +685,7 @@ function localFromIso(iso: string) {
 }
 
 function hydrateFormFromDetail(resetForCreate = false) {
+  groupStudentQuery.value = ''
   const tab = currentTab.value.key
   if (resetForCreate || !detail.value || typeof detail.value !== 'object') {
     form.value.subject = { name: '', description: '' }
@@ -718,6 +758,12 @@ function studentLabel(s: StudentRow) {
   const u = s.user_detail || {}
   const name = [u.first_name, u.last_name].filter(Boolean).join(' ')
   return name || u.telegram_username || u.email || `Учень #${s.id}`
+}
+function toggleGroupStudent(studentId: number, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  form.value.group.students = checked
+    ? Array.from(new Set([...form.value.group.students, studentId]))
+    : form.value.group.students.filter((id) => id !== studentId)
 }
 function groupLabel(g: GroupRow) {
   return g.name || `Група #${g.id}`
@@ -1149,6 +1195,26 @@ watch(
 .ta {
   min-height: 90px;
   resize: vertical;
+}
+.student-search {
+  margin-bottom: 8px;
+}
+.student-option-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.student-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+.student-option + .student-option {
+  border-top: 1px solid var(--border-strong);
 }
 .check {
   display: flex;

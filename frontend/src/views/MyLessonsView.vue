@@ -10,17 +10,7 @@
         <button class="btn btn--ghost" type="button" :disabled="savingLesson" @click="cancelCreateLesson">Скасувати</button>
       </div>
       <div class="grid">
-        <div class="dropdown">
-          <button class="input dropdown__trigger" type="button" @click="lessonGroupOpen = !lessonGroupOpen">
-            {{ selectedLessonGroupLabel }}
-          </button>
-          <div v-if="lessonGroupOpen" class="dropdown__menu dropdown-list">
-            <button class="dropdown__option" type="button" @click="selectLessonGroup(null)">Група...</button>
-            <button class="dropdown__option" v-for="g in groups" :key="g.id" type="button" @click="selectLessonGroup(g.id)">
-              {{ g.name || `Група #${g.id}` }}
-            </button>
-          </div>
-        </div>
+        <SearchableSelect v-model="lessonForm.group" label="Група" :options="lessonGroupOptions" />
         <input class="input" type="datetime-local" v-model="lessonForm.starts_at_local" />
         <textarea class="input ta" v-model="lessonForm.notes" placeholder="Нотатки"></textarea>
         <button class="btn" type="button" :disabled="savingLesson" @click="createLesson">{{ savingLesson ? 'Збереження...' : 'Створити урок' }}</button>
@@ -296,7 +286,6 @@ const detailLoading = ref(false)
 const detailError = ref<string | null>(null)
 const rescheduleError = ref<string | null>(null)
 const savingReschedule = ref(false)
-const lessonGroupOpen = ref(false)
 const dateFilterFrom = ref('')
 const dateFilterTo = ref('')
 const teacherFilter = ref<number | null>(null)
@@ -414,21 +403,18 @@ const groupFilterOptions = computed(() => [
   { value: 'group', label: 'Групові' },
   ...groups.value.map((group) => ({ value: String(group.id), label: group.name || `Група #${group.id}` })),
 ])
+const lessonGroupOptions = computed(() => [
+  { value: null, label: 'Оберіть групу' },
+  ...sortFilterOptions(groups.value.map((group) => ({
+    value: group.id,
+    label: group.name || `Група #${group.id}`,
+  }))),
+])
 const lessonPageCount = computed(() => Math.max(1, Math.ceil(lessonCount.value / lessonPageSize.value)))
 const lessonPageStart = computed(() => (lessonCount.value === 0 ? 0 : (lessonPage.value - 1) * lessonPageSize.value + 1))
 const lessonPageEnd = computed(() => Math.min(lessonCount.value, lessonPage.value * lessonPageSize.value))
 const payrollAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0))
 const billedAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0))
-
-const selectedLessonGroupLabel = computed(() => {
-  if (!lessonForm.value.group) return 'Група...'
-  return groups.value.find((g) => g.id === lessonForm.value.group)?.name || `Група #${lessonForm.value.group}`
-})
-
-function selectLessonGroup(groupId: number | null) {
-  lessonForm.value.group = groupId
-  lessonGroupOpen.value = false
-}
 
 function localFromIso(iso: string) {
   const d = new Date(iso)
@@ -793,7 +779,6 @@ function clearFilters() {
 
 function resetCreateLessonForm() {
   lessonForm.value = { group: null, starts_at_local: '', notes: '' }
-  lessonGroupOpen.value = false
   selectedLesson.value = null
   error.value = null
 }
@@ -821,7 +806,6 @@ async function createLesson() {
       },
     })
     lessonForm.value = { group: null, starts_at_local: '', notes: '' }
-    lessonGroupOpen.value = false
     if (isCreateRoute.value) {
       router.push({ name: 'my-lessons' })
     } else {
