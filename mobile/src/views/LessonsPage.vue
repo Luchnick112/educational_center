@@ -709,9 +709,9 @@ onMounted(load)
 }
 
 .lesson-teacher__amount {
-  color: var(--app-muted);
-  font-size: inherit;
-  font-weight: inherit;
+  color: var(--app-ink);
+  font-size: 14px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
