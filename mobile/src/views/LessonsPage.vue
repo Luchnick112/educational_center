@@ -85,8 +85,8 @@
                 </div>
                 <p>{{ formatDateTime(lesson.starts_at) }}</p>
                 <p v-if="canManage" class="lesson-payroll">
-                  <span>Оплата викладача</span>
-                  <strong>{{ formatMoney(lesson.payroll_amount) }}</strong>
+                  <span>Викладач:</span>
+                  <strong>{{ teacherNameByGroup(lesson.group) }}</strong>
                 </p>
                 <p v-if="lesson.notes" class="data-item__note">{{ lesson.notes }}</p>
               </div>
@@ -153,8 +153,8 @@
           </section>
 
           <div v-if="canManage" class="lesson-payroll lesson-payroll--detail">
-            <span>Оплата викладача за урок</span>
-            <strong>{{ formatMoney(selectedLesson.payroll_amount) }}</strong>
+            <span>Викладач:</span>
+            <strong>{{ teacherNameByGroup(selectedLesson.group) }}</strong>
           </div>
 
           <label class="mobile-field">
@@ -420,6 +420,13 @@ const day = (value: string) => datePart(value, 'day')
 const month = (value: string) => datePart(value, 'month')
 const groupName = (id: number) => groups.value.find((group) => group.id === id)?.name || `Група #${id}`
 
+function teacherNameByGroup(groupId: number) {
+  const teacherId = groups.value.find((group) => group.id === groupId)?.teacher
+  if (!teacherId) return '—'
+  const teacher = teachers.value.find((item) => item.id === teacherId)
+  return teacher ? profileLabel(teacher, 'Викладач') : `Викладач #${teacherId}`
+}
+
 function profileLabel(profile: ProfileOption, fallback: string) {
   const user = profile.user_detail
   if (!user) return `${fallback} #${profile.id}`
@@ -472,7 +479,7 @@ function load() {
     const [lessonPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
       apiRequest<Lesson[] | LessonPage>(lessonsPath()),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
-      isAdmin.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
+      canManage.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/students/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<Enrollment[]>('/api/academics/enrollments/').catch(() => []) : Promise.resolve([]),
     ])
