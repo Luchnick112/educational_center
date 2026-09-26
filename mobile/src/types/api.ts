@@ -62,7 +62,6 @@ export type StudyGroup = {
   id: number
   name?: string
   format?: string | null
-  capacity?: number | null
   completed_lessons_count?: number | null
   lessons_until_next_billing?: number | null
   subject?: number

@@ -68,7 +68,6 @@
               <div class="metric-row">
                 <div><strong>{{ group.completed_lessons_count ?? 0 }}</strong><span>проведено</span></div>
                 <div><strong>{{ group.lessons_until_next_billing ?? '—' }}</strong><span>до оплати</span></div>
-                <div><strong>{{ group.capacity ?? '—' }}</strong><span>місць</span></div>
               </div>
             </article>
           </div>
@@ -111,11 +110,6 @@
               <option value="group">Групова</option>
               <option value="individual">Індивідуальна</option>
             </select>
-          </label>
-
-          <label class="mobile-field">
-            <span>Кількість місць</span>
-            <input v-model.number="form.capacity" class="mobile-control" type="number" min="1" required />
           </label>
 
           <div v-if="isAdmin" class="mobile-form-grid">
@@ -178,7 +172,13 @@
           </fieldset>
 
           <fieldset class="choice-list">
-            <legend>Учні</legend>
+            <legend>Учні групи</legend>
+            <div class="selected-student-summary">
+              <span>Обрано учнів: {{ form.students.length }}</span>
+              <div v-if="selectedStudentLabels.length" class="selected-student-list">
+                <span v-for="(studentLabel, index) in selectedStudentLabels" :key="`${studentLabel}-${index}`">{{ studentLabel }}</span>
+              </div>
+            </div>
             <p v-if="students.length === 0" class="field-hint">Доступних учнів немає</p>
             <label v-else class="mobile-field student-search-field">
               <span>Пошук учня</span>
@@ -325,12 +325,16 @@ const form = reactive({
   subject: null as number | null,
   teacher: null as number | null,
   format: 'group',
-  capacity: 1,
   student_price: '0.00',
   teacher_rate: '0.00',
   students: [] as number[],
   is_active: true,
 })
+
+const selectedStudentLabels = computed(() => form.students.map((studentId) => {
+  const student = students.value.find((item) => item.id === studentId)
+  return student ? profileLabel(student, 'Учень') : `Учень #${studentId}`
+}))
 
 const attendanceRateTiers = [
   { present_count: 1, label: '1 учень' },
@@ -473,7 +477,6 @@ function resetForm() {
     subject: subjects.value[0]?.id ?? null,
     teacher: teachers.value[0]?.id ?? null,
     format: 'group',
-    capacity: 1,
     student_price: '0.00',
     teacher_rate: '0.00',
     students: [],
@@ -503,7 +506,6 @@ async function openEdit(group: StudyGroup) {
       subject: group.subject ?? null,
       teacher: group.teacher ?? null,
       format: group.format || 'group',
-      capacity: group.capacity ?? 1,
       student_price: group.student_price ?? '0.00',
       teacher_rate: group.teacher_rate ?? '0.00',
       students: enrollments.value
@@ -557,7 +559,6 @@ async function saveGroup() {
     const body: Record<string, unknown> = {
       subject: form.subject,
       format: form.format,
-      capacity: form.format === 'individual' ? 1 : form.capacity,
       is_active: form.is_active,
     }
     if (isAdmin.value) {
@@ -660,6 +661,20 @@ onMounted(load)
 
 .student-search-field {
   margin: 4px 0 8px;
+}
+
+.selected-student-summary {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 8px;
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.selected-student-list {
+  display: grid;
+  gap: 3px;
+  color: var(--app-ink);
 }
 
 .attendance-rate-grid {

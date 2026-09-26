@@ -129,7 +129,6 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'subject',
             'teacher',
             'format',
-            'capacity',
             'student_price',
             'teacher_rate',
             'completed_lessons_count',

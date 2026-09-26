@@ -66,7 +66,6 @@ class StudyGroup(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='groups')
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
     format = models.CharField(max_length=16, choices=StudyGroupFormat.choices, default=StudyGroupFormat.GROUP)
-    capacity = models.PositiveIntegerField(default=1)
     student_price = models.DecimalField(max_digits=10, decimal_places=2)
     teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)

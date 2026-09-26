@@ -122,10 +122,6 @@
                 </select>
               </div>
               <div class="field">
-                <div class="field__label">Місткість</div>
-                <input class="input" type="number" min="1" v-model.number="form.group.capacity" :disabled="mode === 'view'" />
-              </div>
-              <div class="field">
                 <div class="field__label">Ціна для учня</div>
                 <input class="input" type="number" step="0.01" v-model="form.group.student_price" :disabled="mode === 'view'" />
               </div>
@@ -446,7 +442,6 @@ const form = ref({
     subject: null as number | null,
     teacher: null as number | null,
     format: 'group' as GroupFormat,
-    capacity: 1,
     student_price: '0.00',
     teacher_rate: '0.00',
     is_active: true,
@@ -693,7 +688,6 @@ function hydrateFormFromDetail(resetForCreate = false) {
       subject: null,
       teacher: null,
       format: 'group',
-      capacity: 1,
       student_price: '0.00',
       teacher_rate: '0.00',
       is_active: true,
@@ -713,7 +707,6 @@ function hydrateFormFromDetail(resetForCreate = false) {
       subject: d.subject ?? null,
       teacher: d.teacher ?? null,
       format: d.format === 'individual' ? 'individual' : 'group',
-      capacity: d.capacity ?? 1,
       student_price: String(d.student_price ?? '0.00'),
       teacher_rate: String(d.teacher_rate ?? '0.00'),
       is_active: !!d.is_active,
@@ -963,7 +956,6 @@ function payloadForSubmit() {
       subject: form.value.group.subject,
       teacher: form.value.group.teacher,
       format: form.value.group.format,
-      capacity: form.value.group.capacity,
       student_price: form.value.group.student_price,
       teacher_rate: form.value.group.teacher_rate,
       is_active: form.value.group.is_active,

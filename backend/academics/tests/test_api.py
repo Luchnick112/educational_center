@@ -78,7 +78,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
                 'subject': self.subject.id,
                 'teacher': self.teacher.id,
                 'format': StudyGroupFormat.INDIVIDUAL,
-                'capacity': 5,
                 'student_price': '700.00',
                 'teacher_rate': '400.00',
                 'is_active': True,
@@ -107,7 +106,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             '/api/academics/groups/',
             {
                 'subject': self.subject.id,
-                'capacity': 5,
                 'is_active': True,
             },
             format='json',
@@ -397,7 +395,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             subject=self.subject,
             teacher=self.teacher,
             format=StudyGroupFormat.GROUP,
-            capacity=10,
             student_price=600,
             teacher_rate=350,
         )
@@ -434,7 +431,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             subject=self.subject,
             teacher=self.teacher,
             format=StudyGroupFormat.INDIVIDUAL,
-            capacity=1,
             student_price=600,
             teacher_rate=350,
         )
@@ -459,7 +455,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             subject=self.subject,
             teacher=other_teacher,
             format=StudyGroupFormat.GROUP,
-            capacity=10,
             student_price=600,
             teacher_rate=350,
         )
@@ -525,7 +520,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             subject=self.subject,
             teacher=self.teacher,
             format=StudyGroupFormat.GROUP,
-            capacity=10,
             student_price=600,
             teacher_rate=350,
         )
@@ -996,7 +990,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             subject=other_subject,
             teacher=other_teacher,
             format='group',
-            capacity=10,
             student_price=600,
             teacher_rate=350,
         )
@@ -1029,7 +1022,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             subject=other_subject,
             teacher=other_teacher,
             format='group',
-            capacity=10,
             student_price=600,
             teacher_rate=350,
         )

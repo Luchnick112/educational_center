@@ -19,7 +19,7 @@ class SubjectAdmin(admin.ModelAdmin):
 
 @admin.register(StudyGroup)
 class StudyGroupAdmin(admin.ModelAdmin):
-    list_display = ('name', 'subject', 'teacher', 'capacity', 'is_active')
+    list_display = ('name', 'subject', 'teacher', 'is_active')
     list_filter = ('is_active', 'subject')
     search_fields = ('name', 'subject__name', 'teacher__user__first_name', 'teacher__user__last_name')
 
