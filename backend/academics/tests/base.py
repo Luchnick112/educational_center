@@ -50,7 +50,6 @@ class AcademicBaseTestCase(TestCase):
             subject=self.subject,
             teacher=self.teacher,
             format='group',
-            capacity=10,
             student_price=600,
             teacher_rate=350,
         )

@@ -15,11 +15,13 @@
           v-model="teacherFilter"
           label="Вчитель"
           :options="teacherFilterOptions"
+          @change="normalizeGroupFilters"
         />
         <SearchableSelect
           v-model="studentFilter"
           label="Учень"
           :options="studentFilterOptions"
+          @change="normalizeGroupFilters"
         />
       </div>
       <div v-if="error" class="error">{{ error }}</div>
@@ -156,8 +158,11 @@
             <span>{{ groupLessonsUntilBillingLabel(selectedGroupDetail.group) }}</span>
           </div>
           <div class="detail-item detail-item--wide col-student-list">
-            <span class="detail-item__label">Студенти</span>
-            <span>{{ selectedGroupDetail.studentNames.join(', ') || '-' }}</span>
+            <span class="detail-item__label">Учні групи</span>
+            <span>Обрано учнів: {{ selectedGroupDetail.studentIds.length }}</span>
+            <div v-if="selectedGroupDetail.studentNames.length" class="selected-student-list">
+              <span v-for="(studentName, index) in selectedGroupDetail.studentNames" :key="`${studentName}-${index}`">{{ studentName }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -187,6 +192,7 @@
           <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.teacher_rate" />
         </div>
         <div class="dropdown student-picker">
+          <div class="field__label">Учні групи</div>
           <button class="input dropdown__trigger" type="button" @click="createStudentsOpen = !createStudentsOpen">{{ selectedStudentsLabel(createForm.students) }}</button>
           <div v-if="createStudentsOpen" class="dropdown__menu dropdown-list dropdown__menu--static">
             <input
@@ -202,6 +208,12 @@
               <span>{{ option.label }}</span>
             </label>
             <div v-if="filteredCreateStudentOptions.length === 0" class="muted dropdown__empty">Нічого не знайдено</div>
+          </div>
+          <div class="selected-student-summary">
+            <span>Обрано учнів: {{ createForm.students.length }}</span>
+            <div v-if="createForm.students.length" class="selected-student-list">
+              <span v-for="studentId in createForm.students" :key="studentId">{{ studentLabelById(studentId) }}</span>
+            </div>
           </div>
         </div>
         <button class="btn" type="button" :disabled="saving" @click="createGroup">{{ saving ? 'Збереження...' : 'Створити групу' }}</button>
@@ -260,6 +272,12 @@
                 <input type="checkbox" :checked="editForm.students.includes(s.id)" @change="toggleStudentSelection(editForm.students, s.id)" />
                 <span>{{ studentLabel(s) }}</span>
               </label>
+            </div>
+            <div class="selected-student-summary">
+              <span>Обрано учнів: {{ editForm.students.length }}</span>
+              <div v-if="editForm.students.length" class="selected-student-list">
+                <span v-for="studentId in editForm.students" :key="studentId">{{ studentLabelById(studentId) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -371,7 +389,6 @@ type Group = {
   teacher?: number | null
   subject?: number | null
   format?: GroupFormat | string | null
-  capacity?: number | null
   student_price?: string | number | null
   teacher_rate?: string | number | null
   completed_lessons_count?: number | null
@@ -439,7 +456,6 @@ const createForm = ref({
   subject: null as number | null,
   teacher: null as number | null,
   format: 'group' as GroupFormat,
-  capacity: 1,
   student_price: 0,
   teacher_rate: 0,
   students: [] as number[],
@@ -505,14 +521,26 @@ const isGroupModalOpen = computed(() => !isCreateRoute.value && (!!selectedGroup
 
 const teacherFilterOptions = computed(() => [
   { value: null, label: 'Всі вчителі' },
-  ...sortFilterOptions(teachers.value.map((teacher) => ({
+  ...sortFilterOptions(teachers.value.filter((teacher) => (
+    studentFilter.value === null
+    || groupRows.value.some((row) => (
+      Number(row.group.teacher) === Number(teacher.id)
+      && row.studentIds.includes(Number(studentFilter.value))
+    ))
+  )).map((teacher) => ({
     value: teacher.id,
     label: userFilterLabel(teacher, 'Вчитель'),
   }))),
 ])
 const studentFilterOptions = computed(() => [
   { value: null, label: 'Всі учні' },
-  ...sortFilterOptions(students.value.map((student) => ({
+  ...sortFilterOptions(students.value.filter((student) => (
+    teacherFilter.value === null
+    || groupRows.value.some((row) => (
+      Number(row.group.teacher) === Number(teacherFilter.value)
+      && row.studentIds.includes(Number(student.id))
+    ))
+  )).map((student) => ({
     value: student.id,
     label: userFilterLabel(student, 'Учень'),
   }))),
@@ -537,6 +565,26 @@ const filteredCreateStudentOptions = computed(() => {
   if (!query) return createStudentOptions.value
   return createStudentOptions.value.filter((option) => option.label.toLocaleLowerCase('uk-UA').includes(query))
 })
+
+function normalizeGroupFilters() {
+  const availableTeacherIds = new Set(
+    teacherFilterOptions.value
+      .map((option) => option.value)
+      .filter((value): value is number => typeof value === 'number'),
+  )
+  if (teacherFilter.value !== null && !availableTeacherIds.has(teacherFilter.value)) {
+    teacherFilter.value = null
+  }
+
+  const availableStudentIds = new Set(
+    studentFilterOptions.value
+      .map((option) => option.value)
+      .filter((value): value is number => typeof value === 'number'),
+  )
+  if (studentFilter.value !== null && !availableStudentIds.has(studentFilter.value)) {
+    studentFilter.value = null
+  }
+}
 
 function studentLabel(s: Student) {
   const u = s.user_detail || {}
@@ -671,12 +719,7 @@ function apiErrorMessage(e: any, fallback: string) {
 }
 
 function selectedStudentsLabel(ids: number[]) {
-  if (!ids.length) return 'Оберіть учнів...'
-  if (ids.length === 1) {
-    const student = students.value.find((s) => s.id === ids[0])
-    return student ? studentLabel(student) : `Учень #${ids[0]}`
-  }
-  return `Обрано учнів: ${ids.length}`
+  return ids.length ? 'Змінити список учнів' : 'Оберіть учнів...'
 }
 
 function toggleStudentSelection(target: number[], studentId: number) {
@@ -802,7 +845,6 @@ function resetCreateForm() {
     subject: null,
     teacher: null,
     format: 'group',
-    capacity: 1,
     student_price: 0,
     teacher_rate: 0,
     students: [],
@@ -898,7 +940,6 @@ async function createGroup() {
     const body: Record<string, unknown> = {
       subject: createForm.value.subject,
       format: createForm.value.format,
-      capacity: createForm.value.capacity,
       is_active: true,
     }
     if (isAdmin.value) {
@@ -1193,6 +1234,18 @@ watch(
 }
 .dropdown__option:hover { background: var(--surface-hover); }
 .dropdown__item { display: flex; align-items: center; gap: 8px; padding: 6px; }
+.selected-student-summary {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.selected-student-list {
+  display: grid;
+  gap: 3px;
+  color: var(--text);
+}
 .notice { color: var(--success); font-size: 13px; margin-bottom: 10px; }
 .groups-table { width: 100%; border-collapse: collapse; }
 .mobile-groups-list { display: none; }

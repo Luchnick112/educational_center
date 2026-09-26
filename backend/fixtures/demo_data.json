@@ -130,7 +130,6 @@
       "subject": 1,
       "teacher": 1,
       "format": "group",
-      "capacity": 10,
       "student_price": "600.00",
       "teacher_rate": "350.00",
       "is_active": true
@@ -154,6 +153,7 @@
     "pk": 1,
     "fields": {
       "group": 1,
+      "teacher": 1,
       "starts_at": "2026-03-20T15:00:00Z",
       "status": "completed",
       "notes": "Completed on time."

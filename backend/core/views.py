@@ -103,7 +103,7 @@ class MyLessonsView(APIView):
                 participants__student__parent_links__parent=user.parent_profile,
             ).distinct()
         elif user.role == UserRole.TEACHER and not user.is_staff and hasattr(user, 'teacher_profile'):
-            queryset = Lesson.objects.filter(group__teacher=user.teacher_profile)
+            queryset = Lesson.objects.filter(teacher=user.teacher_profile)
         elif user.is_staff or user.role == UserRole.ADMIN:
             queryset = Lesson.objects.all()
 
@@ -128,7 +128,7 @@ class MyLessonsView(APIView):
         if has_group_format_filter:
             queryset = queryset.filter(group__format=group_format)
         if teacher_id:
-            queryset = queryset.filter(group__teacher_id=teacher_id)
+            queryset = queryset.filter(teacher_id=teacher_id)
         if student_id:
             present_student = LessonParticipant.objects.filter(
                 lesson_id=OuterRef('pk'),
@@ -545,7 +545,7 @@ class MyConfirmationsView(APIView):
             ).distinct()
         elif user.role == UserRole.TEACHER and not user.is_staff and hasattr(user, 'teacher_profile'):
             queryset = LessonConfirmation.objects.filter(
-                participant__lesson__group__teacher=user.teacher_profile,
+                participant__lesson__teacher=user.teacher_profile,
                 requested_from='teacher',
             )
         elif user.is_staff or user.role == UserRole.ADMIN:
@@ -679,7 +679,7 @@ class MyNotificationsView(APIView):
 
         elif user.role == UserRole.TEACHER and not user.is_staff and hasattr(user, 'teacher_profile'):
             reschedules = LessonRescheduleRequest.objects.filter(
-                lesson__group__teacher=user.teacher_profile,
+                lesson__teacher=user.teacher_profile,
                 status=LessonRescheduleStatus.PARENT_CONFIRMED,
             ).select_related('lesson')
             for reschedule in reschedules:

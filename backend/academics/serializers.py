@@ -129,7 +129,6 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'subject',
             'teacher',
             'format',
-            'capacity',
             'student_price',
             'teacher_rate',
             'completed_lessons_count',
@@ -213,9 +212,9 @@ class GroupAttendanceRateSerializer(serializers.ModelSerializer):
 
 
 class LessonParticipantSerializer(serializers.ModelSerializer):
-    teacher_id = serializers.IntegerField(source='lesson.group.teacher_id', read_only=True)
+    teacher_id = serializers.IntegerField(source='lesson.teacher_id', read_only=True)
     student_first_name = serializers.CharField(source='student.user.first_name', read_only=True)
-    teacher_last_name = serializers.CharField(source='lesson.group.teacher.user.last_name', read_only=True)
+    teacher_last_name = serializers.CharField(source='lesson.teacher.user.last_name', read_only=True)
     student_last_name = serializers.CharField(source='student.user.last_name', read_only=True)
 
     def to_representation(self, instance):
@@ -380,7 +379,7 @@ class LessonSerializer(serializers.ModelSerializer):
                 user
                 and getattr(user, 'role', None) == UserRole.TEACHER
                 and hasattr(user, 'teacher_profile')
-                and instance.group.teacher_id == user.teacher_profile.id
+                and instance.teacher_id == user.teacher_profile.id
             )
             if not (is_admin or is_lesson_teacher):
                 raise serializers.ValidationError({'participant_updates': 'Only admins and lesson teachers can update participant amounts.'})
@@ -398,7 +397,7 @@ class LessonSerializer(serializers.ModelSerializer):
             user
             and getattr(user, 'role', None) == UserRole.TEACHER
             and hasattr(user, 'teacher_profile')
-            and instance.group.teacher_id == user.teacher_profile.id
+            and instance.teacher_id == user.teacher_profile.id
         )
         if (
             is_teacher
@@ -498,6 +497,7 @@ class LessonSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'group',
+            'teacher',
             'starts_at',
             'completed_at',
             'payroll_amount',
@@ -508,6 +508,7 @@ class LessonSerializer(serializers.ModelSerializer):
             'participants',
             'participant_updates',
         )
+        read_only_fields = ('teacher',)
 
 
 class LessonConfirmationSerializer(serializers.ModelSerializer):

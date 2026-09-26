@@ -35,6 +35,7 @@ export type Lesson = {
   starts_at: string
   notes?: string
   group: number
+  teacher?: number
   payroll_amount?: string
   billed_amount?: string
   can_request_reschedule?: boolean
@@ -62,7 +63,6 @@ export type StudyGroup = {
   id: number
   name?: string
   format?: string | null
-  capacity?: number | null
   completed_lessons_count?: number | null
   lessons_until_next_billing?: number | null
   subject?: number

@@ -66,7 +66,6 @@ class StudyGroup(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='groups')
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
     format = models.CharField(max_length=16, choices=StudyGroupFormat.choices, default=StudyGroupFormat.GROUP)
-    capacity = models.PositiveIntegerField(default=1)
     student_price = models.DecimalField(max_digits=10, decimal_places=2)
     teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
@@ -165,10 +164,16 @@ class Lesson(models.Model):
     DEFAULT_DURATION = timedelta(hours=1)
 
     group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name='lessons')
+    teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='lessons')
     starts_at = models.DateTimeField()
     status = models.CharField(max_length=16, choices=LessonStatus.choices, default=LessonStatus.SCHEDULED)
     completed_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.teacher_id is None and self.group_id:
+            self.teacher_id = StudyGroup.objects.only('teacher_id').get(pk=self.group_id).teacher_id
+        super().save(*args, **kwargs)
 
     @property
     def end_at(self):

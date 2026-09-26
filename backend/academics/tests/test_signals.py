@@ -57,7 +57,6 @@ class LessonSignalsTestCase(TestCase):
             subject=self.subject,
             teacher=self.teacher,
             format='group',
-            capacity=8,
             student_price=500,
             teacher_rate=250,
         )
