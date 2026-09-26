@@ -84,9 +84,13 @@
                   <span class="status" :data-status="lesson.status">{{ statusLabel(lesson.status) }}</span>
                 </div>
                 <p>{{ formatDateTime(lesson.starts_at) }}</p>
-                <p v-if="canManage" class="lesson-payroll">
+                <p v-if="canManage" class="lesson-teacher">
                   <span>Викладач:</span>
-                  <strong>{{ teacherName(lesson.teacher) }}</strong>
+                  <span>{{ teacherName(lesson.teacher) }}</span>
+                </p>
+                <p v-if="canManage" class="lesson-payroll">
+                  <span>Оплата викладача</span>
+                  <strong>{{ formatMoney(lesson.payroll_amount) }}</strong>
                 </p>
                 <p v-if="lesson.notes" class="data-item__note">{{ lesson.notes }}</p>
               </div>
@@ -152,9 +156,13 @@
             <span class="status" :data-status="selectedLesson.status">{{ statusLabel(selectedLesson.status) }}</span>
           </section>
 
-          <div v-if="canManage" class="lesson-payroll lesson-payroll--detail">
+          <div v-if="canManage" class="lesson-teacher lesson-teacher--detail">
             <span>Викладач:</span>
-            <strong>{{ teacherName(selectedLesson.teacher) }}</strong>
+            <span>{{ teacherName(selectedLesson.teacher) }}</span>
+          </div>
+          <div v-if="canManage" class="lesson-payroll lesson-payroll--detail">
+            <span>Оплата викладача за урок</span>
+            <strong>{{ formatMoney(selectedLesson.payroll_amount) }}</strong>
           </div>
 
           <label class="mobile-field">
@@ -690,6 +698,7 @@ onMounted(load)
 </script>
 
 <style scoped>
+.lesson-teacher,
 .lesson-payroll {
   display: flex;
   align-items: baseline;
@@ -700,6 +709,13 @@ onMounted(load)
   font-size: 12px;
 }
 
+.lesson-teacher span:last-child {
+  color: var(--app-muted);
+  font-size: inherit;
+  font-weight: inherit;
+  white-space: nowrap;
+}
+
 .lesson-payroll strong {
   color: var(--app-ink);
   font-size: 14px;
@@ -708,6 +724,10 @@ onMounted(load)
 
 .lesson-payroll--detail {
   margin: -4px 0 0;
+  padding: 0 2px;
+}
+
+.lesson-teacher--detail {
   padding: 0 2px;
 }
 </style>
