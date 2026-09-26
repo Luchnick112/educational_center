@@ -15,11 +15,13 @@
           v-model="teacherFilter"
           label="Вчитель"
           :options="teacherFilterOptions"
+          @change="normalizeGroupFilters"
         />
         <SearchableSelect
           v-model="studentFilter"
           label="Учень"
           :options="studentFilterOptions"
+          @change="normalizeGroupFilters"
         />
       </div>
       <div v-if="error" class="error">{{ error }}</div>
@@ -505,14 +507,26 @@ const isGroupModalOpen = computed(() => !isCreateRoute.value && (!!selectedGroup
 
 const teacherFilterOptions = computed(() => [
   { value: null, label: 'Всі вчителі' },
-  ...sortFilterOptions(teachers.value.map((teacher) => ({
+  ...sortFilterOptions(teachers.value.filter((teacher) => (
+    studentFilter.value === null
+    || groupRows.value.some((row) => (
+      Number(row.group.teacher) === Number(teacher.id)
+      && row.studentIds.includes(Number(studentFilter.value))
+    ))
+  )).map((teacher) => ({
     value: teacher.id,
     label: userFilterLabel(teacher, 'Вчитель'),
   }))),
 ])
 const studentFilterOptions = computed(() => [
   { value: null, label: 'Всі учні' },
-  ...sortFilterOptions(students.value.map((student) => ({
+  ...sortFilterOptions(students.value.filter((student) => (
+    teacherFilter.value === null
+    || groupRows.value.some((row) => (
+      Number(row.group.teacher) === Number(teacherFilter.value)
+      && row.studentIds.includes(Number(student.id))
+    ))
+  )).map((student) => ({
     value: student.id,
     label: userFilterLabel(student, 'Учень'),
   }))),
@@ -537,6 +551,26 @@ const filteredCreateStudentOptions = computed(() => {
   if (!query) return createStudentOptions.value
   return createStudentOptions.value.filter((option) => option.label.toLocaleLowerCase('uk-UA').includes(query))
 })
+
+function normalizeGroupFilters() {
+  const availableTeacherIds = new Set(
+    teacherFilterOptions.value
+      .map((option) => option.value)
+      .filter((value): value is number => typeof value === 'number'),
+  )
+  if (teacherFilter.value !== null && !availableTeacherIds.has(teacherFilter.value)) {
+    teacherFilter.value = null
+  }
+
+  const availableStudentIds = new Set(
+    studentFilterOptions.value
+      .map((option) => option.value)
+      .filter((value): value is number => typeof value === 'number'),
+  )
+  if (studentFilter.value !== null && !availableStudentIds.has(studentFilter.value)) {
+    studentFilter.value = null
+  }
+}
 
 function studentLabel(s: Student) {
   const u = s.user_detail || {}

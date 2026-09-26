@@ -38,21 +38,21 @@
               v-model="lessonFilters.teacher"
               label="Викладач"
               :options="teacherFilterOptions"
-              @change="load"
+              @change="onLessonFilterChange"
             />
             <MobileSearchableSelect
               v-if="canManage"
               v-model="lessonFilters.student"
               label="Учні"
               :options="studentFilterOptions"
-              @change="load"
+              @change="onLessonFilterChange"
             />
             <MobileSearchableSelect
               v-if="canManage"
               v-model="lessonFilters.group"
               label="Група"
               :options="groupFilterOptions"
-              @change="load"
+              @change="onLessonFilterChange"
             />
           </div>
         </section>
@@ -251,7 +251,7 @@ import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
-import type { Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
+import type { Enrollment, Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
 import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
 import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
@@ -260,6 +260,7 @@ const lessons = ref<Lesson[]>([])
 const groups = ref<StudyGroup[]>([])
 const teachers = ref<ProfileOption[]>([])
 const students = ref<ProfileOption[]>([])
+const enrollments = ref<Enrollment[]>([])
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -299,17 +300,101 @@ const lessonFilters = reactive({
 })
 
 const hasLessonFilters = computed(() => Object.values(lessonFilters).some(Boolean))
-const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
-const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
-const groupFilterOptions = computed(() => [
-  { value: '', label: 'Усі групи' },
-  { value: 'individual', label: 'Індивідуальні' },
-  { value: 'group', label: 'Групові' },
-  ...groups.value.map((group) => ({
+
+function isActiveEnrollment(enrollment: Enrollment) {
+  return enrollment.status === 'active' && !enrollment.end_date
+}
+
+function groupHasStudent(groupId: number, studentId: string) {
+  return enrollments.value.some((enrollment) => (
+    Number(enrollment.group) === Number(groupId)
+    && String(enrollment.student) === studentId
+    && isActiveEnrollment(enrollment)
+  ))
+}
+
+function groupsMatchingFilters({
+  teacherId = '',
+  studentId = '',
+  groupValue = '',
+}: { teacherId?: string; studentId?: string; groupValue?: string }) {
+  return groups.value.filter((group) => {
+    if (teacherId && String(group.teacher ?? '') !== teacherId) return false
+    if (studentId && !groupHasStudent(group.id, studentId)) return false
+    if (groupValue === 'individual' || groupValue === 'group') return group.format === groupValue
+    if (groupValue) return String(group.id) === groupValue
+    return true
+  })
+}
+
+const groupsForTeacherFilter = computed(() => groupsMatchingFilters({
+  studentId: lessonFilters.student,
+  groupValue: lessonFilters.group,
+}))
+const groupsForStudentFilter = computed(() => groupsMatchingFilters({
+  teacherId: lessonFilters.teacher,
+  groupValue: lessonFilters.group,
+}))
+const groupsForGroupFilter = computed(() => groupsMatchingFilters({
+  teacherId: lessonFilters.teacher,
+  studentId: lessonFilters.student,
+}))
+const teacherFilterOptions = computed(() => userFilterOptions(
+  teachers.value.filter((teacher) => groupsForTeacherFilter.value.some(
+    (group) => Number(group.teacher) === Number(teacher.id),
+  )),
+  'Усі викладачі',
+  'Викладач',
+))
+const studentFilterOptions = computed(() => {
+  const studentIds = new Set(
+    groupsForStudentFilter.value.flatMap((group) => enrollments.value
+      .filter((enrollment) => Number(enrollment.group) === Number(group.id) && isActiveEnrollment(enrollment))
+      .map((enrollment) => String(enrollment.student))),
+  )
+  return userFilterOptions(
+    students.value.filter((student) => studentIds.has(String(student.id))),
+    'Усі учні',
+    'Учень',
+  )
+})
+const groupFilterOptions = computed(() => {
+  const availableGroups = groupsForGroupFilter.value
+  const options: Array<{ value: string; label: string }> = [{ value: '', label: 'Усі групи' }]
+  if (availableGroups.some((group) => group.format === 'individual')) {
+    options.push({ value: 'individual', label: 'Індивідуальні' })
+  }
+  if (availableGroups.some((group) => group.format === 'group')) {
+    options.push({ value: 'group', label: 'Групові' })
+  }
+  options.push(...sortFilterOptions(availableGroups.map((group) => ({
     value: String(group.id),
     label: group.name || `Група #${group.id}`,
-  })),
-])
+  }))))
+  return options
+})
+
+function normalizeLessonFilters() {
+  const teacherValues = new Set(teacherFilterOptions.value.map((option) => option.value).filter(Boolean))
+  if (lessonFilters.teacher && !teacherValues.has(lessonFilters.teacher)) {
+    lessonFilters.teacher = ''
+  }
+
+  const studentValues = new Set(studentFilterOptions.value.map((option) => option.value).filter(Boolean))
+  if (lessonFilters.student && !studentValues.has(lessonFilters.student)) {
+    lessonFilters.student = ''
+  }
+
+  const groupValues = new Set(groupFilterOptions.value.map((option) => option.value))
+  if (lessonFilters.group && !groupValues.has(lessonFilters.group)) {
+    lessonFilters.group = ''
+  }
+}
+
+function onLessonFilterChange() {
+  normalizeLessonFilters()
+  void load()
+}
 const lessonsCaption = computed(() => {
   if (lessons.value.length) return `${lessons.value.length} занять`
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
@@ -384,16 +469,18 @@ function lessonsPath() {
 
 function load() {
   return run(async () => {
-    const [lessonPayload, groupPayload, teacherPayload, studentPayload] = await Promise.all([
+    const [lessonPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
       apiRequest<Lesson[] | LessonPage>(lessonsPath()),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
       isAdmin.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/students/').catch(() => []) : Promise.resolve([]),
+      canManage.value ? apiRequest<Enrollment[]>('/api/academics/enrollments/').catch(() => []) : Promise.resolve([]),
     ])
     lessons.value = Array.isArray(lessonPayload) ? lessonPayload : lessonPayload.results
     groups.value = groupPayload
     teachers.value = teacherPayload
     students.value = studentPayload
+    enrollments.value = enrollmentPayload
   })
 }
 

@@ -33,21 +33,21 @@
           v-model="teacherFilter"
           label="Викладач"
           :options="teacherFilterOptions"
-          @change="reloadLessons()"
+          @change="onLessonFilterChange"
         />
         <SearchableSelect
           v-if="canManageLessons"
           v-model="studentFilter"
           label="Учні"
           :options="studentFilterOptions"
-          @change="reloadLessons()"
+          @change="onLessonFilterChange"
         />
         <SearchableSelect
           v-if="canManageLessons"
           v-model="groupFilter"
           label="Група"
           :options="groupFilterOptions"
-          @change="reloadLessons()"
+          @change="onLessonFilterChange"
         />
         <button class="btn btn--ghost filter-clear" type="button" :disabled="!hasFilters" @click="clearFilters">
           Очистити
@@ -258,6 +258,7 @@ type ParticipantForm = { id: number; studentLabel: string; attendance_status: st
 type Group = { id: number; name?: string; teacher?: number | null; format?: string }
 type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type Student = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
+type Enrollment = { group: number; student: number; status: string; end_date?: string | null }
 type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string; cellClass?: (row: Lesson) => string }
 type LessonPageResponse = { count: number; page: number; page_size: number; results: Lesson[] }
 type LessonRescheduleRequest = {
@@ -300,6 +301,7 @@ const lessonDetailPanel = ref<HTMLElement | null>(null)
 const groups = ref<Group[]>([])
 const teachers = ref<Teacher[]>([])
 const students = ref<Student[]>([])
+const enrollments = ref<Enrollment[]>([])
 const participantForms = ref<ParticipantForm[]>([])
 const rescheduleRequests = ref<LessonRescheduleRequest[]>([])
 let detailRequestSeq = 0
@@ -383,26 +385,114 @@ const filteredRows = computed(() => {
   if (!isAdmin.value || teacherFilter.value === null) return rows.value
   return rows.value.filter((lesson) => groupTeacherId(lesson.group) === teacherFilter.value)
 })
+
+function isActiveEnrollment(enrollment: Enrollment) {
+  return enrollment.status === 'active' && !enrollment.end_date
+}
+
+function groupHasStudent(groupId: number, studentId: number) {
+  return enrollments.value.some((enrollment) => (
+    Number(enrollment.group) === Number(groupId)
+    && Number(enrollment.student) === Number(studentId)
+    && isActiveEnrollment(enrollment)
+  ))
+}
+
+function groupsMatchingFilters({
+  teacherId = null,
+  studentId = null,
+  groupValue = '',
+}: { teacherId?: number | null; studentId?: number | null; groupValue?: string }) {
+  return groups.value.filter((group) => {
+    if (teacherId !== null && Number(group.teacher) !== Number(teacherId)) return false
+    if (studentId !== null && !groupHasStudent(group.id, studentId)) return false
+    if (groupValue === 'individual' || groupValue === 'group') return group.format === groupValue
+    if (groupValue) return Number(group.id) === Number(groupValue)
+    return true
+  })
+}
+
+const groupsForTeacherFilter = computed(() => groupsMatchingFilters({
+  studentId: studentFilter.value,
+  groupValue: groupFilter.value,
+}))
+const groupsForStudentFilter = computed(() => groupsMatchingFilters({
+  teacherId: teacherFilter.value,
+  groupValue: groupFilter.value,
+}))
+const groupsForGroupFilter = computed(() => groupsMatchingFilters({
+  teacherId: teacherFilter.value,
+  studentId: studentFilter.value,
+}))
 const teacherFilterOptions = computed(() => [
   { value: null, label: 'Всі викладачі' },
-  ...sortFilterOptions(teachers.value.map((teacher) => ({
+  ...sortFilterOptions(teachers.value.filter((teacher) => groupsForTeacherFilter.value.some(
+    (group) => Number(group.teacher) === Number(teacher.id),
+  )).map((teacher) => ({
     value: teacher.id,
     label: userFilterLabel(teacher, 'Викладач'),
   }))),
 ])
-const studentFilterOptions = computed(() => [
-  { value: null, label: 'Всі учні' },
-  ...sortFilterOptions(students.value.map((student) => ({
-    value: student.id,
-    label: userFilterLabel(student, 'Учень'),
-  }))),
-])
-const groupFilterOptions = computed(() => [
-  { value: '', label: 'Всі групи' },
-  { value: 'individual', label: 'Індивідуальні' },
-  { value: 'group', label: 'Групові' },
-  ...groups.value.map((group) => ({ value: String(group.id), label: group.name || `Група #${group.id}` })),
-])
+const studentFilterOptions = computed(() => {
+  const studentIds = new Set(
+    groupsForStudentFilter.value.flatMap((group) => enrollments.value
+      .filter((enrollment) => Number(enrollment.group) === Number(group.id) && isActiveEnrollment(enrollment))
+      .map((enrollment) => Number(enrollment.student))),
+  )
+  return [
+    { value: null, label: 'Всі учні' },
+    ...sortFilterOptions(students.value.filter((student) => studentIds.has(Number(student.id))).map((student) => ({
+      value: student.id,
+      label: userFilterLabel(student, 'Учень'),
+    }))),
+  ]
+})
+const groupFilterOptions = computed(() => {
+  const availableGroups = groupsForGroupFilter.value
+  const options: Array<{ value: string; label: string }> = [{ value: '', label: 'Всі групи' }]
+  if (availableGroups.some((group) => group.format === 'individual')) {
+    options.push({ value: 'individual', label: 'Індивідуальні' })
+  }
+  if (availableGroups.some((group) => group.format === 'group')) {
+    options.push({ value: 'group', label: 'Групові' })
+  }
+  options.push(...sortFilterOptions(availableGroups.map((group) => ({
+    value: String(group.id),
+    label: group.name || `Група #${group.id}`,
+  }))))
+  return options
+})
+
+function normalizeLessonFilters() {
+  const teacherIds = new Set(
+    teacherFilterOptions.value
+      .map((option) => option.value)
+      .filter((value): value is number => typeof value === 'number'),
+  )
+  if (teacherFilter.value !== null && !teacherIds.has(teacherFilter.value)) {
+    teacherFilter.value = null
+  }
+
+  const studentIds = new Set(
+    studentFilterOptions.value
+      .map((option) => option.value)
+      .filter((value): value is number => typeof value === 'number'),
+  )
+  if (studentFilter.value !== null && !studentIds.has(studentFilter.value)) {
+    studentFilter.value = null
+  }
+
+  const groupValues = new Set(groupFilterOptions.value.map((option) => option.value))
+  if (groupFilter.value && !groupValues.has(groupFilter.value)) {
+    groupFilter.value = ''
+  }
+}
+
+function onLessonFilterChange() {
+  normalizeLessonFilters()
+  void reloadLessons()
+}
+
 const lessonGroupOptions = computed(() => [
   { value: null, label: 'Оберіть групу' },
   ...sortFilterOptions(groups.value.map((group) => ({
@@ -703,22 +793,26 @@ async function onLessonClick(lesson: Lesson) {
 
 async function loadTeacherGroups() {
   if (isAdmin.value) {
-    const [groupItems, teacherItems, studentItems] = await Promise.all([
+    const [groupItems, teacherItems, studentItems, enrollmentItems] = await Promise.all([
       apiRequest<Group[]>('/api/academics/groups/'),
       apiRequest<Teacher[]>('/api/users/teachers/'),
       apiRequest<Student[]>('/api/users/students/'),
+      apiRequest<Enrollment[]>('/api/academics/enrollments/'),
     ])
     groups.value = groupItems
     teachers.value = teacherItems
     students.value = studentItems
+    enrollments.value = enrollmentItems
     return
   }
-  const [groupItems, studentItems] = await Promise.all([
+  const [groupItems, studentItems, enrollmentItems] = await Promise.all([
     apiRequest<Group[]>('/api/academics/groups/'),
     canManageLessons.value ? apiRequest<Student[]>('/api/users/students/') : Promise.resolve([]),
+    canManageLessons.value ? apiRequest<Enrollment[]>('/api/academics/enrollments/') : Promise.resolve([]),
   ])
   groups.value = groupItems
   students.value = studentItems
+  enrollments.value = enrollmentItems
 }
 
 async function loadLessons() {

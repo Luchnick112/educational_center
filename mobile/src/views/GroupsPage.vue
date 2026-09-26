@@ -29,11 +29,13 @@
               v-model="groupFilters.teacher"
               label="Викладач"
               :options="teacherFilterOptions"
+              @change="normalizeGroupFilters"
             />
             <MobileSearchableSelect
               v-model="groupFilters.student"
               label="Учень"
               :options="studentFilterOptions"
+              @change="normalizeGroupFilters"
             />
           </div>
         </section>
@@ -260,8 +262,30 @@ const canManage = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 
 const groupFilters = reactive({ teacher: '', student: '' })
 const hasGroupFilters = computed(() => Boolean(groupFilters.teacher || groupFilters.student))
-const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
-const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
+const teacherFilterOptions = computed(() => userFilterOptions(
+  teachers.value.filter((teacher) => (
+    !groupFilters.student
+    || groups.value.some((group) => (
+      String(group.teacher ?? '') === String(teacher.id)
+      && groupHasActiveStudent(group.id, groupFilters.student)
+    ))
+  )).filter((teacher) => (
+    groups.value.some((group) => String(group.teacher ?? '') === String(teacher.id))
+  )),
+  'Усі викладачі',
+  'Викладач',
+))
+const studentFilterOptions = computed(() => userFilterOptions(
+  students.value.filter((student) => (
+    !groupFilters.teacher
+    || groups.value.some((group) => (
+      String(group.teacher ?? '') === String(groupFilters.teacher)
+      && groupHasActiveStudent(group.id, String(student.id))
+    ))
+  )),
+  'Усі учні',
+  'Учень',
+))
 const subjectOptions = computed(() => [
   { value: '', label: 'Оберіть предмет' },
   ...sortFilterOptions(subjects.value.map((subject) => ({ value: String(subject.id), label: subject.name }))),
@@ -292,12 +316,7 @@ const filteredStudents = computed(() => {
 const filteredGroups = computed(() => groups.value.filter((group) => {
   if (groupFilters.teacher && String(group.teacher ?? '') !== groupFilters.teacher) return false
   if (groupFilters.student) {
-    const hasStudent = enrollments.value.some((item) => (
-      item.group === group.id
-      && item.status === 'active'
-      && String(item.student) === groupFilters.student
-    ))
-    if (!hasStudent) return false
+    if (!groupHasActiveStudent(group.id, groupFilters.student)) return false
   }
   return true
 }))
@@ -337,6 +356,30 @@ const selectedGroupAttendanceRateRules = computed(() => {
 
 function clearGroupFilters() {
   Object.assign(groupFilters, { teacher: '', student: '' })
+}
+
+function groupHasActiveStudent(groupId: number, studentId: string) {
+  return enrollments.value.some((item) => (
+    Number(item.group) === Number(groupId)
+    && item.status === 'active'
+    && String(item.student) === studentId
+  ))
+}
+
+function normalizeGroupFilters() {
+  const teacherIds = new Set(
+    teacherFilterOptions.value.map((option) => option.value).filter(Boolean),
+  )
+  if (groupFilters.teacher && !teacherIds.has(groupFilters.teacher)) {
+    groupFilters.teacher = ''
+  }
+
+  const studentIds = new Set(
+    studentFilterOptions.value.map((option) => option.value).filter(Boolean),
+  )
+  if (groupFilters.student && !studentIds.has(groupFilters.student)) {
+    groupFilters.student = ''
+  }
 }
 
 function profileLabel(profile: ProfileOption, fallback: string) {
