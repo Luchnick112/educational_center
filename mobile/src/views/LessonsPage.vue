@@ -85,12 +85,8 @@
                 </div>
                 <p>{{ formatDateTime(lesson.starts_at) }}</p>
                 <p v-if="canManage" class="lesson-teacher">
-                  <span>Викладач:</span>
-                  <span>{{ teacherName(lesson.teacher) }}</span>
-                </p>
-                <p v-if="canManage" class="lesson-payroll">
-                  <span>Оплата викладача</span>
-                  <strong>{{ formatMoney(lesson.payroll_amount) }}</strong>
+                  <span>Викладач: {{ teacherName(lesson.teacher) }}</span>
+                  <span class="lesson-teacher__amount">{{ formatTeacherPay(lesson.payroll_amount) }}</span>
                 </p>
                 <p v-if="lesson.notes" class="data-item__note">{{ lesson.notes }}</p>
               </div>
@@ -157,12 +153,8 @@
           </section>
 
           <div v-if="canManage" class="lesson-teacher lesson-teacher--detail">
-            <span>Викладач:</span>
-            <span>{{ teacherName(selectedLesson.teacher) }}</span>
-          </div>
-          <div v-if="canManage" class="lesson-payroll lesson-payroll--detail">
-            <span>Оплата викладача за урок</span>
-            <strong>{{ formatMoney(selectedLesson.payroll_amount) }}</strong>
+            <span>Викладач: {{ teacherName(selectedLesson.teacher) }}</span>
+            <span class="lesson-teacher__amount">{{ formatTeacherPay(selectedLesson.payroll_amount) }}</span>
           </div>
 
           <label class="mobile-field">
@@ -260,7 +252,7 @@ import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Enrollment, Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
-import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
+import { formatDateTime, statusLabel } from '@/utils/format'
 import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
@@ -438,6 +430,14 @@ function teacherName(teacherId?: number) {
   if (!teacherId) return '—'
   const teacher = teachers.value.find((item) => item.id === teacherId)
   return teacher ? profileLabel(teacher, 'Викладач') : `Викладач #${teacherId}`
+}
+
+function formatTeacherPay(value?: string | number) {
+  const amount = Number(value ?? 0)
+  return new Intl.NumberFormat('uk-UA', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0)
 }
 
 function profileLabel(profile: ProfileOption, fallback: string) {
@@ -698,8 +698,7 @@ onMounted(load)
 </script>
 
 <style scoped>
-.lesson-teacher,
-.lesson-payroll {
+.lesson-teacher {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -709,22 +708,11 @@ onMounted(load)
   font-size: 12px;
 }
 
-.lesson-teacher span:last-child {
+.lesson-teacher__amount {
   color: var(--app-muted);
   font-size: inherit;
   font-weight: inherit;
   white-space: nowrap;
-}
-
-.lesson-payroll strong {
-  color: var(--app-ink);
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.lesson-payroll--detail {
-  margin: -4px 0 0;
-  padding: 0 2px;
 }
 
 .lesson-teacher--detail {
