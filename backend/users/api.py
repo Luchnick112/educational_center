@@ -105,7 +105,7 @@ class UserViewSet(viewsets.ModelViewSet):
             teacher = user.teacher_profile
             data['stats'] = {
                 'Групи': teacher.groups.count(),
-                'Заплановані уроки': Lesson.objects.filter(group__teacher=teacher, status='scheduled').count(),
+                'Заплановані уроки': Lesson.objects.filter(teacher=teacher, status='scheduled').count(),
                 'Очікують виплати': (
                     TeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count()
                     + LessonTeacherPayout.objects.filter(teacher=teacher).exclude(status='paid').count()

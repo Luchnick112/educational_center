@@ -479,6 +479,44 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([item['id'] for item in response.data], [self.lesson.id])
 
+    def test_group_teacher_change_preserves_lesson_teacher_history(self):
+        other_teacher_user = User.objects.create_user(
+            username='history_teacher_change',
+            email='history_teacher_change@example.com',
+            password='pass12345',
+            role=UserRole.TEACHER,
+        )
+        other_teacher = TeacherProfile.objects.create(user=other_teacher_user, hourly_rate=200)
+
+        self.lesson.status = LessonStatus.CANCELLED
+        self.lesson.save(update_fields=['status'])
+        scheduled_lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() + timedelta(days=1),
+        )
+
+        self.group.teacher = other_teacher
+        self.group.save(update_fields=['teacher'])
+
+        self.lesson.refresh_from_db()
+        scheduled_lesson.refresh_from_db()
+        self.assertEqual(self.lesson.teacher_id, self.teacher.id)
+        self.assertEqual(scheduled_lesson.teacher_id, other_teacher.id)
+
+        admin_user = User.objects.create_user(
+            username='history_filter_admin',
+            email='history_filter_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+        response = self.client.get('/api/my/lessons/', {'teacher': self.teacher.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.data], [self.lesson.id])
+        self.assertEqual(response.data[0]['teacher'], self.teacher.id)
+
     def test_my_lessons_supports_explicit_pagination(self):
         created_lessons = []
         for index in range(25):

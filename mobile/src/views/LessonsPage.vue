@@ -86,7 +86,7 @@
                 <p>{{ formatDateTime(lesson.starts_at) }}</p>
                 <p v-if="canManage" class="lesson-payroll">
                   <span>Викладач:</span>
-                  <strong>{{ teacherNameByGroup(lesson.group) }}</strong>
+                  <strong>{{ teacherName(lesson.teacher) }}</strong>
                 </p>
                 <p v-if="lesson.notes" class="data-item__note">{{ lesson.notes }}</p>
               </div>
@@ -154,7 +154,7 @@
 
           <div v-if="canManage" class="lesson-payroll lesson-payroll--detail">
             <span>Викладач:</span>
-            <strong>{{ teacherNameByGroup(selectedLesson.group) }}</strong>
+            <strong>{{ teacherName(selectedLesson.teacher) }}</strong>
           </div>
 
           <label class="mobile-field">
@@ -313,13 +313,18 @@ function groupHasStudent(groupId: number, studentId: string) {
   ))
 }
 
+function groupMatchesTeacher(group: StudyGroup, teacherId: string) {
+  return String(group.teacher ?? '') === teacherId
+    || lessons.value.some((lesson) => lesson.group === group.id && String(lesson.teacher ?? '') === teacherId)
+}
+
 function groupsMatchingFilters({
   teacherId = '',
   studentId = '',
   groupValue = '',
 }: { teacherId?: string; studentId?: string; groupValue?: string }) {
   return groups.value.filter((group) => {
-    if (teacherId && String(group.teacher ?? '') !== teacherId) return false
+    if (teacherId && !groupMatchesTeacher(group, teacherId)) return false
     if (studentId && !groupHasStudent(group.id, studentId)) return false
     if (groupValue === 'individual' || groupValue === 'group') return group.format === groupValue
     if (groupValue) return String(group.id) === groupValue
@@ -342,7 +347,8 @@ const groupsForGroupFilter = computed(() => groupsMatchingFilters({
 const teacherFilterOptions = computed(() => userFilterOptions(
   teachers.value.filter((teacher) => groupsForTeacherFilter.value.some(
     (group) => Number(group.teacher) === Number(teacher.id),
-  )),
+  ) || lessons.value.some((lesson) => Number(lesson.teacher) === Number(teacher.id)
+    && groupsForTeacherFilter.value.some((group) => group.id === lesson.group))),
   'Усі викладачі',
   'Викладач',
 ))
@@ -420,8 +426,7 @@ const day = (value: string) => datePart(value, 'day')
 const month = (value: string) => datePart(value, 'month')
 const groupName = (id: number) => groups.value.find((group) => group.id === id)?.name || `Група #${id}`
 
-function teacherNameByGroup(groupId: number) {
-  const teacherId = groups.value.find((group) => group.id === groupId)?.teacher
+function teacherName(teacherId?: number) {
   if (!teacherId) return '—'
   const teacher = teachers.value.find((item) => item.id === teacherId)
   return teacher ? profileLabel(teacher, 'Викладач') : `Викладач #${teacherId}`

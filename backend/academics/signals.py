@@ -131,7 +131,7 @@ def _create_group_teacher_payout_for_batch(*, batch_number: int, batch: list[Les
     payout, created = LessonTeacherPayout.objects.get_or_create(
         lesson=billing_lesson,
         defaults={
-            'teacher': billing_lesson.group.teacher,
+            'teacher': billing_lesson.teacher,
             'amount': amount,
             'billing_period': batch_number,
             'lesson_count': len(batch),
@@ -241,7 +241,6 @@ def _create_individual_financial_documents(lesson: Lesson) -> None:
         'student',
         'enrollment',
         'enrollment__group',
-        'enrollment__group__teacher',
     )
 
     for participant in participants:
@@ -268,7 +267,7 @@ def _create_individual_financial_documents(lesson: Lesson) -> None:
         TeacherPayout.objects.get_or_create(
             participant=participant,
             defaults={
-                'teacher': participant.enrollment.group.teacher,
+                'teacher': lesson.teacher,
                 'amount': participant.payroll_amount if participant.attendance_status == AttendanceStatus.PRESENT else 0,
                 'period_start_at': lesson.starts_at,
                 'period_end_at': lesson.starts_at,
@@ -361,6 +360,19 @@ def recalculate_student_billing_after_enrollment_price_save(sender, instance: St
 def remember_group_student_price_change(sender, instance: StudyGroup, **kwargs):
     if not kwargs.get('raw'):
         _remember_field_change(instance, 'student_price', '_student_price_changed')
+
+
+@receiver(pre_save, sender=StudyGroup)
+def remember_group_teacher_change(sender, instance: StudyGroup, **kwargs):
+    if not kwargs.get('raw'):
+        _remember_field_change(instance, 'teacher_id', '_teacher_changed')
+
+
+@receiver(post_save, sender=StudyGroup)
+def update_scheduled_lesson_teachers_after_group_change(sender, instance: StudyGroup, created: bool, **kwargs):
+    if kwargs.get('raw') or created or not getattr(instance, '_teacher_changed', False):
+        return
+    Lesson.objects.filter(group=instance, status=LessonStatus.SCHEDULED).update(teacher_id=instance.teacher_id)
 
 
 @receiver(post_save, sender=StudyGroup)

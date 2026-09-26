@@ -35,6 +35,7 @@ export type Lesson = {
   starts_at: string
   notes?: string
   group: number
+  teacher?: number
   payroll_amount?: string
   billed_amount?: string
   can_request_reschedule?: boolean

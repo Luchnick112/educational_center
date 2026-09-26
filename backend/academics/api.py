@@ -276,6 +276,8 @@ class LessonViewSet(viewsets.ModelViewSet):
             'group__subject',
             'group__teacher',
             'group__teacher__user',
+            'teacher',
+            'teacher__user',
         )
         .prefetch_related(
             Prefetch(
@@ -298,7 +300,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == UserRole.ADMIN:
             queryset = self.queryset.all()
         elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            queryset = self.queryset.filter(group__teacher=user.teacher_profile)
+            queryset = self.queryset.filter(teacher=user.teacher_profile)
         elif user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             queryset = self.queryset.filter(participants__student=user.student_profile).distinct()
         elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
@@ -340,7 +342,7 @@ class LessonViewSet(viewsets.ModelViewSet):
             is_lesson_teacher = (
                 user.role == UserRole.TEACHER
                 and hasattr(user, 'teacher_profile')
-                and instance.group.teacher_id == user.teacher_profile.id
+                and instance.teacher_id == user.teacher_profile.id
             )
             if 'starts_at' in serializer.validated_data and serializer.validated_data['starts_at'] != instance.starts_at:
                 if not is_lesson_teacher or instance.status not in {LessonStatus.SCHEDULED, LessonStatus.CANCELLED}:
@@ -399,7 +401,7 @@ class LessonConfirmationViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == UserRole.ADMIN:
             return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            return self.queryset.filter(participant__lesson__group__teacher=user.teacher_profile)
+            return self.queryset.filter(participant__lesson__teacher=user.teacher_profile)
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             return self.queryset.filter(
                 participant__student=user.student_profile,
@@ -431,6 +433,8 @@ class LessonRescheduleRequestViewSet(viewsets.ModelViewSet):
             'lesson',
             'lesson__group',
             'lesson__group__teacher',
+            'lesson__teacher',
+            'lesson__teacher__user',
             'student',
             'student__user',
             'requested_by',
@@ -449,7 +453,7 @@ class LessonRescheduleRequestViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == UserRole.ADMIN:
             pass
         elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            queryset = queryset.filter(lesson__group__teacher=user.teacher_profile)
+            queryset = queryset.filter(lesson__teacher=user.teacher_profile)
         elif user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             queryset = queryset.filter(student=user.student_profile)
         elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):

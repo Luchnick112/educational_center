@@ -48,7 +48,7 @@ class IsAdminOrRelatedAcademicObject(permissions.BasePermission):
 
         if hasattr(obj, 'group') and hasattr(obj.group, 'teacher_id'):
             if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-                return obj.group.teacher_id == user.teacher_profile.id
+                return getattr(obj, 'teacher_id', obj.group.teacher_id) == user.teacher_profile.id
             if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
                 return obj.participants.filter(student=user.student_profile).exists()
             if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
@@ -68,7 +68,7 @@ class IsAdminOrRelatedAcademicObject(permissions.BasePermission):
             if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
                 return obj.student.parent_links.filter(parent=user.parent_profile).exists()
             if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-                return obj.group.teacher_id == user.teacher_profile.id
+                return getattr(obj, 'teacher_id', obj.group.teacher_id) == user.teacher_profile.id
 
         if hasattr(obj, 'participant_id'):
             participant = obj.participant
@@ -77,7 +77,7 @@ class IsAdminOrRelatedAcademicObject(permissions.BasePermission):
             if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
                 return participant.student.parent_links.filter(parent=user.parent_profile).exists()
             if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-                return participant.lesson.group.teacher_id == user.teacher_profile.id
+                return participant.lesson.teacher_id == user.teacher_profile.id
 
         if hasattr(obj, 'teacher_id'):
             return user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile') and obj.teacher_id == user.teacher_profile.id

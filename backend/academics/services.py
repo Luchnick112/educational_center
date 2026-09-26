@@ -116,7 +116,7 @@ def sync_enrollment_scheduled_lesson_participants(enrollment: StudentEnrollment)
 def ensure_lesson_teacher_or_admin(user, lesson: Lesson, action_label: str) -> None:
     if user.is_staff or user.role == UserRole.ADMIN:
         return
-    if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile') and lesson.group.teacher == user.teacher_profile:
+    if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile') and lesson.teacher == user.teacher_profile:
         return
     raise exceptions.PermissionDenied(f'You cannot {action_label} for this lesson.')
 
@@ -250,7 +250,7 @@ def apply_lesson_reschedule(*, user, reschedule_request: LessonRescheduleRequest
         or (
             user.role == UserRole.TEACHER
             and hasattr(user, 'teacher_profile')
-            and reschedule_request.lesson.group.teacher_id == user.teacher_profile.id
+            and reschedule_request.lesson.teacher_id == user.teacher_profile.id
         )
     ):
         raise exceptions.PermissionDenied('Only the lesson teacher can apply reschedule requests.')
@@ -297,7 +297,7 @@ def confirm_lesson(*, user, confirmation: LessonConfirmation, comment: str = '')
             raise exceptions.PermissionDenied('Confirmation is not available for this parent.')
         expected_requester = ConfirmationRequester.PARENT
     elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-        if confirmation.participant.lesson.group.teacher_id != user.teacher_profile.id:
+        if confirmation.participant.lesson.teacher_id != user.teacher_profile.id:
             raise exceptions.PermissionDenied('Confirmation is not available for this teacher.')
         expected_requester = ConfirmationRequester.TEACHER
     elif user.is_staff or user.role == UserRole.ADMIN:

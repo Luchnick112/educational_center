@@ -89,7 +89,7 @@
         <div class="detail-grid">
           <label class="field">
             <span class="field__label">Викладач</span>
-            <input class="input" type="text" :value="teacherLabelByGroup(editLessonForm.group)" disabled />
+            <input class="input" type="text" :value="teacherLabelByLesson(selectedLesson)" disabled />
           </label>
           <label class="field">
             <span class="field__label">Група</span>
@@ -243,7 +243,7 @@ import { sortFilterOptions, userFilterLabel } from '@/lib/userFilterOptions'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute, useRouter } from 'vue-router'
 
-type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number; can_request_reschedule?: boolean }
+type Lesson = { id: number; status: string; starts_at: string; payroll_amount?: string; billed_amount?: string; notes?: string; group: number; teacher?: number; can_request_reschedule?: boolean }
 type LessonParticipant = {
   id: number
   student: number
@@ -328,7 +328,7 @@ const columns = computed(() => {
     { key: 'starts_at', label: 'Початок', render: (r: Lesson) => formatLessonDateTime(r.starts_at) },
   ]
   if (isAdmin.value) {
-    items.splice(1, 0, { key: 'teacher', label: 'Викладач', render: (r: Lesson) => teacherLabelByGroup(r.group) })
+    items.splice(1, 0, { key: 'teacher', label: 'Викладач', render: (r: Lesson) => teacherLabelByLesson(r) })
   }
   if (canSeePayroll.value) {
     items.push({ key: 'payroll_amount', label: 'Винагорода вчителя', render: (r: Lesson) => formatPayrollAmount(r.payroll_amount) })
@@ -383,7 +383,7 @@ const canApplyRescheduleRequest = computed(() =>
 )
 const filteredRows = computed(() => {
   if (!isAdmin.value || teacherFilter.value === null) return rows.value
-  return rows.value.filter((lesson) => groupTeacherId(lesson.group) === teacherFilter.value)
+  return rows.value.filter((lesson) => lesson.teacher === teacherFilter.value)
 })
 
 function isActiveEnrollment(enrollment: Enrollment) {
@@ -398,13 +398,18 @@ function groupHasStudent(groupId: number, studentId: number) {
   ))
 }
 
+function groupMatchesTeacher(group: Group, teacherId: number) {
+  return Number(group.teacher) === Number(teacherId)
+    || rows.value.some((lesson) => lesson.group === group.id && Number(lesson.teacher) === Number(teacherId))
+}
+
 function groupsMatchingFilters({
   teacherId = null,
   studentId = null,
   groupValue = '',
 }: { teacherId?: number | null; studentId?: number | null; groupValue?: string }) {
   return groups.value.filter((group) => {
-    if (teacherId !== null && Number(group.teacher) !== Number(teacherId)) return false
+    if (teacherId !== null && !groupMatchesTeacher(group, teacherId)) return false
     if (studentId !== null && !groupHasStudent(group.id, studentId)) return false
     if (groupValue === 'individual' || groupValue === 'group') return group.format === groupValue
     if (groupValue) return Number(group.id) === Number(groupValue)
@@ -428,7 +433,8 @@ const teacherFilterOptions = computed(() => [
   { value: null, label: 'Всі викладачі' },
   ...sortFilterOptions(teachers.value.filter((teacher) => groupsForTeacherFilter.value.some(
     (group) => Number(group.teacher) === Number(teacher.id),
-  )).map((teacher) => ({
+  ) || rows.value.some((lesson) => Number(lesson.teacher) === Number(teacher.id)
+    && groupsForTeacherFilter.value.some((group) => group.id === lesson.group))).map((teacher) => ({
     value: teacher.id,
     label: userFilterLabel(teacher, 'Викладач'),
   }))),
@@ -578,9 +584,9 @@ function groupLabel(groupId: number | null) {
   return groups.value.find((g) => g.id === groupId)?.name || `Група #${groupId}`
 }
 
-function teacherLabelByGroup(groupId: number | null) {
-  if (!groupId) return '-'
-  const teacherId = groupTeacherId(groupId)
+function teacherLabelByLesson(lesson: Lesson | null) {
+  if (!lesson) return '-'
+  const teacherId = lesson.teacher ?? groupTeacherId(lesson.group)
   if (!teacherId) return '-'
   const teacher = teachers.value.find((t) => t.id === teacherId)
   if (teacher) return teacherLabel(teacher)
