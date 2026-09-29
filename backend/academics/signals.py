@@ -5,7 +5,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from finance.models import ChargeStatus, LessonTeacherPayout, ParentCharge, PayoutStatus, TeacherPayout
-from users.models import StudentParentRelation, StudentProfile
+from users.models import StudentParentRelation, StudentProfile, TeacherProfile
 
 from .constants import BILLING_LESSON_COUNT
 from .models import (
@@ -23,6 +23,7 @@ from .services import (
     create_lesson_participants_for_enrollments,
     group_lesson_teacher_amount,
     recalculate_lesson_participant_billed_amounts,
+    recalculate_lesson_participant_payroll_amounts,
 )
 
 
@@ -178,6 +179,23 @@ def _recalculate_draft_lesson_teacher_payouts_for_group(group) -> None:
         _recalculate_draft_lesson_teacher_payout(payout)
 
 
+def _recalculate_draft_individual_teacher_payouts_for_group(group) -> None:
+    payouts = TeacherPayout.objects.filter(
+        participant__lesson__group=group,
+        status=PayoutStatus.DRAFT,
+    ).select_related('participant')
+    for payout in payouts:
+        participant = payout.participant
+        amount = (
+            participant.payroll_amount
+            if participant.attendance_status == AttendanceStatus.PRESENT
+            else Decimal('0.00')
+        )
+        if payout.amount != amount:
+            payout.amount = amount
+            payout.save(update_fields=['amount'])
+
+
 def _parent_charge_participants(charge: ParentCharge):
     if charge.lesson_count == 1:
         return LessonParticipant.objects.filter(pk=charge.participant_id)
@@ -226,6 +244,17 @@ def _recalculate_student_billing(*, group=None, student=None, enrollment=None) -
         student=student,
         enrollment=enrollment,
     )
+
+
+def _recalculate_teacher_payroll(*, group=None, student=None, enrollment=None) -> None:
+    recalculate_lesson_participant_payroll_amounts(
+        group=group,
+        student=student,
+        enrollment=enrollment,
+    )
+    if group is not None:
+        _recalculate_draft_individual_teacher_payouts_for_group(group)
+        _recalculate_draft_lesson_teacher_payouts_for_group(group)
 
 
 def _remember_field_change(instance, field_name: str, attribute_name: str) -> None:
@@ -323,11 +352,13 @@ def recalculate_student_billing_after_group_pricing_save(sender, instance: Group
     if kwargs.get('raw'):
         return
     _recalculate_student_billing(group=instance.group)
+    _recalculate_teacher_payroll(group=instance.group)
 
 
 @receiver(post_delete, sender=GroupPricing)
 def recalculate_student_billing_after_group_pricing_delete(sender, instance: GroupPricing, **kwargs):
     _recalculate_student_billing(group=instance.group)
+    _recalculate_teacher_payroll(group=instance.group)
 
 
 @receiver(pre_save, sender=StudentProfile)
@@ -354,6 +385,20 @@ def recalculate_student_billing_after_enrollment_price_save(sender, instance: St
     if kwargs.get('raw') or not getattr(instance, '_student_price_override_changed', False):
         return
     _recalculate_student_billing(enrollment=instance)
+
+
+@receiver(pre_save, sender=TeacherProfile)
+def remember_teacher_hourly_rate_change(sender, instance: TeacherProfile, **kwargs):
+    if not kwargs.get('raw'):
+        _remember_field_change(instance, 'hourly_rate', '_hourly_rate_changed')
+
+
+@receiver(post_save, sender=TeacherProfile)
+def recalculate_teacher_payroll_after_hourly_rate_save(sender, instance: TeacherProfile, **kwargs):
+    if kwargs.get('raw') or not getattr(instance, '_hourly_rate_changed', False):
+        return
+    for group in instance.groups.all():
+        _recalculate_teacher_payroll(group=group)
 
 
 @receiver(pre_save, sender=StudyGroup)

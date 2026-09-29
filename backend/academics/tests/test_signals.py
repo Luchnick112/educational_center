@@ -28,7 +28,7 @@ class LessonSignalsTestCase(TestCase):
             password='pass12345',
             role=UserRole.TEACHER,
         )
-        self.teacher = TeacherProfile.objects.create(user=self.teacher_user, hourly_rate=300)
+        self.teacher = TeacherProfile.objects.create(user=self.teacher_user, hourly_rate=250)
 
         self.student_user = User.objects.create_user(
             username='student1',
@@ -58,7 +58,6 @@ class LessonSignalsTestCase(TestCase):
             teacher=self.teacher,
             format='group',
             student_price=500,
-            teacher_rate=250,
         )
         self.enrollment = StudentEnrollment.objects.create(
             group=self.group,
@@ -139,6 +138,55 @@ class LessonSignalsTestCase(TestCase):
         )
 
         self.assertEqual(lesson.participants.get().billed_amount, Decimal('800.00'))
+
+    def test_backdated_group_pricing_recalculates_draft_individual_teacher_payout(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+        lesson = self.create_completed_lesson(days_offset=0)
+        participant = lesson.participants.get()
+        payout = participant.teacher_payout
+
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('800.00'),
+            teacher_rate=Decimal('400.00'),
+            effective_from=lesson.starts_at - timedelta(days=1),
+        )
+
+        participant.refresh_from_db()
+        payout.refresh_from_db()
+        self.assertEqual(participant.payroll_amount, Decimal('400.00'))
+        self.assertEqual(payout.amount, Decimal('400.00'))
+
+    def test_backdated_group_pricing_does_not_recalculate_paid_individual_teacher_payout(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+        lesson = self.create_completed_lesson(days_offset=0)
+        payout = lesson.participants.get().teacher_payout
+        payout.status = PayoutStatus.PAID
+        payout.save(update_fields=['status'])
+
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('800.00'),
+            teacher_rate=Decimal('400.00'),
+            effective_from=lesson.starts_at - timedelta(days=1),
+        )
+
+        payout.refresh_from_db()
+        self.assertEqual(payout.amount, Decimal('250.00'))
+
+    def test_teacher_hourly_rate_change_recalculates_draft_individual_teacher_payout(self):
+        self.group.format = StudyGroupFormat.INDIVIDUAL
+        self.group.save(update_fields=['format'])
+        lesson = self.create_completed_lesson(days_offset=0)
+        payout = lesson.participants.get().teacher_payout
+
+        self.teacher.hourly_rate = Decimal('400.00')
+        self.teacher.save(update_fields=['hourly_rate'])
+
+        payout.refresh_from_db()
+        self.assertEqual(payout.amount, Decimal('400.00'))
 
     def test_lesson_creation_uses_group_price_effective_at_lesson_time(self):
         effective_from = timezone.now() - timedelta(days=10)

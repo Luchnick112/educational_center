@@ -33,7 +33,6 @@
             <th>Назва групи</th>
             <th>Тип</th>
             <th v-if="isAdmin" class="col-student-price">Ціна за навчання</th>
-            <th>Ставка вчителя</th>
             <th>Кількість учнів</th>
             <th>Завершено уроків</th>
             <th>До рахунку</th>
@@ -51,7 +50,6 @@
             <td class="col-group-name" data-label="Назва групи">{{ row.group.name || `Група #${row.group.id}` }}</td>
             <td data-label="Тип">{{ groupFormatLabel(row.group.format) }}</td>
             <td v-if="isAdmin" class="col-student-price" data-label="Ціна за навчання">{{ priceLabel(row.group.student_price) }}</td>
-            <td data-label="Ставка вчителя">{{ priceLabel(row.group.teacher_rate) }}</td>
             <td data-label="Кількість учнів">{{ row.studentIds.length }}</td>
             <td data-label="Завершено уроків">{{ groupCompletedLessonsLabel(row.group) }}</td>
             <td data-label="До рахунку">{{ groupLessonsUntilBillingLabel(row.group) }}</td>
@@ -94,10 +92,6 @@
             <span v-if="isAdmin">
               <span class="mobile-group-card__label">Навчання</span>
               <span>{{ priceLabel(row.group.student_price) }}</span>
-            </span>
-            <span>
-              <span class="mobile-group-card__label">Ставка вчителя</span>
-              <span>{{ priceLabel(row.group.teacher_rate) }}</span>
             </span>
           </span>
           <span class="mobile-group-card__students">
@@ -142,10 +136,6 @@
             <span>{{ priceLabel(selectedGroupDetail.group.student_price) }}</span>
           </div>
           <div class="detail-item">
-            <span class="detail-item__label">Ставка вчителя</span>
-            <span>{{ priceLabel(selectedGroupDetail.group.teacher_rate) }}</span>
-          </div>
-          <div class="detail-item">
             <span class="detail-item__label">Учнів</span>
             <span>{{ selectedGroupDetail.studentIds.length }}</span>
           </div>
@@ -186,10 +176,6 @@
         <div v-if="isAdmin" class="field">
           <div class="field__label">Ціна за навчання</div>
           <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.student_price" />
-        </div>
-        <div v-if="isAdmin" class="field">
-          <div class="field__label">Ставка вчителя</div>
-          <input class="input" type="number" min="0" step="0.01" v-model.number="createForm.teacher_rate" />
         </div>
         <div class="dropdown student-picker">
           <div class="field__label">Учні групи</div>
@@ -252,10 +238,6 @@
         <div v-if="isAdmin" class="field">
           <div class="field__label">Ціна за навчання</div>
           <input class="input" type="number" min="0" step="0.01" v-model.number="editForm.student_price" placeholder="Ціна за навчання" />
-        </div>
-        <div v-if="isAdmin" class="field">
-          <div class="field__label">Ставка вчителя</div>
-          <input class="input" type="number" min="0" step="0.01" v-model.number="editForm.teacher_rate" placeholder="Ставка вчителя" />
         </div>
         <label class="field">
           <span class="field__label">Тип</span>
@@ -381,7 +363,7 @@ import { useAuthStore } from '@/stores/auth'
 
 type Subject = { id: number; name: string }
 type Student = { id: number; user_detail?: { first_name?: string; last_name?: string; email?: string; telegram_username?: string } }
-type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
+type Teacher = { id: number; hourly_rate?: string | number | null; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type GroupFormat = 'group' | 'individual'
 type Group = {
   id: number
@@ -390,7 +372,6 @@ type Group = {
   subject?: number | null
   format?: GroupFormat | string | null
   student_price?: string | number | null
-  teacher_rate?: string | number | null
   completed_lessons_count?: number | null
   lessons_until_next_billing?: number | null
 }
@@ -457,10 +438,9 @@ const createForm = ref({
   teacher: null as number | null,
   format: 'group' as GroupFormat,
   student_price: 0,
-  teacher_rate: 0,
   students: [] as number[],
 })
-const editForm = ref({ subject: null as number | null, format: 'group' as GroupFormat, student_price: 0, teacher_rate: 0, students: [] as number[] })
+const editForm = ref({ subject: null as number | null, format: 'group' as GroupFormat, student_price: 0, students: [] as number[] })
 const pricingForm = ref({ effective_from_date: '', student_price: 0, teacher_rate: 0 })
 const attendanceRateForm = ref({
   effective_from_date: '',
@@ -846,7 +826,6 @@ function resetCreateForm() {
     teacher: null,
     format: 'group',
     student_price: 0,
-    teacher_rate: 0,
     students: [],
   }
   createStudentsOpen.value = false
@@ -912,12 +891,12 @@ function openEditForm() {
   editForm.value.subject = g.subject || null
   editForm.value.format = g.format === 'individual' ? 'individual' : 'group'
   editForm.value.student_price = Number(g.student_price || 0)
-  editForm.value.teacher_rate = Number(g.teacher_rate || 0)
   editForm.value.students = activeStudentIdsByGroup(g.id)
+  const teacher = teachers.value.find((item) => item.id === g.teacher)
   pricingForm.value = {
     effective_from_date: todayDate(),
     student_price: Number(g.student_price || 0),
-    teacher_rate: Number(g.teacher_rate || 0),
+    teacher_rate: Number(teacher?.hourly_rate || 0),
   }
   attendanceRateForm.value = {
     effective_from_date: todayDate(),
@@ -945,7 +924,6 @@ async function createGroup() {
     if (isAdmin.value) {
       body.teacher = createForm.value.teacher
       body.student_price = createForm.value.student_price
-      body.teacher_rate = createForm.value.teacher_rate
     }
     const created = await apiRequest<Group>('/api/academics/groups/', {
       method: 'POST',
@@ -982,7 +960,6 @@ async function saveEditedGroup() {
     }
     if (isAdmin.value) {
       body.student_price = editForm.value.student_price
-      body.teacher_rate = editForm.value.teacher_rate
     }
     await apiRequest(`/api/academics/groups/${groupId}/`, { method: 'PATCH', body })
     const updatedGroupEnrollments = await syncGroupStudents(groupId, editForm.value.students)

@@ -89,6 +89,39 @@ def recalculate_lesson_participant_billed_amounts(*, group=None, student=None, e
     return len(changed)
 
 
+def recalculate_lesson_participant_payroll_amounts(*, group=None, student=None, enrollment=None) -> int:
+    participants = LessonParticipant.objects.select_related(
+        'lesson__group',
+        'enrollment__group',
+        'enrollment__student',
+    ).filter(
+        lesson__status=LessonStatus.COMPLETED,
+        lesson__group__format=StudyGroupFormat.INDIVIDUAL,
+    )
+    if group is not None:
+        participants = participants.filter(lesson__group=group)
+    if student is not None:
+        participants = participants.filter(student=student)
+    if enrollment is not None:
+        participants = participants.filter(enrollment=enrollment)
+
+    changed = []
+    for participant in participants:
+        _, base_teacher_rate = participant.lesson.group.get_effective_pricing(participant.lesson.starts_at)
+        payroll_amount = (
+            participant.enrollment.teacher_rate_override or base_teacher_rate
+            if participant.attendance_status == AttendanceStatus.PRESENT
+            else Decimal('0.00')
+        )
+        if participant.payroll_amount != payroll_amount:
+            participant.payroll_amount = payroll_amount
+            changed.append(participant)
+
+    if changed:
+        LessonParticipant.objects.bulk_update(changed, ['payroll_amount'])
+    return len(changed)
+
+
 def sync_enrollment_scheduled_lesson_participants(enrollment: StudentEnrollment) -> int:
     if enrollment.status != EnrollmentStatus.ACTIVE:
         return 0

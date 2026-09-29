@@ -68,7 +68,6 @@ export type StudyGroup = {
   subject?: number
   teacher?: number | null
   student_price?: string
-  teacher_rate?: string
   is_active?: boolean
 }
 

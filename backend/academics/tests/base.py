@@ -20,7 +20,7 @@ class AcademicBaseTestCase(TestCase):
             password='pass12345',
             role=UserRole.TEACHER,
         )
-        self.teacher = TeacherProfile.objects.create(user=self.teacher_user, hourly_rate=300)
+        self.teacher = TeacherProfile.objects.create(user=self.teacher_user, hourly_rate=350)
 
         self.student_user = User.objects.create_user(
             username='student_api',
@@ -51,7 +51,6 @@ class AcademicBaseTestCase(TestCase):
             teacher=self.teacher,
             format='group',
             student_price=600,
-            teacher_rate=350,
         )
         self.enrollment = StudentEnrollment.objects.create(
             group=self.group,
