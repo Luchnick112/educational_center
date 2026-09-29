@@ -48,7 +48,6 @@ describe('MyGroupsView', () => {
             subject: 1,
             format: 'group',
             student_price: '500.00',
-            teacher_rate: '300.00',
           },
         ] as never
       }

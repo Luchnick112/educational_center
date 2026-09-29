@@ -117,10 +117,6 @@
               <span>Ціна для учня</span>
               <input v-model="form.student_price" class="mobile-control" type="number" min="0" step="0.01" required />
             </label>
-            <label class="mobile-field">
-              <span>Ставка викладача</span>
-              <input v-model="form.teacher_rate" class="mobile-control" type="number" min="0" step="0.01" required />
-            </label>
           </div>
 
           <fieldset v-if="isAdmin && editingId && form.format === 'group'" class="choice-list attendance-rate-section">
@@ -326,7 +322,6 @@ const form = reactive({
   teacher: null as number | null,
   format: 'group',
   student_price: '0.00',
-  teacher_rate: '0.00',
   students: [] as number[],
   is_active: true,
 })
@@ -478,7 +473,6 @@ function resetForm() {
     teacher: teachers.value[0]?.id ?? null,
     format: 'group',
     student_price: '0.00',
-    teacher_rate: '0.00',
     students: [],
     is_active: true,
   })
@@ -507,7 +501,6 @@ async function openEdit(group: StudyGroup) {
       teacher: group.teacher ?? null,
       format: group.format || 'group',
       student_price: group.student_price ?? '0.00',
-      teacher_rate: group.teacher_rate ?? '0.00',
       students: enrollments.value
         .filter((item) => item.group === group.id && item.status === 'active')
         .map((item) => item.student),
@@ -564,7 +557,6 @@ async function saveGroup() {
     if (isAdmin.value) {
       body.teacher = form.teacher
       body.student_price = form.student_price
-      body.teacher_rate = form.teacher_rate
     }
 
     const group = editingId.value

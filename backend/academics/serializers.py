@@ -75,12 +75,9 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         role = getattr(user, 'role', None)
         if role == UserRole.TEACHER:
             rep.pop('student_price', None)
-            _, teacher_rate = instance.get_effective_pricing(timezone.now())
-            rep['teacher_rate'] = self.fields['teacher_rate'].to_representation(teacher_rate)
             return rep
 
         if role == UserRole.STUDENT:
-            rep.pop('teacher_rate', None)
             student_ids = [getattr(user.student_profile, 'id', None)] if hasattr(user, 'student_profile') else []
             student_ids = [sid for sid in student_ids if sid is not None]
             value = self._get_effective_student_price_for_student_ids(instance, student_ids)
@@ -88,7 +85,6 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             return rep
 
         if role == UserRole.PARENT:
-            rep.pop('teacher_rate', None)
             if hasattr(user, 'parent_profile'):
                 student_ids = list(
                     StudentParentRelation.objects.filter(
@@ -102,9 +98,8 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             rep['student_price'] = self.fields['student_price'].to_representation(value)
             return rep
 
-        student_price, teacher_rate = instance.get_effective_pricing(timezone.now())
+        student_price, _ = instance.get_effective_pricing(timezone.now())
         rep['student_price'] = self.fields['student_price'].to_representation(student_price)
-        rep['teacher_rate'] = self.fields['teacher_rate'].to_representation(teacher_rate)
         return rep
 
     def get_completed_lessons_count(self, instance):
@@ -130,7 +125,6 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'teacher',
             'format',
             'student_price',
-            'teacher_rate',
             'completed_lessons_count',
             'lessons_until_next_billing',
             'is_active',
@@ -138,7 +132,6 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         read_only_fields = ('name',)
         extra_kwargs = {
             'student_price': {'required': False},
-            'teacher_rate': {'required': False},
         }
 
 

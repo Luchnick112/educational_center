@@ -121,28 +121,24 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         student_price = serializer.validated_data.get('student_price', Decimal('0.00'))
-        teacher_rate = serializer.validated_data.get('teacher_rate', Decimal('0.00'))
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             serializer.save(
                 teacher=user.teacher_profile,
                 student_price=Decimal('0.00'),
-                teacher_rate=Decimal('0.00'),
             )
             return
-        serializer.save(student_price=student_price, teacher_rate=teacher_rate)
+        serializer.save(student_price=student_price)
 
     def perform_update(self, serializer):
         user = self.request.user
         student_price = serializer.validated_data.get('student_price', serializer.instance.student_price)
-        teacher_rate = serializer.validated_data.get('teacher_rate', serializer.instance.teacher_rate)
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
             serializer.save(
                 teacher=user.teacher_profile,
                 student_price=serializer.instance.student_price,
-                teacher_rate=serializer.instance.teacher_rate,
             )
             return
-        serializer.save(student_price=student_price, teacher_rate=teacher_rate)
+        serializer.save(student_price=student_price)
 
     def perform_destroy(self, instance):
         with transaction.atomic():

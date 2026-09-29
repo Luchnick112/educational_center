@@ -2824,10 +2824,6 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-        teacher_rate:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         is_active:
           type: boolean
     PatchedSubjectRequest:
@@ -3130,10 +3126,6 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-        teacher_rate:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         is_active:
           type: boolean
       required:
@@ -3143,7 +3135,6 @@ components:
       - student_price
       - subject
       - teacher
-      - teacher_rate
     StudyGroupRequest:
       type: object
       properties:
@@ -3162,10 +3153,6 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
-        teacher_rate:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         is_active:
           type: boolean
       required:
@@ -3173,7 +3160,6 @@ components:
       - student_price
       - subject
       - teacher
-      - teacher_rate
     Subject:
       type: object
       properties:

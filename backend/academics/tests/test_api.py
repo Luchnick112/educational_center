@@ -79,7 +79,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
                 'teacher': self.teacher.id,
                 'format': StudyGroupFormat.INDIVIDUAL,
                 'student_price': '700.00',
-                'teacher_rate': '400.00',
                 'is_active': True,
             },
             format='json',
@@ -114,7 +113,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['teacher'], self.teacher.id)
         self.assertEqual(response.data['format'], StudyGroupFormat.GROUP)
-        self.assertEqual(response.data['teacher_rate'], '0.00')
+        self.assertNotIn('teacher_rate', response.data)
         self.assertNotIn('student_price', response.data)
 
     def test_admin_can_update_group_format(self):
@@ -183,14 +182,14 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(StudyGroup.objects.filter(id=self.group.id).exists())
 
-    def test_teacher_sees_only_teacher_rate_in_group_detail(self):
+    def test_teacher_group_detail_hides_student_price(self):
         self.client.force_authenticate(self.teacher_user)
 
         response = self.client.get(f'/api/academics/groups/{self.group.id}/')
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('student_price', response.data)
-        self.assertIn('teacher_rate', response.data)
+        self.assertNotIn('teacher_rate', response.data)
 
     def test_teacher_sees_only_payroll_amount_in_lesson_participants(self):
         self.client.force_authenticate(self.teacher_user)
@@ -396,7 +395,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             teacher=self.teacher,
             format=StudyGroupFormat.GROUP,
             student_price=600,
-            teacher_rate=350,
         )
         other_lesson = Lesson.objects.create(group=other_group, starts_at=timezone.now() + timedelta(days=1))
         self.client.force_authenticate(self.teacher_user)
@@ -432,7 +430,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             teacher=self.teacher,
             format=StudyGroupFormat.INDIVIDUAL,
             student_price=600,
-            teacher_rate=350,
         )
         individual_lesson = Lesson.objects.create(group=individual_group, starts_at=timezone.now() + timedelta(days=1))
         self.client.force_authenticate(self.teacher_user)
@@ -456,7 +453,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             teacher=other_teacher,
             format=StudyGroupFormat.GROUP,
             student_price=600,
-            teacher_rate=350,
         )
         self.lesson.starts_at = timezone.now() + timedelta(days=40)
         self.lesson.save(update_fields=['starts_at'])
@@ -559,7 +555,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             teacher=self.teacher,
             format=StudyGroupFormat.GROUP,
             student_price=600,
-            teacher_rate=350,
         )
         other_lesson = Lesson.objects.create(group=other_group, starts_at=timezone.now() + timedelta(days=1))
         admin_user = User.objects.create_user(
@@ -1029,7 +1024,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             teacher=other_teacher,
             format='group',
             student_price=600,
-            teacher_rate=350,
         )
 
         self.client.force_authenticate(self.teacher_user)
@@ -1061,7 +1055,6 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
             teacher=other_teacher,
             format='group',
             student_price=600,
-            teacher_rate=350,
         )
 
         factory = APIRequestFactory()

@@ -67,7 +67,6 @@ class StudyGroup(models.Model):
     teacher = models.ForeignKey(TeacherProfile, on_delete=models.PROTECT, related_name='groups')
     format = models.CharField(max_length=16, choices=StudyGroupFormat.choices, default=StudyGroupFormat.GROUP)
     student_price = models.DecimalField(max_digits=10, decimal_places=2)
-    teacher_rate = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
 
     def get_effective_pricing(self, at=None) -> tuple[Decimal, Decimal]:
@@ -79,7 +78,7 @@ class StudyGroup(models.Model):
         )
         if pricing:
             return pricing.student_price, pricing.teacher_rate
-        return self.student_price, self.teacher_rate
+        return self.student_price, self.teacher.hourly_rate
 
     def _build_auto_name(self) -> str:
         if not self.pk:

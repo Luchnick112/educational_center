@@ -131,7 +131,6 @@
       "teacher": 1,
       "format": "group",
       "student_price": "600.00",
-      "teacher_rate": "350.00",
       "is_active": true
     }
   },

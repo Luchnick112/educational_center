@@ -126,10 +126,6 @@
                 <input class="input" type="number" step="0.01" v-model="form.group.student_price" :disabled="mode === 'view'" />
               </div>
               <div class="field">
-                <div class="field__label">Ставка вчителя</div>
-                <input class="input" type="number" step="0.01" v-model="form.group.teacher_rate" :disabled="mode === 'view'" />
-              </div>
-              <div class="field">
                 <div class="field__label">Студенти</div>
                 <input
                   v-model="groupStudentQuery"
@@ -443,7 +439,6 @@ const form = ref({
     teacher: null as number | null,
     format: 'group' as GroupFormat,
     student_price: '0.00',
-    teacher_rate: '0.00',
     is_active: true,
     students: [] as number[],
   },
@@ -689,7 +684,6 @@ function hydrateFormFromDetail(resetForCreate = false) {
       teacher: null,
       format: 'group',
       student_price: '0.00',
-      teacher_rate: '0.00',
       is_active: true,
       students: [],
     }
@@ -708,7 +702,6 @@ function hydrateFormFromDetail(resetForCreate = false) {
       teacher: d.teacher ?? null,
       format: d.format === 'individual' ? 'individual' : 'group',
       student_price: String(d.student_price ?? '0.00'),
-      teacher_rate: String(d.teacher_rate ?? '0.00'),
       is_active: !!d.is_active,
       students: [],
     }
@@ -957,7 +950,6 @@ function payloadForSubmit() {
       teacher: form.value.group.teacher,
       format: form.value.group.format,
       student_price: form.value.group.student_price,
-      teacher_rate: form.value.group.teacher_rate,
       is_active: form.value.group.is_active,
     }
   }
