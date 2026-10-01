@@ -27,11 +27,11 @@
           <div class="filter-grid filter-grid--lessons">
             <label class="mobile-field">
               <span>З</span>
-              <input v-model="lessonFilters.date_from" class="mobile-control" type="date" @change="load" />
+              <input v-model="lessonFilters.date_from" class="mobile-control" type="date" @change="load()" />
             </label>
             <label class="mobile-field">
               <span>До</span>
-              <input v-model="lessonFilters.date_to" class="mobile-control" type="date" @change="load" />
+              <input v-model="lessonFilters.date_to" class="mobile-control" type="date" @change="load()" />
             </label>
             <MobileSearchableSelect
               v-if="isAdmin"
@@ -93,6 +93,26 @@
               <ion-icon class="item-chevron" :icon="chevronForwardOutline" aria-hidden="true" />
             </article>
           </div>
+
+          <nav v-if="totalLessonPages > 1" class="lessons-pagination" aria-label="Пагінація уроків">
+            <ion-button
+              fill="outline"
+              size="small"
+              :disabled="loading || lessonPage <= 1"
+              @click="load(lessonPage - 1)"
+            >
+              Попередня
+            </ion-button>
+            <span aria-live="polite">Сторінка {{ lessonPage }} з {{ totalLessonPages }}</span>
+            <ion-button
+              fill="outline"
+              size="small"
+              :disabled="loading || lessonPage >= totalLessonPages"
+              @click="load(lessonPage + 1)"
+            >
+              Наступна
+            </ion-button>
+          </nav>
         </PageState>
       </div>
     </ion-content>
@@ -261,6 +281,9 @@ const groups = ref<StudyGroup[]>([])
 const teachers = ref<ProfileOption[]>([])
 const students = ref<ProfileOption[]>([])
 const enrollments = ref<Enrollment[]>([])
+const lessonPage = ref(1)
+const lessonPageSize = ref(20)
+const lessonCount = ref(0)
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -300,6 +323,7 @@ const lessonFilters = reactive({
 })
 
 const hasLessonFilters = computed(() => Object.values(lessonFilters).some(Boolean))
+const totalLessonPages = computed(() => Math.max(1, Math.ceil(lessonCount.value / lessonPageSize.value)))
 
 function isActiveEnrollment(enrollment: Enrollment) {
   return enrollment.status === 'active' && !enrollment.end_date
@@ -402,7 +426,11 @@ function onLessonFilterChange() {
   void load()
 }
 const lessonsCaption = computed(() => {
-  if (lessons.value.length) return `${lessons.value.length} занять`
+  if (lessonCount.value) {
+    return totalLessonPages.value > 1
+      ? `${lessonCount.value} занять · сторінка ${lessonPage.value} з ${totalLessonPages.value}`
+      : `${lessonCount.value} занять`
+  }
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
 })
 
@@ -473,8 +501,8 @@ function toIso(value: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
-function lessonsPath() {
-  const params = new URLSearchParams({ page: '1', page_size: '20' })
+function lessonsPath(page: number) {
+  const params = new URLSearchParams({ page: String(page), page_size: String(lessonPageSize.value) })
   if (lessonFilters.date_from) params.set('date_from', lessonFilters.date_from)
   if (lessonFilters.date_to) params.set('date_to', lessonFilters.date_to)
   if (lessonFilters.teacher) params.set('teacher', lessonFilters.teacher)
@@ -487,16 +515,25 @@ function lessonsPath() {
   return `/api/my/lessons/?${params.toString()}`
 }
 
-function load() {
+function load(page = 1) {
   return run(async () => {
     const [lessonPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
-      apiRequest<Lesson[] | LessonPage>(lessonsPath()),
+      apiRequest<Lesson[] | LessonPage>(lessonsPath(page)),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/students/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<Enrollment[]>('/api/academics/enrollments/').catch(() => []) : Promise.resolve([]),
     ])
-    lessons.value = Array.isArray(lessonPayload) ? lessonPayload : lessonPayload.results
+    if (Array.isArray(lessonPayload)) {
+      lessons.value = lessonPayload
+      lessonPage.value = 1
+      lessonCount.value = lessonPayload.length
+    } else {
+      lessons.value = lessonPayload.results
+      lessonPage.value = lessonPayload.page
+      lessonPageSize.value = lessonPayload.page_size
+      lessonCount.value = lessonPayload.count
+    }
     groups.value = groupPayload
     teachers.value = teacherPayload
     students.value = studentPayload
@@ -717,5 +754,26 @@ onMounted(load)
 
 .lesson-teacher--detail {
   padding: 0 2px;
+}
+
+.lessons-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.lessons-pagination ion-button {
+  --border-radius: 6px;
+  min-height: 38px;
+  margin: 0;
+  text-transform: none;
+}
+
+.lessons-pagination span {
+  color: var(--app-muted);
+  font-size: 12px;
+  text-align: center;
 }
 </style>
