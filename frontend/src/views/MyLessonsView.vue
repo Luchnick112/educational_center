@@ -260,7 +260,14 @@ type Teacher = { id: number; user_detail?: { first_name?: string; last_name?: st
 type Student = { id: number; user_detail?: { first_name?: string; last_name?: string; telegram_username?: string; email?: string } }
 type Enrollment = { group: number; student: number; status: string; end_date?: string | null }
 type LessonColumn = { key: string; label: string; render?: (row: Lesson) => string; className?: string; cellClass?: (row: Lesson) => string }
-type LessonPageResponse = { count: number; page: number; page_size: number; results: Lesson[] }
+type LessonPageResponse = {
+  count: number
+  page: number
+  page_size: number
+  payroll_amount_total?: string | number
+  billed_amount_total?: string | number
+  results: Lesson[]
+}
 type LessonRescheduleRequest = {
   id: number
   lesson: number
@@ -295,6 +302,8 @@ const groupFilter = ref('')
 const lessonPage = ref(1)
 const lessonPageSize = ref(20)
 const lessonCount = ref(0)
+const payrollAmountTotal = ref(0)
+const billedAmountTotal = ref(0)
 const rows = ref<Lesson[]>([])
 const selectedLesson = ref<Lesson | null>(null)
 const lessonDetailPanel = ref<HTMLElement | null>(null)
@@ -509,8 +518,6 @@ const lessonGroupOptions = computed(() => [
 const lessonPageCount = computed(() => Math.max(1, Math.ceil(lessonCount.value / lessonPageSize.value)))
 const lessonPageStart = computed(() => (lessonCount.value === 0 ? 0 : (lessonPage.value - 1) * lessonPageSize.value + 1))
 const lessonPageEnd = computed(() => Math.min(lessonCount.value, lessonPage.value * lessonPageSize.value))
-const payrollAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0))
-const billedAmountTotal = computed(() => filteredRows.value.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0))
 
 function localFromIso(iso: string) {
   const d = new Date(iso)
@@ -839,12 +846,16 @@ async function loadLessons() {
   if (Array.isArray(data)) {
     rows.value = data
     lessonCount.value = data.length
+    payrollAmountTotal.value = data.reduce((sum, lesson) => sum + payrollAmountValue(lesson.payroll_amount), 0)
+    billedAmountTotal.value = data.reduce((sum, lesson) => sum + payrollAmountValue(lesson.billed_amount), 0)
     return
   }
   rows.value = data.results
   lessonCount.value = data.count
   lessonPage.value = data.page
   lessonPageSize.value = data.page_size
+  payrollAmountTotal.value = payrollAmountValue(data.payroll_amount_total)
+  billedAmountTotal.value = payrollAmountValue(data.billed_amount_total)
 }
 
 async function reloadLessons(resetPage = true) {

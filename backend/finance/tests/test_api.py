@@ -5,7 +5,7 @@ from django.utils import timezone
 from academics.models import AttendanceStatus, Lesson
 from academics.services import complete_lesson
 from academics.tests.base import AcademicBaseTestCase
-from finance.models import StudentPayment, TeacherPayment
+from finance.models import PayoutStatus, StudentPayment, TeacherPayment, TeacherPayout
 from finance.services import mark_parent_charge_paid
 from users.models import User, UserRole
 
@@ -129,6 +129,102 @@ class MyPaymentsApiTestCase(AcademicBaseTestCase):
         self.assertEqual(teacher_summary['debt_amount'], '0.00')
         self.assertEqual(teacher_summary['paid_count'], 2)
         self.assertEqual(teacher_summary['debt_count'], 0)
+
+    def test_admin_can_allocate_teacher_payment_oldest_first_with_advance(self):
+        first_participant = self.complete_lesson_with_finance_docs(self.lesson)
+        second_lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() + timedelta(hours=1),
+        )
+        second_participant = self.complete_lesson_with_finance_docs(second_lesson)
+        first_payout = first_participant.teacher_payout
+        second_payout = second_participant.teacher_payout
+        first_payout.amount = '100.00'
+        first_payout.period_end_at = timezone.now() - timedelta(days=2)
+        first_payout.save(update_fields=['amount', 'period_end_at'])
+        second_payout.amount = '200.00'
+        second_payout.period_end_at = timezone.now() - timedelta(days=1)
+        second_payout.save(update_fields=['amount', 'period_end_at'])
+
+        self.client.force_authenticate(self.admin_user)
+        payload = {
+            'teacher': self.teacher.id,
+            'amount': '350.00',
+            'paid_at': timezone.localdate().isoformat(),
+        }
+        preview_response = self.client.post(
+            '/api/finance/teacher-payments/preview-allocation/',
+            payload,
+            format='json',
+        )
+
+        self.assertEqual(preview_response.status_code, 200)
+        self.assertEqual(preview_response.data['selected_count'], 2)
+        self.assertEqual(preview_response.data['allocated_amount'], '300.00')
+        self.assertEqual(preview_response.data['advance_amount'], '50.00')
+        self.assertEqual(
+            [item['id'] for item in preview_response.data['payouts']],
+            [first_payout.id, second_payout.id],
+        )
+
+        allocate_response = self.client.post(
+            '/api/finance/teacher-payments/allocate/',
+            payload,
+            format='json',
+        )
+
+        self.assertEqual(allocate_response.status_code, 201)
+        self.assertEqual(TeacherPayout.objects.get(pk=first_payout.pk).status, PayoutStatus.PAID)
+        self.assertEqual(TeacherPayout.objects.get(pk=second_payout.pk).status, PayoutStatus.PAID)
+        payment = TeacherPayment.objects.get(pk=allocate_response.data['payment']['id'])
+        self.assertEqual(payment.amount, 350)
+        self.assertIn('Аванс: 50.00', payment.comment)
+
+    def test_admin_can_select_specific_teacher_payout(self):
+        first_participant = self.complete_lesson_with_finance_docs(self.lesson)
+        second_lesson = Lesson.objects.create(
+            group=self.group,
+            starts_at=timezone.now() + timedelta(hours=1),
+        )
+        second_participant = self.complete_lesson_with_finance_docs(second_lesson)
+        first_payout = first_participant.teacher_payout
+        second_payout = second_participant.teacher_payout
+        first_payout.amount = '2000.00'
+        first_payout.save(update_fields=['amount'])
+        second_payout.amount = '100.00'
+        second_payout.save(update_fields=['amount'])
+
+        self.client.force_authenticate(self.admin_user)
+        payload = {
+            'teacher': self.teacher.id,
+            'amount': '2000.00',
+            'paid_at': timezone.localdate().isoformat(),
+            'selected_payouts': [
+                {'payout_type': 'participant', 'id': first_payout.id},
+            ],
+        }
+        preview_response = self.client.post(
+            '/api/finance/teacher-payments/preview-allocation/',
+            payload,
+            format='json',
+        )
+
+        self.assertEqual(preview_response.status_code, 200)
+        self.assertEqual(preview_response.data['selected_count'], 1)
+        self.assertEqual(preview_response.data['allocated_amount'], '2000.00')
+        self.assertEqual(preview_response.data['advance_amount'], '0.00')
+        self.assertEqual(len(preview_response.data['candidates']), 2)
+        self.assertEqual(preview_response.data['payouts'][0]['id'], first_payout.id)
+
+        allocate_response = self.client.post(
+            '/api/finance/teacher-payments/allocate/',
+            payload,
+            format='json',
+        )
+
+        self.assertEqual(allocate_response.status_code, 201)
+        self.assertEqual(TeacherPayout.objects.get(pk=first_payout.pk).status, PayoutStatus.PAID)
+        self.assertEqual(TeacherPayout.objects.get(pk=second_payout.pk).status, PayoutStatus.DRAFT)
 
     def test_prepaid_completed_lesson_does_not_notify_student_or_parent_about_payment(self):
         StudentPayment.objects.create(

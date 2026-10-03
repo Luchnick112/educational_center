@@ -127,11 +127,14 @@ export type Charge = {
 
 export type Payout = {
   id: number
+  payout_type?: string
   status: string
   amount: string
   teacher_name?: string
   student_name?: string
   lesson_starts_at?: string
+  group_name?: string
+  invoice_date?: string
   teacher?: number
 }
 
@@ -153,6 +156,17 @@ export type TeacherPayment = {
   comment?: string
 }
 
+export type TeacherPaymentAllocationPreview = {
+  teacher: number
+  amount: string
+  allocated_amount: string
+  advance_amount: string
+  selected_count: number
+  payouts: Payout[]
+  candidates?: Payout[]
+  payment?: TeacherPayment
+}
+
 export type StudentSummary = {
   student: number
   student_name: string
@@ -167,6 +181,7 @@ export type TeacherSummary = {
   accrued_amount: string
   paid_amount: string
   debt_amount: string
+  advance_amount?: string
 }
 
 export type PaymentsResponse = {

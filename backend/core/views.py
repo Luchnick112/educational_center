@@ -147,6 +147,10 @@ class MyLessonsView(APIView):
                 filter=Q(teacher_payout__lesson_count=1),
             ),
             billed_amount_total=Sum('participants__billed_amount'),
+            payroll_amount_total=Sum(
+                'participants__payroll_amount',
+                filter=Q(participants__attendance_status=AttendanceStatus.PRESENT),
+            ),
         ).order_by('starts_at', 'id')
 
         uses_pagination = 'page' in request.query_params or 'page_size' in request.query_params
@@ -159,12 +163,21 @@ class MyLessonsView(APIView):
             if end <= 0:
                 start = 0
                 end = 0
+            summary_serializer = LessonSerializer(context={'request': request})
+            summary_queryset = queryset.prefetch_related('participants')
+            payroll_amount_total = Decimal('0.00')
+            billed_amount_total = Decimal('0.00')
+            for lesson in summary_queryset:
+                payroll_amount_total += Decimal(str(summary_serializer.get_payroll_amount(lesson)))
+                billed_amount_total += Decimal(str(summary_serializer.get_billed_amount(lesson)))
             serializer = LessonSerializer(queryset[start:end], many=True, context={'request': request})
             return Response(
                 {
                     'count': count,
                     'page': page,
                     'page_size': page_size,
+                    'payroll_amount_total': f'{payroll_amount_total:.2f}',
+                    'billed_amount_total': f'{billed_amount_total:.2f}',
                     'results': serializer.data,
                 }
             )
@@ -296,14 +309,14 @@ class MyPaymentsView(APIView):
             participant_payouts = apply_lesson_date_filters(
                 TeacherPayout.objects.select_related(
                     'teacher__user',
-                    'participant__lesson',
+                    'participant__lesson__group',
                     'participant__student__user',
                 )
             ).order_by('-id')
             lesson_payouts = apply_lesson_payout_date_filters(
                 LessonTeacherPayout.objects.select_related(
                     'teacher__user',
-                    'lesson',
+                    'lesson__group',
                 )
             ).order_by('-id')
             student_payments = apply_payment_date_filters(
@@ -381,6 +394,7 @@ class MyPaymentsView(APIView):
                         'accrued_amount': Decimal('0.00'),
                         'paid_amount': Decimal('0.00'),
                         'debt_amount': Decimal('0.00'),
+                        'advance_amount': Decimal('0.00'),
                         'payout_count': 0,
                         'paid_count': 0,
                         'debt_count': 0,
@@ -401,6 +415,7 @@ class MyPaymentsView(APIView):
                         'accrued_amount': Decimal('0.00'),
                         'paid_amount': Decimal('0.00'),
                         'debt_amount': Decimal('0.00'),
+                        'advance_amount': Decimal('0.00'),
                         'payout_count': 0,
                         'paid_count': 0,
                         'debt_count': 0,
@@ -410,6 +425,7 @@ class MyPaymentsView(APIView):
 
             for item in teacher_summaries.values():
                 item['debt_amount'] = max(item['accrued_amount'] - item['paid_amount'], Decimal('0.00'))
+                item['advance_amount'] = max(item['paid_amount'] - item['accrued_amount'], Decimal('0.00'))
                 item['paid_count'], item['debt_count'] = recompute_paid_debt_counts(
                     payouts_by_teacher.get(item['teacher'], []),
                     item['paid_amount'],
@@ -452,7 +468,7 @@ class MyPaymentsView(APIView):
                     ),
                     'teacher_summaries': serialize_summary_rows(
                         teacher_rows,
-                        ('accrued_amount', 'paid_amount', 'debt_amount'),
+                        ('accrued_amount', 'paid_amount', 'debt_amount', 'advance_amount'),
                     ),
                 }
             )
@@ -482,14 +498,14 @@ class MyPaymentsView(APIView):
             participant_payouts = apply_lesson_date_filters(
                 TeacherPayout.objects.select_related(
                     'teacher__user',
-                    'participant__lesson',
+                    'participant__lesson__group',
                     'participant__student__user',
                 ).filter(teacher=user.teacher_profile)
             ).order_by('-id')
             lesson_payouts = apply_lesson_payout_date_filters(
                 LessonTeacherPayout.objects.select_related(
                     'teacher__user',
-                    'lesson',
+                    'lesson__group',
                 ).filter(teacher=user.teacher_profile)
             ).order_by('-id')
             teacher_payments = apply_payment_date_filters(
