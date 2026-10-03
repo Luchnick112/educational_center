@@ -120,6 +120,8 @@ export type Charge = {
   status: string
   amount: string
   student_name?: string
+  group_name?: string
+  invoice_date?: string
   lesson_starts_at?: string
   issued_at?: string
   paid_at?: string | null

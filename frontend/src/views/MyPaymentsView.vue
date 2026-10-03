@@ -274,6 +274,8 @@ type Charge = {
   amount: string
   student_name?: string
   parent_name?: string
+  group_name?: string
+  invoice_date?: string
   lesson_starts_at?: string
   issued_at?: string
   paid_at?: string | null
@@ -695,6 +697,8 @@ const teacherSummaryCols = [
 const chargeCols = [
   { key: 'id', label: 'ID' },
   { key: 'student_name', label: 'Учень', render: (r: Charge) => r.student_name || '-' },
+  { key: 'group_name', label: 'Група', render: (r: Charge) => r.group_name || '-' },
+  { key: 'invoice_date', label: 'Дата рахунку', render: (r: Charge) => dateLabel(r.invoice_date || r.lesson_starts_at || r.issued_at) },
   { key: 'parent_name', label: 'Платник', render: (r: Charge) => r.parent_name || '-' },
   { key: 'status', label: 'Статус', render: (r: Charge) => chargeStatusLabel(r.status), cellClass: (r: Charge) => paymentStatusClass(r.status) },
   { key: 'amount', label: 'Сума', render: (r: Charge) => money(r.amount) },

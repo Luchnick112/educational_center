@@ -304,6 +304,21 @@ def _create_individual_financial_documents(lesson: Lesson) -> None:
         )
 
 
+def _cancel_lesson_financial_documents(lesson: Lesson) -> None:
+    ParentCharge.objects.filter(
+        participant__lesson=lesson,
+        status__in=(ChargeStatus.DRAFT, ChargeStatus.ISSUED),
+    ).update(status=ChargeStatus.CANCELLED)
+    TeacherPayout.objects.filter(
+        participant__lesson=lesson,
+        status__in=(PayoutStatus.DRAFT, PayoutStatus.APPROVED),
+    ).update(status=PayoutStatus.CANCELLED)
+    LessonTeacherPayout.objects.filter(
+        lesson=lesson,
+        status__in=(PayoutStatus.DRAFT, PayoutStatus.APPROVED),
+    ).update(status=PayoutStatus.CANCELLED)
+
+
 @receiver(post_save, sender=Lesson)
 def create_lesson_participants(sender, instance: Lesson, created: bool, **kwargs):
     if kwargs.get('raw') or not created:
@@ -314,7 +329,13 @@ def create_lesson_participants(sender, instance: Lesson, created: bool, **kwargs
 
 @receiver(post_save, sender=Lesson)
 def create_financial_documents(sender, instance: Lesson, created: bool, **kwargs):
-    if kwargs.get('raw') or created or instance.status != LessonStatus.COMPLETED:
+    if kwargs.get('raw') or created:
+        return
+
+    if instance.status == LessonStatus.CANCELLED:
+        _cancel_lesson_financial_documents(instance)
+        return
+    if instance.status != LessonStatus.COMPLETED:
         return
 
     if instance.completed_at is None:

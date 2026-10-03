@@ -86,7 +86,8 @@
                     <h2>{{ itemName(item) }}</h2>
                     <strong class="money">{{ formatMoney(item.amount) }}</strong>
                   </div>
-                  <p>{{ formatDateTime(item.lesson_starts_at || ('issued_at' in item ? item.issued_at : undefined)) }}</p>
+                  <p v-if="itemGroupName(item)">Група: {{ itemGroupName(item) }}</p>
+                  <p>Дата рахунку: {{ formatDateTime(itemInvoiceDate(item)) }}</p>
                 </div>
                 <span class="status" :data-status="item.status">{{ statusLabel(item.status) }}</span>
               </article>
@@ -292,6 +293,16 @@ const teacherPaymentSelectionTooLarge = computed(() => (
 
 const itemName = (item: Charge | Payout) =>
   'teacher_name' in item ? item.teacher_name || item.student_name || 'Виплата за урок' : item.student_name || 'Оплата за урок'
+
+function itemGroupName(item: Charge | Payout) {
+  return 'group_name' in item ? item.group_name : undefined
+}
+
+function itemInvoiceDate(item: Charge | Payout) {
+  if ('invoice_date' in item && item.invoice_date) return item.invoice_date
+  if ('lesson_starts_at' in item && item.lesson_starts_at) return item.lesson_starts_at
+  return 'issued_at' in item ? item.issued_at : undefined
+}
 
 function teacherPayoutKey(payout: Payout) {
   return `${payout.payout_type || 'participant'}-${payout.id}`

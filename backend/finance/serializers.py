@@ -22,6 +22,8 @@ class ParentChargeSerializer(serializers.ModelSerializer):
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     period_start_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     period_end_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    group_name = serializers.SerializerMethodField()
+    invoice_date = serializers.SerializerMethodField()
     parent_name = serializers.SerializerMethodField()
     student_name = serializers.SerializerMethodField()
     lesson_starts_at = serializers.DateTimeField(source='participant.lesson.starts_at', read_only=True)
@@ -35,6 +37,8 @@ class ParentChargeSerializer(serializers.ModelSerializer):
             'parent_name',
             'student',
             'student_name',
+            'group_name',
+            'invoice_date',
             'lesson_starts_at',
             'amount',
             'billing_period',
@@ -52,6 +56,13 @@ class ParentChargeSerializer(serializers.ModelSerializer):
 
     def get_student_name(self, instance):
         return profile_label(instance.student)
+
+    def get_group_name(self, instance):
+        return instance.participant.lesson.group.name
+
+    def get_invoice_date(self, instance):
+        value = instance.period_end_at or instance.issued_at or instance.participant.lesson.starts_at
+        return value.isoformat() if value else None
 
 
 class TeacherPayoutSerializer(serializers.ModelSerializer):
