@@ -57,6 +57,7 @@
             <span>{{ showingTeachers ? 'До виплати' : 'До сплати' }}</span>
             <strong>{{ formatMoney(summaryTotal) }}</strong>
             <small>{{ summaryName }}</small>
+            <small v-if="showingTeachers && summaryAdvanceTotal > 0">Аванс: {{ formatMoney(summaryAdvanceTotal) }}</small>
           </div>
 
           <section v-if="paymentHistory.length" class="finance-section">
@@ -100,11 +101,15 @@
         <ion-toolbar>
           <ion-buttons slot="start"><ion-button @click="closePayment">Скасувати</ion-button></ion-buttons>
           <ion-title>Нова операція</ion-title>
-          <ion-buttons slot="end"><ion-button strong :disabled="saving" @click="savePayment">Зберегти</ion-button></ion-buttons>
+          <ion-buttons slot="end">
+            <ion-button strong :disabled="saving" @click="submitPayment">
+              {{ paymentForm.kind === 'teacher' && !teacherPreview ? 'Розподілити' : 'Підтвердити' }}
+            </ion-button>
+          </ion-buttons>
         </ion-toolbar>
       </ion-header>
       <ion-content>
-        <form class="mobile-form" @submit.prevent="savePayment">
+        <form class="mobile-form" @submit.prevent="submitPayment">
           <p v-if="formError" class="form-error form-error--panel">{{ formError }}</p>
 
           <ion-segment v-model="paymentForm.kind" value="student">
@@ -143,9 +148,37 @@
             <textarea v-model="paymentForm.comment" class="mobile-control" placeholder="Необов’язково" />
           </label>
 
-          <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving">
+          <section v-if="paymentForm.kind === 'teacher' && teacherPreview" class="payment-preview">
+            <div class="payment-preview__summary">
+              <span>Обрано рахунків</span>
+              <strong>{{ selectedTeacherPayouts.length }} · {{ formatMoney(selectedTeacherPayoutAmount) }}</strong>
+            </div>
+            <div v-if="teacherPaymentCandidates.length" class="payment-preview__items">
+              <label v-for="payout in teacherPaymentCandidates" :key="teacherPayoutKey(payout)" class="payment-preview__item">
+                <input v-model="selectedTeacherPayoutKeys" type="checkbox" :value="teacherPayoutKey(payout)" />
+                <span class="payment-preview__label">
+                  <strong>{{ payout.student_name || 'Виплата за урок' }}</strong>
+                  <small>{{ payout.group_name || 'Без групи' }} · рахунок: {{ formatDateTime(payout.invoice_date || payout.lesson_starts_at) }}</small>
+                </span>
+                <strong>{{ formatMoney(payout.amount) }}</strong>
+              </label>
+            </div>
+            <p v-else class="field-hint">Немає рахунків для вибору. Сума буде внесена як аванс.</p>
+            <p v-if="teacherPaymentSelectionTooLarge" class="payment-preview__error">
+              Обрані рахунки перевищують суму оплати.
+            </p>
+            <p class="payment-preview__advance">
+              Аванс: <strong>{{ formatMoney(selectedTeacherPaymentAdvance) }}</strong>
+            </p>
+            <div class="payment-preview__actions">
+              <ion-button fill="clear" type="button" :disabled="saving" @click="cancelTeacherPaymentPreview">Скасувати</ion-button>
+            </div>
+            <p class="field-hint">Вибрані рахунки перейдуть у статус «Сплачено» після підтвердження.</p>
+          </section>
+
+          <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving || teacherPaymentSelectionTooLarge">
             <ion-spinner v-if="saving" name="crescent" />
-            <span v-else>Зберегти операцію</span>
+            <span v-else>{{ paymentForm.kind === 'teacher' && !teacherPreview ? 'Розподілити оплату' : 'Підтвердити оплату' }}</span>
           </ion-button>
         </form>
       </ion-content>
@@ -184,6 +217,7 @@ import type {
   ProfileOption,
   StudentPayment,
   StudentSummary,
+  TeacherPaymentAllocationPreview,
   TeacherPayment,
   TeacherSummary,
 } from '@/types/api'
@@ -197,6 +231,7 @@ const teachers = ref<ProfileOption[]>([])
 const financeMode = ref<'students' | 'teachers'>('teachers')
 const paymentOpen = ref(false)
 const saving = ref(false)
+const teacherPreview = ref<TeacherPaymentAllocationPreview | null>(null)
 const formError = ref('')
 const notice = ref('')
 const { loading, error, run } = usePageData()
@@ -219,6 +254,10 @@ const paymentHistory = computed<Array<StudentPayment | TeacherPayment>>(() =>
   showingTeachers.value ? data.value.teacher_payments ?? [] : data.value.student_payments ?? [],
 )
 const summaryTotal = computed(() => summaries.value.reduce((total, row) => total + Number(row.debt_amount || 0), 0))
+const summaryAdvanceTotal = computed(() => summaries.value.reduce(
+  (total, row) => total + Number('advance_amount' in row ? row.advance_amount || 0 : 0),
+  0,
+))
 const summaryName = computed(() => summaries.value.length === 1
   ? ('teacher_name' in summaries.value[0] ? summaries.value[0].teacher_name : summaries.value[0].student_name)
   : showingTeachers.value ? `${summaries.value.length} викладачів` : `${summaries.value.length} учнів`)
@@ -233,9 +272,30 @@ const paymentForm = reactive({
   paid_at: today(),
   comment: '',
 })
+const selectedTeacherPayoutKeys = ref<string[]>([])
+
+const teacherPaymentCandidates = computed(() => teacherPreview.value?.candidates || teacherPreview.value?.payouts || [])
+const selectedTeacherPayouts = computed(() => teacherPaymentCandidates.value.filter(
+  (payout) => selectedTeacherPayoutKeys.value.includes(teacherPayoutKey(payout)),
+))
+const selectedTeacherPayoutAmount = computed(() => selectedTeacherPayouts.value.reduce(
+  (total, payout) => total + Number(payout.amount || 0),
+  0,
+))
+const selectedTeacherPaymentAdvance = computed(() => Math.max(
+  Number(paymentForm.amount || 0) - selectedTeacherPayoutAmount.value,
+  0,
+))
+const teacherPaymentSelectionTooLarge = computed(() => (
+  selectedTeacherPayoutAmount.value > Number(paymentForm.amount || 0) + 0.005
+))
 
 const itemName = (item: Charge | Payout) =>
   'teacher_name' in item ? item.teacher_name || item.student_name || 'Виплата за урок' : item.student_name || 'Оплата за урок'
+
+function teacherPayoutKey(payout: Payout) {
+  return `${payout.payout_type || 'participant'}-${payout.id}`
+}
 
 function paymentName(payment: StudentPayment | TeacherPayment) {
   return 'teacher' in payment
@@ -294,6 +354,8 @@ function openPayment() {
   paymentForm.amount = ''
   paymentForm.paid_at = today()
   paymentForm.comment = ''
+  teacherPreview.value = null
+  selectedTeacherPayoutKeys.value = []
   formError.value = ''
   paymentOpen.value = true
 }
@@ -302,17 +364,110 @@ function closePayment() {
   if (saving.value) return
   paymentOpen.value = false
   formError.value = ''
+  teacherPreview.value = null
+  selectedTeacherPayoutKeys.value = []
 }
 
 watch(() => paymentForm.kind, (kind) => {
   paymentForm.profile = kind === 'teacher' ? teachers.value[0]?.id ?? null : students.value[0]?.id ?? null
+  teacherPreview.value = null
+  selectedTeacherPayoutKeys.value = []
 })
 
-async function savePayment() {
+watch(
+  () => [paymentForm.profile, paymentForm.amount, paymentForm.paid_at],
+  () => {
+    teacherPreview.value = null
+    selectedTeacherPayoutKeys.value = []
+  },
+)
+
+function teacherPaymentBody(includeSelection = false) {
+  const body: Record<string, unknown> = {
+    teacher: paymentForm.profile,
+    amount: paymentForm.amount,
+    paid_at: paymentForm.paid_at,
+    comment: paymentForm.comment,
+  }
+  if (includeSelection) {
+    body.selected_payouts = selectedTeacherPayouts.value.map((payout) => ({
+      id: payout.id,
+      payout_type: payout.payout_type || 'participant',
+    }))
+  }
+  return body
+}
+
+function validatePaymentForm() {
   if (!paymentForm.profile || Number(paymentForm.amount) <= 0) {
     formError.value = 'Оберіть отримувача та вкажіть суму більше нуля.'
+    return false
+  }
+  return true
+}
+
+async function previewTeacherPayment() {
+  if (!validatePaymentForm()) return
+  saving.value = true
+  formError.value = ''
+  try {
+    const preview = await apiRequest<TeacherPaymentAllocationPreview>(
+      '/api/finance/teacher-payments/preview-allocation/',
+      { method: 'POST', body: teacherPaymentBody() },
+    )
+    teacherPreview.value = preview
+    selectedTeacherPayoutKeys.value = preview.payouts.map(teacherPayoutKey)
+  } catch (caught) {
+    formError.value = caught instanceof ApiError
+      ? errorMessage(caught.payload, 'Не вдалося розподілити оплату')
+      : 'Не вдалося розподілити оплату'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveTeacherPayment() {
+  if (!validatePaymentForm() || !teacherPreview.value) return
+  if (teacherPaymentSelectionTooLarge.value) return
+  saving.value = true
+  formError.value = ''
+  try {
+    const result = await apiRequest<TeacherPaymentAllocationPreview>(
+      '/api/finance/teacher-payments/allocate/',
+      { method: 'POST', body: teacherPaymentBody(true) },
+    )
+    financeMode.value = 'teachers'
+    paymentOpen.value = false
+    teacherPreview.value = null
+    selectedTeacherPayoutKeys.value = []
+    notice.value = `Виплату внесено. Закрито рахунків: ${result.selected_count}. Аванс: ${formatMoney(result.advance_amount)}.`
+    await load()
+  } catch (caught) {
+    formError.value = caught instanceof ApiError
+      ? errorMessage(caught.payload, 'Не вдалося внести виплату')
+      : 'Не вдалося внести виплату'
+  } finally {
+    saving.value = false
+  }
+}
+
+function cancelTeacherPaymentPreview() {
+  if (saving.value) return
+  teacherPreview.value = null
+  selectedTeacherPayoutKeys.value = []
+}
+
+async function submitPayment() {
+  if (paymentForm.kind === 'teacher') {
+    if (teacherPreview.value) await saveTeacherPayment()
+    else await previewTeacherPayment()
     return
   }
+  await savePayment()
+}
+
+async function savePayment() {
+  if (!validatePaymentForm()) return
   saving.value = true
   formError.value = ''
   try {
@@ -341,3 +496,87 @@ async function savePayment() {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.payment-preview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-soft);
+}
+
+.payment-preview__summary,
+.payment-preview__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.payment-preview__summary {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.payment-preview__summary strong,
+.payment-preview__item strong {
+  color: var(--app-ink);
+  white-space: nowrap;
+}
+
+.payment-preview__label {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.payment-preview__label small {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.payment-preview__items {
+  display: grid;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid var(--app-border);
+}
+
+.payment-preview__item {
+  color: var(--app-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.payment-preview__item input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.payment-preview__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.payment-preview__error {
+  margin: 0;
+  color: #b42318;
+}
+
+.payment-preview__advance {
+  margin: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--app-border);
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.finance-item .status[data-status='paid'] {
+  background: #e3f2e9;
+  color: #27633f;
+}
+</style>

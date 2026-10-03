@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from rest_framework import serializers
+
+from users.models import TeacherProfile
 
 from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
 
@@ -56,6 +60,8 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     period_start_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     period_end_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    group_name = serializers.SerializerMethodField()
+    invoice_date = serializers.SerializerMethodField()
     lesson = serializers.IntegerField(source='participant.lesson_id', read_only=True)
     student_name = serializers.SerializerMethodField()
     teacher_name = serializers.SerializerMethodField()
@@ -71,6 +77,8 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
             'teacher',
             'teacher_name',
             'student_name',
+            'group_name',
+            'invoice_date',
             'lesson_starts_at',
             'amount',
             'billing_period',
@@ -88,6 +96,13 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
     def get_teacher_name(self, instance):
         return profile_label(instance.teacher)
 
+    def get_group_name(self, instance):
+        return instance.participant.lesson.group.name
+
+    def get_invoice_date(self, instance):
+        value = instance.period_end_at or instance.participant.lesson.starts_at
+        return value.isoformat() if value else None
+
     def get_payout_type(self, instance):
         return 'participant'
 
@@ -98,6 +113,8 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
     lesson = serializers.IntegerField(source='lesson_id', read_only=True)
     student_name = serializers.SerializerMethodField()
     teacher_name = serializers.SerializerMethodField()
+    group_name = serializers.SerializerMethodField()
+    invoice_date = serializers.SerializerMethodField()
     lesson_starts_at = serializers.DateTimeField(source='lesson.starts_at', read_only=True)
     approved_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
@@ -114,6 +131,8 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
             'teacher',
             'teacher_name',
             'student_name',
+            'group_name',
+            'invoice_date',
             'lesson_starts_at',
             'amount',
             'billing_period',
@@ -136,6 +155,13 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
 
     def get_teacher_name(self, instance):
         return profile_label(instance.teacher)
+
+    def get_group_name(self, instance):
+        return instance.lesson.group.name
+
+    def get_invoice_date(self, instance):
+        value = instance.period_end_at or instance.lesson.starts_at
+        return value.isoformat() if value else None
 
 
 class StudentPaymentSerializer(serializers.ModelSerializer):
@@ -174,6 +200,29 @@ class TeacherPaymentSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError('Amount must be greater than zero.')
         return value
+
+
+class TeacherPaymentAllocationRequestSerializer(serializers.Serializer):
+    teacher = serializers.PrimaryKeyRelatedField(queryset=TeacherProfile.objects.all())
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal('0.01'))
+    paid_at = serializers.DateField(required=False)
+    comment = serializers.CharField(required=False, allow_blank=True)
+    selected_payouts = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+    )
+
+    def validate_selected_payouts(self, value):
+        normalized = []
+        for item in value:
+            payout_type = item.get('payout_type')
+            payout_id = item.get('id')
+            if payout_type not in {'participant', 'lesson'}:
+                raise serializers.ValidationError('Invalid payout type.')
+            if not isinstance(payout_id, int) or payout_id < 1:
+                raise serializers.ValidationError('Payout id must be a positive integer.')
+            normalized.append({'payout_type': payout_type, 'id': payout_id})
+        return normalized
 
 
 class ParentChargeIssueSerializer(serializers.Serializer):

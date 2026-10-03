@@ -27,6 +27,7 @@
         <button class="btn btn--ghost" type="button" :disabled="loading" @click="clearFilters">Скинути</button>
       </form>
       <div v-if="error" class="error">{{ error }}</div>
+      <div v-if="notice" class="notice">{{ notice }}</div>
     </div>
 
     <template v-if="isAdmin">
@@ -138,8 +139,37 @@
               <span class="field__label">Коментар</span>
               <input class="input" v-model.trim="teacherPaymentForm.comment" />
             </label>
-            <button class="btn" type="submit" :disabled="savingPayment">
-              {{ savingPayment ? 'Збереження...' : 'Внести оплату' }}
+            <section v-if="teacherPaymentPreview" class="payment-preview">
+              <div class="payment-preview__summary">
+                <span>Обрано рахунків</span>
+                <strong>{{ selectedTeacherPayouts.length }} · {{ money(selectedTeacherPayoutAmount) }}</strong>
+              </div>
+              <div v-if="teacherPaymentCandidates.length" class="payment-preview__items">
+                <label v-for="payout in teacherPaymentCandidates" :key="teacherPayoutKey(payout)" class="payment-preview__item">
+                  <input v-model="selectedTeacherPayoutKeys" type="checkbox" :value="teacherPayoutKey(payout)" />
+                  <span class="payment-preview__label">
+                    <strong>{{ teacherPayoutLabel(payout) }}</strong>
+                    <small>{{ payout.group_name || 'Без групи' }} · рахунок: {{ dateLabel(payout.invoice_date || payout.lesson_starts_at) }}</small>
+                  </span>
+                  <strong>{{ money(payout.amount) }}</strong>
+                </label>
+              </div>
+              <p v-else class="muted">Немає рахунків для вибору. Сума буде внесена як аванс.</p>
+              <p v-if="teacherPaymentSelectionTooLarge" class="error">
+                Обрані рахунки перевищують суму оплати.
+              </p>
+              <p class="payment-preview__advance">
+                Аванс: <strong>{{ money(selectedTeacherPaymentAdvance) }}</strong>
+              </p>
+              <div class="payment-preview__actions">
+                <button class="btn btn--ghost" type="button" :disabled="savingPayment" @click="cancelTeacherPaymentPreview">
+                  Скасувати
+                </button>
+              </div>
+              <p class="field-hint">Вибрані рахунки перейдуть у статус «Виплачено» після підтвердження.</p>
+            </section>
+            <button class="btn" type="submit" :disabled="savingPayment || teacherPaymentSelectionTooLarge">
+              {{ savingPayment ? 'Збереження...' : teacherPaymentPreview ? 'Підтвердити оплату' : 'Розподілити оплату' }}
             </button>
           </form>
         </div>
@@ -229,7 +259,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import DataTable from '@/components/DataTable.vue'
 import SearchableSelect from '@/components/SearchableSelect.vue'
@@ -260,6 +290,8 @@ type Payout = {
   student_name?: string
   teacher_name?: string
   lesson_starts_at?: string
+  group_name?: string
+  invoice_date?: string
   approved_at?: string | null
   paid_at?: string | null
 }
@@ -268,7 +300,9 @@ type TeacherLessonPayout = {
   key: string
   lesson: number | string
   teacher_name: string
+  group_name?: string
   lesson_starts_at?: string
+  invoice_date?: string
   status: string
   amount_total: number
   paid_amount: number
@@ -317,6 +351,17 @@ type TeacherPayment = {
   comment?: string
 }
 
+type TeacherPaymentAllocationPreview = {
+  teacher: number
+  amount: string
+  allocated_amount: string
+  advance_amount: string
+  selected_count: number
+  payouts: Payout[]
+  candidates?: Payout[]
+  payment?: TeacherPayment
+}
+
 type ProfileOption = {
   id: number
   user_detail?: {
@@ -341,8 +386,11 @@ const auth = useAuthStore()
 const loading = ref(true)
 const savingPayment = ref(false)
 const error = ref<string | null>(null)
+const notice = ref<string | null>(null)
 const activeTab = ref<'students' | 'teachers'>('teachers')
 const selectedTeacherLessonPayout = ref<TeacherLessonPayout | null>(null)
+const teacherPaymentPreview = ref<TeacherPaymentAllocationPreview | null>(null)
+const selectedTeacherPayoutKeys = ref<string[]>([])
 const filters = reactive({ date_from: '', date_to: '', student: '', teacher: '' })
 const data = ref<PaymentsData>({
   charges: [],
@@ -356,6 +404,30 @@ const students = ref<ProfileOption[]>([])
 const teachers = ref<ProfileOption[]>([])
 const studentPaymentForm = reactive({ student: '', paid_at: today(), amount: '', comment: '' })
 const teacherPaymentForm = reactive({ teacher: '', paid_at: today(), amount: '', comment: '' })
+
+const teacherPaymentCandidates = computed(() => teacherPaymentPreview.value?.candidates || teacherPaymentPreview.value?.payouts || [])
+const selectedTeacherPayouts = computed(() => teacherPaymentCandidates.value.filter(
+  (payout) => selectedTeacherPayoutKeys.value.includes(teacherPayoutKey(payout)),
+))
+const selectedTeacherPayoutAmount = computed(() => selectedTeacherPayouts.value.reduce(
+  (total, payout) => total + Number(payout.amount || 0),
+  0,
+))
+const selectedTeacherPaymentAdvance = computed(() => Math.max(
+  Number(teacherPaymentForm.amount || 0) - selectedTeacherPayoutAmount.value,
+  0,
+))
+const teacherPaymentSelectionTooLarge = computed(() => (
+  selectedTeacherPayoutAmount.value > Number(teacherPaymentForm.amount || 0) + 0.005
+))
+
+watch(
+  () => [teacherPaymentForm.teacher, teacherPaymentForm.amount, teacherPaymentForm.paid_at],
+  () => {
+    teacherPaymentPreview.value = null
+    selectedTeacherPayoutKeys.value = []
+  },
+)
 
 const isAdmin = computed(() => !!auth.me && (auth.me.is_staff || auth.me.role === 'admin'))
 const isTeacher = computed(() => auth.me?.role === 'teacher')
@@ -575,7 +647,9 @@ const teacherLessonPayouts = computed<TeacherLessonPayout[]>(() => {
       key,
       lesson,
       teacher_name: payout.teacher_name || '-',
+      group_name: payout.group_name,
       lesson_starts_at: payout.lesson_starts_at,
+      invoice_date: payout.invoice_date,
       status: '',
       amount_total: 0,
       paid_amount: 0,
@@ -622,7 +696,7 @@ const chargeCols = [
   { key: 'id', label: 'ID' },
   { key: 'student_name', label: 'Учень', render: (r: Charge) => r.student_name || '-' },
   { key: 'parent_name', label: 'Платник', render: (r: Charge) => r.parent_name || '-' },
-  { key: 'status', label: 'Статус', render: (r: Charge) => chargeStatusLabel(r.status) },
+  { key: 'status', label: 'Статус', render: (r: Charge) => chargeStatusLabel(r.status), cellClass: (r: Charge) => paymentStatusClass(r.status) },
   { key: 'amount', label: 'Сума', render: (r: Charge) => money(r.amount) },
   { key: 'lesson_starts_at', label: 'Урок', render: (r: Charge) => dateLabel(r.lesson_starts_at) },
   { key: 'paid_at', label: 'Оплачено', render: (r: Charge) => dateLabel(r.paid_at) },
@@ -631,7 +705,9 @@ const chargeCols = [
 const payoutCols = [
   { key: 'id', label: 'ID' },
   { key: 'teacher_name', label: 'Викладач', render: (r: Payout) => r.teacher_name || '-' },
-  { key: 'status', label: 'Статус', render: (r: Payout) => payoutStatusLabel(r.status) },
+  { key: 'group_name', label: 'Група', render: (r: Payout) => r.group_name || '-' },
+  { key: 'invoice_date', label: 'Дата рахунку', render: (r: Payout) => dateLabel(r.invoice_date || r.lesson_starts_at) },
+  { key: 'status', label: 'Статус', render: (r: Payout) => payoutStatusLabel(r.status), cellClass: (r: Payout) => paymentStatusClass(r.status) },
   { key: 'amount', label: 'Сума', render: (r: Payout) => money(r.amount) },
   { key: 'lesson_starts_at', label: 'Урок', render: (r: Payout) => dateLabel(r.lesson_starts_at) },
   { key: 'paid_at', label: 'Виплачено', render: (r: Payout) => dateLabel(r.paid_at) },
@@ -639,9 +715,10 @@ const payoutCols = [
 
 const teacherLessonPayoutCols = [
   { key: 'lesson', label: 'Урок' },
-  { key: 'lesson_starts_at', label: 'Дата', render: (r: TeacherLessonPayout) => dateLabel(r.lesson_starts_at) },
+  { key: 'group_name', label: 'Група', render: (r: TeacherLessonPayout) => r.group_name || '-' },
+  { key: 'invoice_date', label: 'Дата рахунку', render: (r: TeacherLessonPayout) => dateLabel(r.invoice_date || r.lesson_starts_at) },
   { key: 'teacher_name', label: 'Викладач' },
-  { key: 'status', label: 'Статус', render: (r: TeacherLessonPayout) => r.status },
+  { key: 'status', label: 'Статус', render: (r: TeacherLessonPayout) => r.status, cellClass: (r: TeacherLessonPayout) => paymentStatusClass(r.status) },
   { key: 'amount_total', label: 'Сума', render: (r: TeacherLessonPayout) => money(r.amount_total) },
   { key: 'paid_amount', label: 'Виплачено', render: (r: TeacherLessonPayout) => money(r.paid_amount) },
   { key: 'debt_amount', label: 'До виплати', render: (r: TeacherLessonPayout) => money(r.debt_amount) },
@@ -650,7 +727,9 @@ const teacherLessonPayoutCols = [
 
 const payoutDetailCols = [
   { key: 'student_name', label: 'Нарахування', render: (r: Payout) => r.student_name || '-' },
-  { key: 'status', label: 'Статус', render: (r: Payout) => payoutStatusLabel(r.status) },
+  { key: 'group_name', label: 'Група', render: (r: Payout) => r.group_name || '-' },
+  { key: 'invoice_date', label: 'Дата рахунку', render: (r: Payout) => dateLabel(r.invoice_date || r.lesson_starts_at) },
+  { key: 'status', label: 'Статус', render: (r: Payout) => payoutStatusLabel(r.status), cellClass: (r: Payout) => paymentStatusClass(r.status) },
   { key: 'amount', label: 'Сума', render: (r: Payout) => money(r.amount) },
   { key: 'paid_at', label: 'Виплачено', render: (r: Payout) => dateLabel(r.paid_at) },
 ]
@@ -717,6 +796,7 @@ async function loadPayments() {
 async function submitStudentPayment() {
   savingPayment.value = true
   error.value = null
+  notice.value = null
   try {
     await apiRequest('/api/finance/student-payments/', {
       method: 'POST',
@@ -739,27 +819,79 @@ async function submitStudentPayment() {
 }
 
 async function submitTeacherPayment() {
+  if (teacherPaymentPreview.value) {
+    await allocateTeacherPayment()
+    return
+  }
+
+  await previewTeacherPayment()
+}
+
+function teacherPaymentBody(includeSelection = false) {
+  const body: Record<string, unknown> = {
+    teacher: Number(teacherPaymentForm.teacher),
+    amount: teacherPaymentForm.amount,
+    paid_at: teacherPaymentForm.paid_at,
+    comment: teacherPaymentForm.comment,
+  }
+  if (includeSelection) {
+    body.selected_payouts = selectedTeacherPayouts.value.map((payout) => ({
+      id: payout.id,
+      payout_type: payout.payout_type || 'participant',
+    }))
+  }
+  return body
+}
+
+async function previewTeacherPayment() {
   savingPayment.value = true
   error.value = null
+  notice.value = null
   try {
-    await apiRequest('/api/finance/teacher-payments/', {
-      method: 'POST',
-      body: {
-        teacher: Number(teacherPaymentForm.teacher),
-        amount: teacherPaymentForm.amount,
-        paid_at: teacherPaymentForm.paid_at,
-        comment: teacherPaymentForm.comment,
+    const preview = await apiRequest<TeacherPaymentAllocationPreview>(
+      '/api/finance/teacher-payments/preview-allocation/',
+      {
+        method: 'POST',
+        body: teacherPaymentBody(),
       },
-    })
-    filters.teacher = teacherPaymentForm.teacher
-    teacherPaymentForm.amount = ''
-    teacherPaymentForm.comment = ''
-    await loadPayments()
+    )
+    teacherPaymentPreview.value = preview
+    selectedTeacherPayoutKeys.value = preview.payouts.map(teacherPayoutKey)
   } catch (e: any) {
     error.value = paymentError(e)
   } finally {
     savingPayment.value = false
   }
+}
+
+async function allocateTeacherPayment() {
+  if (teacherPaymentSelectionTooLarge.value) return
+  savingPayment.value = true
+  error.value = null
+  notice.value = null
+  try {
+    const result = await apiRequest<TeacherPaymentAllocationPreview>('/api/finance/teacher-payments/allocate/', {
+      method: 'POST',
+      body: teacherPaymentBody(true),
+    })
+    filters.teacher = teacherPaymentForm.teacher
+    teacherPaymentForm.amount = ''
+    teacherPaymentForm.comment = ''
+    teacherPaymentPreview.value = null
+    selectedTeacherPayoutKeys.value = []
+    await loadPayments()
+    notice.value = `Оплату внесено. Закрито рахунків: ${result.selected_count}. Аванс: ${money(result.advance_amount)}.`
+  } catch (e: any) {
+    error.value = paymentError(e)
+  } finally {
+    savingPayment.value = false
+  }
+}
+
+function cancelTeacherPaymentPreview() {
+  if (savingPayment.value) return
+  teacherPaymentPreview.value = null
+  selectedTeacherPayoutKeys.value = []
 }
 
 function selectTeacherLessonPayout(row: TeacherLessonPayout) {
@@ -770,6 +902,7 @@ function setActiveTab(tab: 'students' | 'teachers') {
   if (activeTab.value === tab) return
   activeTab.value = tab
   selectedTeacherLessonPayout.value = null
+  cancelTeacherPaymentPreview()
   loadPayments()
 }
 
@@ -778,6 +911,7 @@ function clearFilters() {
   filters.date_to = ''
   filters.student = ''
   filters.teacher = ''
+  cancelTeacherPaymentPreview()
   loadPayments()
 }
 
@@ -810,6 +944,16 @@ function profileLabel(profile: ProfileOption) {
   return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.telegram_username || user.email || `#${profile.id}`
 }
 
+function teacherPayoutLabel(payout: Payout) {
+  if (payout.student_name) return payout.student_name
+  if (payout.lesson) return `Урок #${payout.lesson}`
+  return `Рахунок #${payout.id}`
+}
+
+function teacherPayoutKey(payout: Payout) {
+  return `${payout.payout_type || 'participant'}-${payout.id}`
+}
+
 function chargeStatusLabel(status: string) {
   const map: Record<string, string> = {
     draft: 'Чернетка',
@@ -830,6 +974,12 @@ function payoutStatusLabel(status: string) {
     cancelled: 'Скасовано',
   }
   return map[status] || status
+}
+
+function paymentStatusClass(status: string) {
+  if (status === 'paid' || status === 'Виплачено' || status === 'Оплачено') return 'status-paid'
+  if (status === 'partial' || status === 'Частково виплачено' || status === 'Частково оплачено') return 'status-partial'
+  return ''
 }
 
 function lessonPayoutStatus(payouts: Payout[]) {
@@ -921,6 +1071,107 @@ onMounted(async () => {
   grid-template-columns: minmax(180px, 1fr) minmax(140px, 180px) minmax(120px, 180px) minmax(180px, 1fr) auto;
   gap: 10px;
   align-items: end;
+}
+
+.payment-preview {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.payment-preview__summary,
+.payment-preview__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.payment-preview__summary {
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.payment-preview__summary strong,
+.payment-preview__item strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.payment-preview__label {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.payment-preview__label small {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.payment-preview__items {
+  display: grid;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.payment-preview__item {
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.payment-preview__item input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+}
+
+.payment-preview__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.payment-preview__advance {
+  margin: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.notice {
+  margin-top: 8px;
+  color: #166534;
+}
+
+:deep(.status-paid span),
+:deep(.status-partial span) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 650;
+}
+
+:deep(.status-paid span) {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+
+:deep(.status-partial span) {
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fed7aa;
 }
 
 .summary-strip {

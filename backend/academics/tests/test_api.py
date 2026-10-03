@@ -535,6 +535,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(first_page.status_code, 200)
         self.assertEqual(first_page.data['count'], 26)
         self.assertEqual(first_page.data['page'], 1)
+        self.assertEqual(first_page.data['payroll_amount_total'], '0.00')
+        self.assertEqual(first_page.data['billed_amount_total'], '15600.00')
         self.assertEqual(len(first_page.data['results']), 20)
         self.assertEqual(
             [item['id'] for item in first_page.data['results']],
@@ -543,6 +545,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(second_page.status_code, 200)
         self.assertEqual(second_page.data['count'], 26)
         self.assertEqual(second_page.data['page'], 2)
+        self.assertEqual(second_page.data['payroll_amount_total'], '0.00')
+        self.assertEqual(second_page.data['billed_amount_total'], '15600.00')
         self.assertEqual(len(second_page.data['results']), 6)
         self.assertEqual(
             [item['id'] for item in second_page.data['results']],

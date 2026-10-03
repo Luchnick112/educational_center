@@ -13,6 +13,7 @@ from .serializers import (
     TeacherPayoutApproveSerializer,
     TeacherPayoutMarkPaidSerializer,
     TeacherPayoutSerializer,
+    TeacherPaymentAllocationRequestSerializer,
     TeacherPaymentSerializer,
 )
 from .services import (
@@ -20,6 +21,8 @@ from .services import (
     issue_parent_charge,
     mark_parent_charge_paid,
     mark_teacher_payout_paid,
+    allocate_teacher_payment,
+    preview_teacher_payment,
 )
 
 
@@ -69,7 +72,7 @@ class ParentChargeViewSet(viewsets.ModelViewSet):
 
 
 class TeacherPayoutViewSet(viewsets.ModelViewSet):
-    queryset = TeacherPayout.objects.select_related('teacher', 'participant').all()
+    queryset = TeacherPayout.objects.select_related('teacher', 'participant__lesson__group').all()
     serializer_class = TeacherPayoutSerializer
     permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
 
@@ -112,7 +115,7 @@ class TeacherPayoutViewSet(viewsets.ModelViewSet):
 
 
 class LessonTeacherPayoutViewSet(viewsets.ModelViewSet):
-    queryset = LessonTeacherPayout.objects.select_related('teacher', 'lesson').all()
+    queryset = LessonTeacherPayout.objects.select_related('teacher', 'lesson__group').all()
     serializer_class = LessonTeacherPayoutSerializer
     permission_classes = (StaffWritePermission, IsAdminOrRelatedAcademicObject)
 
@@ -177,6 +180,60 @@ class TeacherPaymentViewSet(viewsets.ModelViewSet):
     queryset = TeacherPayment.objects.select_related('teacher__user', 'created_by').order_by('-paid_at', '-id')
     serializer_class = TeacherPaymentSerializer
     permission_classes = (permissions.IsAuthenticated, StaffWritePermission)
+
+    def _allocation_response(self, teacher, amount, allocation, payment=None):
+        def serialize_payouts(payouts):
+            serialized = []
+            for payout_type, payout in payouts:
+                serializer_class = TeacherPayoutSerializer if payout_type == 'participant' else LessonTeacherPayoutSerializer
+                serialized.append(serializer_class(payout).data)
+            return serialized
+
+        serialized_payouts = serialize_payouts(allocation['payouts'])
+        serialized_candidates = serialize_payouts(allocation['candidates'])
+
+        payload = {
+            'teacher': teacher.id,
+            'amount': f'{amount:.2f}',
+            'allocated_amount': f"{allocation['allocated_amount']:.2f}",
+            'advance_amount': f"{allocation['advance_amount']:.2f}",
+            'selected_count': len(allocation['payouts']),
+            'payouts': serialized_payouts,
+            'candidates': serialized_candidates,
+        }
+        if payment is not None:
+            payload['payment'] = TeacherPaymentSerializer(payment).data
+        return payload
+
+    @decorators.action(detail=False, methods=['post'], url_path='preview-allocation')
+    def preview_allocation(self, request):
+        serializer = TeacherPaymentAllocationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        teacher = serializer.validated_data['teacher']
+        amount = serializer.validated_data['amount']
+        allocation = preview_teacher_payment(
+            user=request.user,
+            teacher_id=teacher.id,
+            amount=amount,
+            selected_payouts=serializer.validated_data.get('selected_payouts'),
+        )
+        return response.Response(self._allocation_response(teacher, amount, allocation))
+
+    @decorators.action(detail=False, methods=['post'], url_path='allocate')
+    def allocate(self, request):
+        serializer = TeacherPaymentAllocationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        teacher = serializer.validated_data['teacher']
+        amount = serializer.validated_data['amount']
+        payment, allocation = allocate_teacher_payment(
+            user=request.user,
+            teacher_id=teacher.id,
+            amount=amount,
+            paid_at=serializer.validated_data.get('paid_at'),
+            comment=serializer.validated_data.get('comment', ''),
+            selected_payouts=serializer.validated_data.get('selected_payouts'),
+        )
+        return response.Response(self._allocation_response(teacher, amount, allocation, payment), status=201)
 
     def get_queryset(self):
         user = self.request.user
