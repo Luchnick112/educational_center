@@ -303,7 +303,7 @@ class MyPaymentsView(APIView):
                 ParentCharge.objects.select_related(
                     'parent__user',
                     'student__user',
-                    'participant__lesson',
+                    'participant__lesson__group',
                 )
             ).order_by('-issued_at')
             participant_payouts = apply_lesson_date_filters(
@@ -478,7 +478,7 @@ class MyPaymentsView(APIView):
                 ParentCharge.objects.select_related(
                     'parent__user',
                     'student__user',
-                    'participant__lesson',
+                    'participant__lesson__group',
                 ).filter(parent=user.parent_profile)
             ).order_by('-issued_at')
             student_payments = apply_payment_date_filters(
@@ -524,7 +524,7 @@ class MyPaymentsView(APIView):
                 ParentCharge.objects.select_related(
                     'parent__user',
                     'student__user',
-                    'participant__lesson',
+                    'participant__lesson__group',
                 ).filter(student=user.student_profile)
             ).order_by('-issued_at')
             student_payments = apply_payment_date_filters(
@@ -652,7 +652,7 @@ class MyNotificationsView(APIView):
             ).order_by('-period_end_at', '-id')[:10]
 
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
-            charges = ParentCharge.objects.select_related('participant__lesson').filter(student=user.student_profile)
+            charges = ParentCharge.objects.select_related('participant__lesson__group').filter(student=user.student_profile)
             payments = StudentPayment.objects.filter(student=user.student_profile)
             for charge in uncovered_student_charges(charges, payments):
                 add(
@@ -679,7 +679,7 @@ class MyNotificationsView(APIView):
                     reschedule.created_at,
                 )
 
-            charges = ParentCharge.objects.select_related('participant__lesson').filter(parent=user.parent_profile)
+            charges = ParentCharge.objects.select_related('participant__lesson__group').filter(parent=user.parent_profile)
             payments = StudentPayment.objects.filter(
                 student__parent_links__parent=user.parent_profile,
             ).distinct()

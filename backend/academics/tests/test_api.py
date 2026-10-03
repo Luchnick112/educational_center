@@ -1301,6 +1301,18 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_admin_can_cancel_scheduled_lesson(self):
+        participant = self.lesson.participants.get()
+        charge = ParentCharge.objects.create(
+            participant=participant,
+            parent=self.parent,
+            student=self.student,
+            amount='600.00',
+        )
+        payout = TeacherPayout.objects.create(
+            participant=participant,
+            teacher=self.teacher,
+            amount='350.00',
+        )
         admin_user = User.objects.create_user(
             username='admin_api',
             email='admin_api@example.com',
@@ -1321,6 +1333,10 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.lesson.status, LessonStatus.CANCELLED)
         self.assertEqual(self.lesson.notes, 'Teacher sick leave')
+        charge.refresh_from_db()
+        payout.refresh_from_db()
+        self.assertEqual(charge.status, ChargeStatus.CANCELLED)
+        self.assertEqual(payout.status, PayoutStatus.CANCELLED)
 
     def test_admin_can_run_finance_workflow_actions(self):
         payout = self.create_completed_group_billing_batch()
