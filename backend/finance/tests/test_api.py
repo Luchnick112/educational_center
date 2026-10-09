@@ -130,6 +130,31 @@ class MyPaymentsApiTestCase(AcademicBaseTestCase):
         self.assertEqual(teacher_summary['paid_count'], 2)
         self.assertEqual(teacher_summary['debt_count'], 0)
 
+    def test_late_teacher_payment_marks_filtered_payout_paid(self):
+        participant = self.complete_lesson_with_finance_docs(self.lesson)
+        payout = participant.teacher_payout
+        payout.period_end_at = self.lesson.starts_at
+        payout.save(update_fields=['period_end_at'])
+        invoice_date = timezone.localdate(self.lesson.starts_at)
+        TeacherPayment.objects.create(
+            teacher=self.teacher,
+            amount=payout.amount,
+            paid_at=invoice_date + timedelta(days=1),
+            created_by=self.admin_user,
+        )
+
+        self.client.force_authenticate(self.admin_user)
+        response = self.client.get(
+            '/api/my/payments/',
+            {'date_to': invoice_date.isoformat(), 'teacher': self.teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        filtered_payout = next(item for item in response.data['payouts'] if item['id'] == payout.id)
+        self.assertEqual(filtered_payout['status'], PayoutStatus.PAID)
+        teacher_summary = response.data['teacher_summaries'][0]
+        self.assertEqual(teacher_summary['paid_amount'], teacher_summary['accrued_amount'])
+
     def test_admin_can_allocate_teacher_payment_oldest_first_with_advance(self):
         first_participant = self.complete_lesson_with_finance_docs(self.lesson)
         second_lesson = Lesson.objects.create(

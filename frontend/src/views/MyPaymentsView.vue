@@ -380,6 +380,7 @@ type PaymentsData = {
   payouts: Payout[]
   student_payments: StudentPayment[]
   teacher_payments: TeacherPayment[]
+  teacher_payments_all?: TeacherPayment[]
   student_summaries: StudentSummary[]
   teacher_summaries: TeacherSummary[]
 }
@@ -399,6 +400,7 @@ const data = ref<PaymentsData>({
   payouts: [],
   student_payments: [],
   teacher_payments: [],
+  teacher_payments_all: [],
   student_summaries: [],
   teacher_summaries: [],
 })
@@ -598,7 +600,7 @@ const myTeacherPaymentTotal = computed(() =>
 
 const allocatedTeacherPayouts = computed<Payout[]>(() => {
   const paymentsByTeacher = new Map<number, Array<{ remaining: number; paid_at: string }>>()
-  for (const payment of data.value.teacher_payments) {
+  for (const payment of data.value.teacher_payments_all || data.value.teacher_payments) {
     const list = paymentsByTeacher.get(payment.teacher) || []
     list.push({ remaining: Number(payment.amount || 0), paid_at: payment.paid_at })
     paymentsByTeacher.set(payment.teacher, list)
@@ -786,6 +788,7 @@ async function loadPayments() {
       payouts: payload.payouts || [],
       student_payments: payload.student_payments || [],
       teacher_payments: payload.teacher_payments || [],
+      teacher_payments_all: payload.teacher_payments_all || payload.teacher_payments || [],
       student_summaries: payload.student_summaries || [],
       teacher_summaries: payload.teacher_summaries || [],
     }

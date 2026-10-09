@@ -193,4 +193,5 @@ export type PaymentsResponse = {
   teacher_summaries?: TeacherSummary[]
   student_payments?: StudentPayment[]
   teacher_payments?: TeacherPayment[]
+  teacher_payments_all?: TeacherPayment[]
 }
