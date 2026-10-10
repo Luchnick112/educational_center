@@ -71,6 +71,16 @@ export type StudyGroup = {
   is_active?: boolean
 }
 
+export type GroupPricing = {
+  id: number
+  group: number
+  group_name?: string
+  student_price: string | number
+  teacher_rate: string | number
+  effective_from: string
+  created_at?: string
+}
+
 export type GroupAttendanceRate = {
   id: number
   group: number
@@ -193,4 +203,5 @@ export type PaymentsResponse = {
   teacher_summaries?: TeacherSummary[]
   student_payments?: StudentPayment[]
   teacher_payments?: TeacherPayment[]
+  teacher_payments_all?: TeacherPayment[]
 }

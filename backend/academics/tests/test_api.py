@@ -96,7 +96,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(sync_response.status_code, 200)
         created_group = StudyGroup.objects.get(pk=created_id)
-        self.assertEqual(created_group.name, f'Shevchenko_{created_id}')
+        self.assertEqual(created_group.name, f'Shevchenko_P{created_id}')
 
     def test_teacher_can_create_group_without_teacher_or_prices(self):
         self.client.force_authenticate(self.teacher_user)
@@ -136,6 +136,19 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['format'], StudyGroupFormat.INDIVIDUAL)
         self.assertEqual(self.group.format, StudyGroupFormat.INDIVIDUAL)
+
+    def test_teacher_cannot_update_group(self):
+        self.client.force_authenticate(self.teacher_user)
+
+        response = self.client.patch(
+            f'/api/academics/groups/{self.group.id}/',
+            {'is_active': False},
+            format='json',
+        )
+
+        self.group.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(self.group.is_active)
 
     def test_admin_can_delete_group_with_related_lessons_and_finance(self):
         admin_user = User.objects.create_user(

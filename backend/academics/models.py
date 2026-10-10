@@ -95,7 +95,7 @@ class StudyGroup(models.Model):
             if enrollment is None:
                 return self.name
             last_name = (enrollment.student.user.last_name or '').strip()
-            return f'{last_name}_{self.pk}' if last_name else self.name
+            return f'{last_name}_{self.subject.name[0].upper()}{self.pk}' if last_name else self.name
         if not (self.subject_id and self.teacher_id):
             return self.name
         return f'{self.subject}{self.teacher_id}{self.pk}'

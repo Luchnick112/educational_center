@@ -28,6 +28,7 @@ class MyPaymentsSerializer(serializers.Serializer):
     payouts = serializers.ListField(child=serializers.DictField())
     student_payments = StudentPaymentSerializer(many=True, required=False)
     teacher_payments = TeacherPaymentSerializer(many=True, required=False)
+    teacher_payments_all = TeacherPaymentSerializer(many=True, required=False)
     period = serializers.DictField(required=False)
     student_summaries = serializers.ListField(child=serializers.DictField(), required=False)
     teacher_summaries = serializers.ListField(child=serializers.DictField(), required=False)

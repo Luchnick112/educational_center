@@ -287,11 +287,56 @@ class MyPaymentsView(APIView):
                 return payout.lesson.starts_at
             return payout.participant.lesson.starts_at
 
-        def serialize_teacher_payouts(participant_payouts, lesson_payouts):
+        def serialize_teacher_payouts(participant_payouts, lesson_payouts, teacher_payments=None):
             rows = (
                 TeacherPayoutSerializer(participant_payouts, many=True).data
                 + LessonTeacherPayoutSerializer(lesson_payouts, many=True).data
             )
+            if teacher_payments is not None:
+                payments_by_teacher = {}
+                for payment in teacher_payments:
+                    payments_by_teacher.setdefault(payment.teacher_id, []).append(
+                        [payment.amount, payment.paid_at]
+                    )
+                for payments in payments_by_teacher.values():
+                    payments.sort(key=lambda item: item[1])
+
+                rows_by_teacher = {}
+                for row in rows:
+                    if row.get('teacher') is not None:
+                        rows_by_teacher.setdefault(row['teacher'], []).append(row)
+                for teacher_id, teacher_rows in rows_by_teacher.items():
+                    remaining_payments = payments_by_teacher.get(teacher_id, [])
+                    for row in sorted(
+                        teacher_rows,
+                        key=lambda item: (
+                            item.get('invoice_date') or item.get('lesson_starts_at') or '',
+                            item.get('id') or 0,
+                        ),
+                    ):
+                        if row.get('status') == PayoutStatus.CANCELLED:
+                            continue
+                        amount = Decimal(str(row.get('amount') or '0.00'))
+                        remaining_amount = amount
+                        paid_amount = Decimal('0.00')
+                        paid_at = None
+                        for payment in remaining_payments:
+                            if remaining_amount <= 0:
+                                break
+                            payment_amount = payment[0]
+                            if payment_amount <= 0:
+                                continue
+                            applied_amount = min(payment_amount, remaining_amount)
+                            payment[0] -= applied_amount
+                            remaining_amount -= applied_amount
+                            paid_amount += applied_amount
+                            paid_at = payment[1]
+                        if paid_amount >= amount:
+                            row['status'] = PayoutStatus.PAID
+                            row['paid_at'] = paid_at.isoformat() if paid_at else row.get('paid_at')
+                        elif paid_amount > 0:
+                            row['status'] = 'partial'
+                            row['paid_at'] = paid_at.isoformat() if paid_at else row.get('paid_at')
             return sorted(
                 rows,
                 key=lambda item: (item.get('lesson_starts_at') or '', item.get('id') or 0),
@@ -325,6 +370,9 @@ class MyPaymentsView(APIView):
             teacher_payments = apply_payment_date_filters(
                 TeacherPayment.objects.select_related('teacher__user', 'created_by')
             ).order_by('-paid_at', '-id')
+            teacher_payments_all = TeacherPayment.objects.select_related(
+                'teacher__user', 'created_by'
+            ).order_by('paid_at', 'id')
             selected_student_id = parse_id(student_id)
             selected_teacher_id = parse_id(teacher_id)
             if selected_student_id is not None:
@@ -334,6 +382,7 @@ class MyPaymentsView(APIView):
                 participant_payouts = participant_payouts.filter(teacher_id=selected_teacher_id)
                 lesson_payouts = lesson_payouts.filter(teacher_id=selected_teacher_id)
                 teacher_payments = teacher_payments.filter(teacher_id=selected_teacher_id)
+                teacher_payments_all = teacher_payments_all.filter(teacher_id=selected_teacher_id)
 
             payouts = list(participant_payouts) + list(lesson_payouts)
 
@@ -406,7 +455,7 @@ class MyPaymentsView(APIView):
                 item['accrued_amount'] += payout.amount
                 item['payout_count'] += 1
 
-            for payment in teacher_payments:
+            for payment in teacher_payments_all:
                 item = teacher_summaries.setdefault(
                     payment.teacher_id,
                     {
@@ -459,9 +508,14 @@ class MyPaymentsView(APIView):
                         'date_to': date_to.isoformat() if date_to else None,
                     },
                     'charges': ParentChargeSerializer(charges, many=True).data,
-                    'payouts': serialize_teacher_payouts(participant_payouts, lesson_payouts),
+                    'payouts': serialize_teacher_payouts(
+                        participant_payouts,
+                        lesson_payouts,
+                        teacher_payments_all,
+                    ),
                     'student_payments': StudentPaymentSerializer(student_payments, many=True).data,
                     'teacher_payments': TeacherPaymentSerializer(teacher_payments, many=True).data,
+                    'teacher_payments_all': TeacherPaymentSerializer(teacher_payments_all, many=True).data,
                     'student_summaries': serialize_summary_rows(
                         student_rows,
                         ('charged_amount', 'paid_amount', 'debt_amount'),
@@ -511,12 +565,20 @@ class MyPaymentsView(APIView):
             teacher_payments = apply_payment_date_filters(
                 TeacherPayment.objects.select_related('teacher__user', 'created_by').filter(teacher=user.teacher_profile)
             ).order_by('-paid_at', '-id')
+            teacher_payments_all = TeacherPayment.objects.select_related(
+                'teacher__user', 'created_by'
+            ).filter(teacher=user.teacher_profile).order_by('paid_at', 'id')
             return Response(
                 {
                     'charges': [],
-                    'payouts': serialize_teacher_payouts(participant_payouts, lesson_payouts),
+                    'payouts': serialize_teacher_payouts(
+                        participant_payouts,
+                        lesson_payouts,
+                        teacher_payments_all,
+                    ),
                     'student_payments': [],
                     'teacher_payments': TeacherPaymentSerializer(teacher_payments, many=True).data,
+                    'teacher_payments_all': TeacherPaymentSerializer(teacher_payments_all, many=True).data,
                 }
             )
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
