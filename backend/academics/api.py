@@ -102,7 +102,7 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
     permission_classes = (StaffOrTeacherAcademicWritePermission, IsAdminOrRelatedAcademicObject)
 
     def get_permissions(self):
-        if getattr(self, 'action', None) in {'update', 'partial_update', 'destroy', 'sync_students'}:
+        if getattr(self, 'action', None) in {'update', 'partial_update', 'destroy'}:
             return [IsAdminUserRole()]
         return super().get_permissions()
 
