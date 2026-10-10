@@ -56,6 +56,8 @@ export type LessonPage = {
   count: number
   page: number
   page_size: number
+  payroll_amount_total?: string | number
+  billed_amount_total?: string | number
   results: Lesson[]
 }
 

@@ -57,12 +57,9 @@
           </div>
         </section>
 
-        <section class="lesson-payment-counter" aria-label="Лічильник оплат">
-          <div>
-            <span>{{ lessonPaymentCounterLabel }}</span>
-            <small>{{ lessonPaymentCounterPeriod }}</small>
-          </div>
-          <strong>{{ formatMoney(lessonPaymentTotal) }}</strong>
+        <section v-if="canManage && hasDateInterval" class="lesson-period-totals" aria-label="Підсумки за період">
+          <div>Винагорода вчителя за період: {{ formatPeriodAmount(payrollAmountTotal) }}</div>
+          <div v-if="isAdmin">Вартість занять за період: {{ formatPeriodAmount(billedAmountTotal) }}</div>
         </section>
 
         <PageState
@@ -279,8 +276,8 @@ import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
-import type { Enrollment, Lesson, LessonPage, LessonParticipant, PaymentsResponse, ProfileOption, StudyGroup } from '@/types/api'
-import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
+import type { Enrollment, Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
+import { formatDateTime, statusLabel } from '@/utils/format'
 import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
@@ -292,7 +289,8 @@ const enrollments = ref<Enrollment[]>([])
 const lessonPage = ref(1)
 const lessonPageSize = ref(20)
 const lessonCount = ref(0)
-const lessonPaymentTotal = ref(0)
+const payrollAmountTotal = ref(0)
+const billedAmountTotal = ref(0)
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -304,7 +302,6 @@ const notice = ref('')
 const { loading, error, run } = usePageData()
 
 const isAdmin = computed(() => Boolean(auth.me?.is_staff || auth.me?.role === 'admin'))
-const isTeacher = computed(() => auth.me?.role === 'teacher' && !isAdmin.value)
 const canManage = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 const canMarkAttendance = computed(() => canManage.value && selectedLesson.value?.status === 'scheduled')
 const canEditTime = computed(() => {
@@ -333,6 +330,7 @@ const lessonFilters = reactive({
 })
 
 const hasLessonFilters = computed(() => Object.values(lessonFilters).some(Boolean))
+const hasDateInterval = computed(() => Boolean(lessonFilters.date_from || lessonFilters.date_to))
 const totalLessonPages = computed(() => Math.max(1, Math.ceil(lessonCount.value / lessonPageSize.value)))
 
 function isActiveEnrollment(enrollment: Enrollment) {
@@ -443,17 +441,6 @@ const lessonsCaption = computed(() => {
   }
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
 })
-const lessonPaymentCounterLabel = computed(() => (
-  isAdmin.value || isTeacher.value ? 'Виплат за період' : 'Оплат за період'
-))
-const lessonPaymentCounterPeriod = computed(() => {
-  const { date_from: dateFrom, date_to: dateTo } = lessonFilters
-  if (dateFrom && dateTo) return `${dateFrom} — ${dateTo}`
-  if (dateFrom) return `від ${dateFrom}`
-  if (dateTo) return `до ${dateTo}`
-  return 'за весь доступний період'
-})
-
 const createForm = reactive({ group: null as number | null, starts_at: '', notes: '' })
 const detailForm = reactive({ starts_at: '', notes: '' })
 
@@ -486,6 +473,11 @@ function formatTeacherPay(value?: string | number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number.isFinite(amount) ? amount : 0)
+}
+
+function formatPeriodAmount(value?: string | number) {
+  const amount = Number(value ?? 0)
+  return (Number.isFinite(amount) ? amount : 0).toFixed(2)
 }
 
 function profileLabel(profile: ProfileOption, fallback: string) {
@@ -535,20 +527,10 @@ function lessonsPath(page: number) {
   return `/api/my/lessons/?${params.toString()}`
 }
 
-function lessonPaymentsPath() {
-  const params = new URLSearchParams()
-  if (lessonFilters.date_from) params.set('date_from', lessonFilters.date_from)
-  if (lessonFilters.date_to) params.set('date_to', lessonFilters.date_to)
-  if (isAdmin.value && lessonFilters.student) params.set('student', lessonFilters.student)
-  const query = params.toString()
-  return `/api/my/payments/${query ? `?${query}` : ''}`
-}
-
 function load(page = 1) {
   return run(async () => {
-    const [lessonPayload, paymentPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
+    const [lessonPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
       apiRequest<Lesson[] | LessonPage>(lessonsPath(page)),
-      apiRequest<PaymentsResponse>(lessonPaymentsPath()).catch(() => null),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/students/').catch(() => []) : Promise.resolve([]),
@@ -558,16 +540,16 @@ function load(page = 1) {
       lessons.value = lessonPayload
       lessonPage.value = 1
       lessonCount.value = lessonPayload.length
+      payrollAmountTotal.value = lessonPayload.reduce((total, lesson) => total + Number(lesson.payroll_amount ?? 0), 0)
+      billedAmountTotal.value = lessonPayload.reduce((total, lesson) => total + Number(lesson.billed_amount ?? 0), 0)
     } else {
       lessons.value = lessonPayload.results
       lessonPage.value = lessonPayload.page
       lessonPageSize.value = lessonPayload.page_size
       lessonCount.value = lessonPayload.count
+      payrollAmountTotal.value = Number(lessonPayload.payroll_amount_total ?? 0)
+      billedAmountTotal.value = Number(lessonPayload.billed_amount_total ?? 0)
     }
-    const payments = isAdmin.value || isTeacher.value
-      ? (paymentPayload?.payouts ?? []).filter((payout) => payout.status !== 'cancelled')
-      : paymentPayload?.student_payments ?? []
-    lessonPaymentTotal.value = payments.reduce((total, payment) => total + Number(payment.amount ?? 0), 0)
     groups.value = groupPayload
     teachers.value = teacherPayload
     students.value = studentPayload
@@ -811,11 +793,9 @@ onMounted(load)
   text-align: center;
 }
 
-.lesson-payment-counter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.lesson-period-totals {
+  display: grid;
+  gap: 5px;
   margin: 12px 0;
   padding: 13px 14px;
   border: 1px solid var(--app-border);
@@ -823,25 +803,9 @@ onMounted(load)
   background: var(--app-soft);
 }
 
-.lesson-payment-counter div {
-  display: grid;
-  gap: 3px;
-}
-
-.lesson-payment-counter span {
+.lesson-period-totals div {
   color: var(--app-ink);
   font-size: 13px;
   font-weight: 700;
-}
-
-.lesson-payment-counter small {
-  color: var(--app-muted);
-  font-size: 11px;
-}
-
-.lesson-payment-counter strong {
-  color: var(--app-ink);
-  font-size: 24px;
-  line-height: 1;
 }
 </style>
