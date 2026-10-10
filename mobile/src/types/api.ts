@@ -71,6 +71,16 @@ export type StudyGroup = {
   is_active?: boolean
 }
 
+export type GroupPricing = {
+  id: number
+  group: number
+  group_name?: string
+  student_price: string | number
+  teacher_rate: string | number
+  effective_from: string
+  created_at?: string
+}
+
 export type GroupAttendanceRate = {
   id: number
   group: number

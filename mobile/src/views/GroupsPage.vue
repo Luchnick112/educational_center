@@ -55,7 +55,7 @@
                   <span class="format-badge">{{ group.format === 'individual' ? 'Індивідуальна' : 'Групова' }}</span>
                 </div>
                 <ion-button
-                  v-if="canManage"
+                  v-if="isAdmin"
                   class="icon-action"
                   fill="clear"
                   size="small"
@@ -79,11 +79,11 @@
       <ion-header class="ion-no-border">
         <ion-toolbar>
           <ion-buttons slot="start">
-            <ion-button :disabled="saving || savingAttendanceRates" @click="closeEditor">Скасувати</ion-button>
+            <ion-button :disabled="saving || savingAttendanceRates || savingPricing" @click="closeEditor">Скасувати</ion-button>
           </ion-buttons>
           <ion-title>{{ editingId ? 'Редагувати групу' : 'Нова група' }}</ion-title>
           <ion-buttons slot="end">
-            <ion-button strong :disabled="saving || savingAttendanceRates" @click="saveGroup">Зберегти</ion-button>
+            <ion-button strong :disabled="saving || savingAttendanceRates || savingPricing" @click="saveGroup">Зберегти</ion-button>
           </ion-buttons>
         </ion-toolbar>
       </ion-header>
@@ -118,6 +118,74 @@
               <input v-model="form.student_price" class="mobile-control" type="number" min="0" step="0.01" required />
             </label>
           </div>
+
+          <fieldset v-if="isAdmin && editingId" class="choice-list pricing-section">
+            <legend>Зміна вартості уроку</legend>
+
+            <div v-if="loadingPricingRules" class="attendance-rate-loading">
+              <ion-spinner name="crescent" />
+              <span>Завантаження тарифів...</span>
+            </div>
+
+            <template v-else>
+              <label class="mobile-field">
+                <span>Дата початку дії</span>
+                <input
+                  v-model="pricingForm.effective_from_date"
+                  class="mobile-control"
+                  type="date"
+                  @change="hydratePricingFormFromRules"
+                />
+              </label>
+
+              <div class="pricing-grid">
+                <label class="mobile-field">
+                  <span>Ціна для учня</span>
+                  <input
+                    v-model="pricingForm.student_price"
+                    class="mobile-control"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputmode="decimal"
+                    placeholder="0.00"
+                  />
+                </label>
+                <label class="mobile-field">
+                  <span>Ставка викладача</span>
+                  <input
+                    v-model="pricingForm.teacher_rate"
+                    class="mobile-control"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputmode="decimal"
+                    placeholder="0.00"
+                  />
+                </label>
+              </div>
+
+              <ion-button
+                class="attendance-rate-submit"
+                expand="block"
+                fill="outline"
+                type="button"
+                :disabled="savingPricing || !pricingForm.effective_from_date"
+                @click="savePricingRule"
+              >
+                <ion-spinner v-if="savingPricing" name="crescent" />
+                <span v-else>Зберегти вартість</span>
+              </ion-button>
+
+              <div v-if="selectedGroupPricingRules.length" class="pricing-rules-list">
+                <span class="field-hint">Історія вартості</span>
+                <div v-for="rule in selectedGroupPricingRules" :key="rule.id" class="pricing-rule-row">
+                  <span>{{ dateInputValue(rule.effective_from) }}</span>
+                  <span>{{ formatMoney(rule.student_price) }} / {{ formatMoney(rule.teacher_rate) }}</span>
+                </div>
+              </div>
+            </template>
+          </fieldset>
 
           <fieldset v-if="isAdmin && editingId && form.format === 'group'" class="choice-list attendance-rate-section">
             <legend>Виплата викладачу за присутніми</legend>
@@ -202,7 +270,7 @@
             <ion-toggle v-model="form.is_active" aria-label="Активна група" />
           </label>
 
-          <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving || savingAttendanceRates">
+          <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving || savingAttendanceRates || savingPricing">
             <ion-spinner v-if="saving" name="crescent" />
             <span v-else>Зберегти групу</span>
           </ion-button>
@@ -235,7 +303,8 @@ import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
-import type { Enrollment, GroupAttendanceRate, ProfileOption, StudyGroup, Subject } from '@/types/api'
+import type { Enrollment, GroupAttendanceRate, GroupPricing, ProfileOption, StudyGroup, Subject } from '@/types/api'
+import { formatMoney } from '@/utils/format'
 import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
@@ -249,6 +318,8 @@ const editingId = ref<number | null>(null)
 const saving = ref(false)
 const loadingAttendanceRates = ref(false)
 const savingAttendanceRates = ref(false)
+const loadingPricingRules = ref(false)
+const savingPricing = ref(false)
 const formError = ref('')
 const notice = ref('')
 const { loading, error, run } = usePageData()
@@ -352,6 +423,21 @@ const selectedGroupAttendanceRateRules = computed(() => {
       || b.id - a.id
     ))
 })
+const pricingRules = ref<GroupPricing[]>([])
+const pricingForm = reactive({
+  effective_from_date: '',
+  student_price: '',
+  teacher_rate: '',
+})
+const selectedGroupPricingRules = computed(() => {
+  if (!editingId.value) return []
+  return pricingRules.value
+    .filter((rule) => Number(rule.group) === Number(editingId.value))
+    .sort((a, b) => (
+      new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime()
+      || b.id - a.id
+    ))
+})
 
 function clearGroupFilters() {
   Object.assign(groupFilters, { teacher: '', student: '' })
@@ -414,6 +500,13 @@ function resetAttendanceRateForm() {
   attendanceRateRules.value = []
 }
 
+function resetPricingForm() {
+  pricingForm.effective_from_date = todayDate()
+  pricingForm.student_price = ''
+  pricingForm.teacher_rate = ''
+  pricingRules.value = []
+}
+
 function currentAttendanceRateRule(presentCount: number, date: string) {
   return selectedGroupAttendanceRateRules.value
     .filter((rule) => Number(rule.present_count) <= presentCount && dateInputValue(rule.effective_from) <= date)
@@ -445,6 +538,20 @@ async function loadAttendanceRateRules(groupId: number) {
   const rules = await apiRequest<GroupAttendanceRate[]>(`/api/academics/group-attendance-rates/?group=${groupId}`)
   attendanceRateRules.value = rules
   hydrateAttendanceRateFormFromRules()
+}
+
+function hydratePricingFormFromRules() {
+  const date = pricingForm.effective_from_date
+  const rule = selectedGroupPricingRules.value
+    .filter((item) => dateInputValue(item.effective_from) <= date)[0]
+
+  pricingForm.student_price = rule ? String(rule.student_price) : form.student_price
+  pricingForm.teacher_rate = rule ? String(rule.teacher_rate) : ''
+}
+
+async function loadPricingRules(groupId: number) {
+  pricingRules.value = await apiRequest<GroupPricing[]>(`/api/academics/group-pricings/?group=${groupId}`)
+  hydratePricingFormFromRules()
 }
 
 async function loadLookups() {
@@ -485,6 +592,7 @@ async function openCreate() {
     editingId.value = null
     resetForm()
     resetAttendanceRateForm()
+    resetPricingForm()
     editorOpen.value = true
   } catch (caught) {
     error.value = caught instanceof ApiError ? errorMessage(caught.payload) : 'Не вдалося завантажити дані форми'
@@ -492,6 +600,8 @@ async function openCreate() {
 }
 
 async function openEdit(group: StudyGroup) {
+  if (!isAdmin.value) return
+
   try {
     if (!subjects.value.length) await loadLookups()
     studentQuery.value = ''
@@ -507,8 +617,21 @@ async function openEdit(group: StudyGroup) {
       is_active: group.is_active ?? true,
     })
     resetAttendanceRateForm()
+    resetPricingForm()
     formError.value = ''
     editorOpen.value = true
+    if (isAdmin.value) {
+      loadingPricingRules.value = true
+      try {
+        await loadPricingRules(group.id)
+      } catch (caught) {
+        formError.value = caught instanceof ApiError
+          ? errorMessage(caught.payload, 'Не вдалося завантажити тарифи')
+          : 'Не вдалося завантажити тарифи'
+      } finally {
+        loadingPricingRules.value = false
+      }
+    }
     if (isAdmin.value && form.format === 'group') {
       loadingAttendanceRates.value = true
       try {
@@ -527,10 +650,11 @@ async function openEdit(group: StudyGroup) {
 }
 
 function closeEditor() {
-  if (saving.value || savingAttendanceRates.value) return
+  if (saving.value || savingAttendanceRates.value || savingPricing.value) return
   editorOpen.value = false
   editingId.value = null
   resetAttendanceRateForm()
+  resetPricingForm()
   formError.value = ''
 }
 
@@ -577,6 +701,60 @@ async function saveGroup() {
       : 'Не вдалося зберегти групу'
   } finally {
     saving.value = false
+  }
+}
+
+async function savePricingRule() {
+  if (!editingId.value || !pricingForm.effective_from_date) return
+
+  const studentPrice = Number(String(pricingForm.student_price).replace(',', '.'))
+  const teacherRate = Number(String(pricingForm.teacher_rate).replace(',', '.'))
+  if (!Number.isFinite(studentPrice) || studentPrice < 0 || !Number.isFinite(teacherRate) || teacherRate < 0) {
+    formError.value = 'Вкажіть коректні ціни для учня та викладача.'
+    return
+  }
+
+  savingPricing.value = true
+  formError.value = ''
+  try {
+    const groupId = editingId.value
+    const formDate = pricingForm.effective_from_date
+    const effectiveFrom = new Date(`${formDate}T00:00:00`).toISOString()
+    const matchingRules = selectedGroupPricingRules.value
+      .filter((rule) => dateInputValue(rule.effective_from) === formDate)
+      .sort((a, b) => b.id - a.id)
+    const keep = matchingRules[0]
+    const body = {
+      group: groupId,
+      student_price: studentPrice.toFixed(2),
+      teacher_rate: teacherRate.toFixed(2),
+      effective_from: effectiveFrom,
+    }
+
+    if (keep) {
+      await apiRequest<GroupPricing>(`/api/academics/group-pricings/${keep.id}/`, {
+        method: 'PATCH',
+        body,
+      })
+    } else {
+      await apiRequest<GroupPricing>('/api/academics/group-pricings/', {
+        method: 'POST',
+        body,
+      })
+    }
+
+    for (const duplicate of matchingRules.slice(1)) {
+      await apiRequest(`/api/academics/group-pricings/${duplicate.id}/`, { method: 'DELETE' })
+    }
+
+    await loadPricingRules(groupId)
+    notice.value = 'Вартість уроків збережено.'
+  } catch (caught) {
+    formError.value = caught instanceof ApiError
+      ? errorMessage(caught.payload, 'Не вдалося зберегти вартість уроків')
+      : 'Не вдалося зберегти вартість уроків'
+  } finally {
+    savingPricing.value = false
   }
 }
 
@@ -651,6 +829,11 @@ onMounted(load)
   padding: 14px 12px 12px;
 }
 
+.pricing-section {
+  gap: 14px;
+  padding: 14px 12px 12px;
+}
+
 .student-search-field {
   margin: 4px 0 8px;
 }
@@ -675,6 +858,25 @@ onMounted(load)
   gap: 12px;
 }
 
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pricing-rules-list {
+  display: grid;
+  gap: 6px;
+}
+
+.pricing-rule-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-ink);
+  font-size: 12px;
+}
+
 .attendance-rate-loading {
   display: flex;
   align-items: center;
@@ -696,7 +898,8 @@ onMounted(load)
 }
 
 @media (max-width: 380px) {
-  .attendance-rate-grid {
+  .attendance-rate-grid,
+  .pricing-grid {
     grid-template-columns: 1fr;
   }
 }

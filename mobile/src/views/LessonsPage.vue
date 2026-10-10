@@ -57,6 +57,14 @@
           </div>
         </section>
 
+        <section class="lesson-payment-counter" aria-label="Лічильник оплат">
+          <div>
+            <span>{{ lessonPaymentCounterLabel }}</span>
+            <small>{{ lessonPaymentCounterPeriod }}</small>
+          </div>
+          <strong>{{ lessonPaymentCount }}</strong>
+        </section>
+
         <PageState
           :loading="loading"
           :error="error"
@@ -271,7 +279,7 @@ import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
-import type { Enrollment, Lesson, LessonPage, LessonParticipant, ProfileOption, StudyGroup } from '@/types/api'
+import type { Enrollment, Lesson, LessonPage, LessonParticipant, PaymentsResponse, ProfileOption, StudyGroup } from '@/types/api'
 import { formatDateTime, statusLabel } from '@/utils/format'
 import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
@@ -284,6 +292,7 @@ const enrollments = ref<Enrollment[]>([])
 const lessonPage = ref(1)
 const lessonPageSize = ref(20)
 const lessonCount = ref(0)
+const lessonPaymentCount = ref(0)
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -295,6 +304,7 @@ const notice = ref('')
 const { loading, error, run } = usePageData()
 
 const isAdmin = computed(() => Boolean(auth.me?.is_staff || auth.me?.role === 'admin'))
+const isTeacher = computed(() => auth.me?.role === 'teacher' && !isAdmin.value)
 const canManage = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 const canMarkAttendance = computed(() => canManage.value && selectedLesson.value?.status === 'scheduled')
 const canEditTime = computed(() => {
@@ -433,6 +443,14 @@ const lessonsCaption = computed(() => {
   }
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
 })
+const lessonPaymentCounterLabel = computed(() => isTeacher.value ? 'Виплат за період' : 'Оплат за період')
+const lessonPaymentCounterPeriod = computed(() => {
+  const { date_from: dateFrom, date_to: dateTo } = lessonFilters
+  if (dateFrom && dateTo) return `${dateFrom} — ${dateTo}`
+  if (dateFrom) return `від ${dateFrom}`
+  if (dateTo) return `до ${dateTo}`
+  return 'за весь доступний період'
+})
 
 const createForm = reactive({ group: null as number | null, starts_at: '', notes: '' })
 const detailForm = reactive({ starts_at: '', notes: '' })
@@ -515,10 +533,20 @@ function lessonsPath(page: number) {
   return `/api/my/lessons/?${params.toString()}`
 }
 
+function lessonPaymentsPath() {
+  const params = new URLSearchParams()
+  if (lessonFilters.date_from) params.set('date_from', lessonFilters.date_from)
+  if (lessonFilters.date_to) params.set('date_to', lessonFilters.date_to)
+  if (isAdmin.value && lessonFilters.student) params.set('student', lessonFilters.student)
+  const query = params.toString()
+  return `/api/my/payments/${query ? `?${query}` : ''}`
+}
+
 function load(page = 1) {
   return run(async () => {
-    const [lessonPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
+    const [lessonPayload, paymentPayload, groupPayload, teacherPayload, studentPayload, enrollmentPayload] = await Promise.all([
       apiRequest<Lesson[] | LessonPage>(lessonsPath(page)),
+      apiRequest<PaymentsResponse>(lessonPaymentsPath()).catch(() => null),
       apiRequest<StudyGroup[]>('/api/academics/groups/').catch(() => []),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/teachers/').catch(() => []) : Promise.resolve([]),
       canManage.value ? apiRequest<ProfileOption[]>('/api/users/students/').catch(() => []) : Promise.resolve([]),
@@ -534,6 +562,10 @@ function load(page = 1) {
       lessonPageSize.value = lessonPayload.page_size
       lessonCount.value = lessonPayload.count
     }
+    const payments = isTeacher.value
+      ? paymentPayload?.teacher_payments ?? []
+      : paymentPayload?.student_payments ?? []
+    lessonPaymentCount.value = payments.length
     groups.value = groupPayload
     teachers.value = teacherPayload
     students.value = studentPayload
@@ -775,5 +807,39 @@ onMounted(load)
   color: var(--app-muted);
   font-size: 12px;
   text-align: center;
+}
+
+.lesson-payment-counter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 13px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-soft);
+}
+
+.lesson-payment-counter div {
+  display: grid;
+  gap: 3px;
+}
+
+.lesson-payment-counter span {
+  color: var(--app-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lesson-payment-counter small {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.lesson-payment-counter strong {
+  color: var(--app-ink);
+  font-size: 24px;
+  line-height: 1;
 }
 </style>
