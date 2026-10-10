@@ -9,7 +9,7 @@ from rest_framework import decorators, permissions, response, status, viewsets
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from academics.models import Lesson, LessonParticipant, StudentEnrollment
+from academics.models import Lesson, LessonParticipant, StudentEnrollment, StudyGroup
 from core.serializers import DashboardSerializer
 from finance.models import LessonTeacherPayout, ParentCharge, TeacherPayout
 
@@ -113,12 +113,20 @@ class UserViewSet(viewsets.ModelViewSet):
             }
         else:
             data['stats'] = {
-                'Користувачі': User.objects.count(),
+                'Користувачі': User.objects.filter(is_active=True).count(),
                 'Студенти': StudentProfile.objects.filter(user__is_active=True).count(),
                 'Вчителі': TeacherProfile.objects.filter(user__is_active=True).count(),
-                'Групи': StudentEnrollment.objects.values('group').distinct().count(),
-                'Заплановані уроки': Lesson.objects.filter(status='scheduled').count(),
-                'Відкриті нарахування': ParentCharge.objects.exclude(status='paid').count(),
+                'Групи': StudyGroup.objects.filter(is_active=True).count(),
+                'Заплановані уроки': Lesson.objects.filter(
+                    status='scheduled',
+                    group__is_active=True,
+                    teacher__user__is_active=True,
+                ).count(),
+                'Відкриті нарахування': ParentCharge.objects.filter(
+                    parent__user__is_active=True,
+                    student__user__is_active=True,
+                    participant__lesson__group__is_active=True,
+                ).exclude(status__in=('paid', 'cancelled')).count(),
             }
 
         return response.Response(data)

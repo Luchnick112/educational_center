@@ -62,7 +62,7 @@
             <span>{{ lessonPaymentCounterLabel }}</span>
             <small>{{ lessonPaymentCounterPeriod }}</small>
           </div>
-          <strong>{{ lessonPaymentCount }}</strong>
+          <strong>{{ formatMoney(lessonPaymentTotal) }}</strong>
         </section>
 
         <PageState
@@ -280,7 +280,7 @@ import { ApiError, apiRequest, errorMessage } from '@/services/api'
 import { usePageData } from '@/composables/usePageData'
 import { useAuthStore } from '@/stores/auth'
 import type { Enrollment, Lesson, LessonPage, LessonParticipant, PaymentsResponse, ProfileOption, StudyGroup } from '@/types/api'
-import { formatDateTime, statusLabel } from '@/utils/format'
+import { formatDateTime, formatMoney, statusLabel } from '@/utils/format'
 import { sortFilterOptions, userFilterOptions } from '@/utils/userFilterOptions'
 
 const auth = useAuthStore()
@@ -292,7 +292,7 @@ const enrollments = ref<Enrollment[]>([])
 const lessonPage = ref(1)
 const lessonPageSize = ref(20)
 const lessonCount = ref(0)
-const lessonPaymentCount = ref(0)
+const lessonPaymentTotal = ref(0)
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -567,7 +567,7 @@ function load(page = 1) {
     const payments = isAdmin.value || isTeacher.value
       ? (paymentPayload?.payouts ?? []).filter((payout) => payout.status !== 'cancelled')
       : paymentPayload?.student_payments ?? []
-    lessonPaymentCount.value = payments.length
+    lessonPaymentTotal.value = payments.reduce((total, payment) => total + Number(payment.amount ?? 0), 0)
     groups.value = groupPayload
     teachers.value = teacherPayload
     students.value = studentPayload
