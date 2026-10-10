@@ -443,7 +443,9 @@ const lessonsCaption = computed(() => {
   }
   return hasLessonFilters.value ? 'Змініть параметри фільтра' : 'Ваші заняття з’являться тут'
 })
-const lessonPaymentCounterLabel = computed(() => isTeacher.value ? 'Виплат за період' : 'Оплат за період')
+const lessonPaymentCounterLabel = computed(() => (
+  isAdmin.value || isTeacher.value ? 'Виплат за період' : 'Оплат за період'
+))
 const lessonPaymentCounterPeriod = computed(() => {
   const { date_from: dateFrom, date_to: dateTo } = lessonFilters
   if (dateFrom && dateTo) return `${dateFrom} — ${dateTo}`
@@ -562,8 +564,8 @@ function load(page = 1) {
       lessonPageSize.value = lessonPayload.page_size
       lessonCount.value = lessonPayload.count
     }
-    const payments = isTeacher.value
-      ? paymentPayload?.teacher_payments ?? []
+    const payments = isAdmin.value || isTeacher.value
+      ? (paymentPayload?.payouts ?? []).filter((payout) => payout.status !== 'cancelled')
       : paymentPayload?.student_payments ?? []
     lessonPaymentCount.value = payments.length
     groups.value = groupPayload
