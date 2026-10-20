@@ -372,6 +372,7 @@ type Group = {
   subject?: number | null
   format?: GroupFormat | string | null
   student_price?: string | number | null
+  is_active?: boolean
   completed_lessons_count?: number | null
   lessons_until_next_billing?: number | null
 }
@@ -778,11 +779,20 @@ async function loadData() {
     apiRequest<Group[]>('/api/academics/groups/'),
     apiRequest<Enrollment[]>('/api/academics/enrollments/'),
   ])
+  const visibleGroups = auth.me?.role === 'teacher' ? gr.filter((group) => group.is_active !== false) : gr
+  const visibleGroupIds = new Set(visibleGroups.map((group) => Number(group.id)))
+  const visibleStudentIds = new Set(st.map((student) => Number(student.id)))
   teachers.value = t
   subjects.value = sub
   students.value = st
-  groups.value = gr
-  enrollments.value = en
+  groups.value = visibleGroups
+  enrollments.value = auth.me?.role === 'teacher'
+    ? en.filter((enrollment) => (
+      visibleGroupIds.has(Number(enrollment.group))
+      && visibleStudentIds.has(Number(enrollment.student))
+      && isActiveEnrollment(enrollment)
+    ))
+    : en
 }
 
 async function loadPricingRules(groupId?: number | null) {

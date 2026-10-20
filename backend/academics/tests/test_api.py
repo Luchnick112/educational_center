@@ -204,6 +204,58 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertNotIn('student_price', response.data)
         self.assertNotIn('teacher_rate', response.data)
 
+    def test_teacher_only_sees_active_groups_and_student_enrollments(self):
+        inactive_group = StudyGroup.objects.create(
+            subject=self.subject,
+            teacher=self.teacher,
+            format=StudyGroupFormat.GROUP,
+            student_price=600,
+            is_active=False,
+        )
+        inactive_group_enrollment = StudentEnrollment.objects.create(
+            group=inactive_group,
+            student=self.student,
+            start_date=timezone.localdate(),
+        )
+        inactive_student_user = User.objects.create_user(
+            username='inactive_student_api',
+            email='inactive_student_api@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+            is_active=False,
+        )
+        inactive_student = StudentProfile.objects.create(user=inactive_student_user)
+        inactive_student_enrollment = StudentEnrollment.objects.create(
+            group=self.group,
+            student=inactive_student,
+            start_date=timezone.localdate(),
+        )
+        paused_student_user = User.objects.create_user(
+            username='paused_student_api',
+            email='paused_student_api@example.com',
+            password='pass12345',
+            role=UserRole.STUDENT,
+        )
+        paused_student = StudentProfile.objects.create(user=paused_student_user)
+        paused_enrollment = StudentEnrollment.objects.create(
+            group=self.group,
+            student=paused_student,
+            status='paused',
+            start_date=timezone.localdate(),
+        )
+        self.client.force_authenticate(self.teacher_user)
+
+        groups_response = self.client.get('/api/academics/groups/')
+        enrollments_response = self.client.get('/api/academics/enrollments/')
+
+        self.assertEqual(groups_response.status_code, 200)
+        self.assertEqual(enrollments_response.status_code, 200)
+        self.assertEqual([item['id'] for item in groups_response.data], [self.group.id])
+        self.assertEqual([item['id'] for item in enrollments_response.data], [self.enrollment.id])
+        self.assertNotIn(inactive_group_enrollment.id, [item['id'] for item in enrollments_response.data])
+        self.assertNotIn(inactive_student_enrollment.id, [item['id'] for item in enrollments_response.data])
+        self.assertNotIn(paused_enrollment.id, [item['id'] for item in enrollments_response.data])
+
     def test_teacher_sees_only_payroll_amount_in_lesson_participants(self):
         self.client.force_authenticate(self.teacher_user)
 
