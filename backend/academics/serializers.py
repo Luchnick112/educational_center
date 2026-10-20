@@ -121,7 +121,7 @@ class StudyGroupSerializer(serializers.ModelSerializer):
 
     def get_teacher_rate(self, instance):
         _, teacher_rate = instance.get_effective_pricing(timezone.now())
-        return teacher_rate
+        return f'{teacher_rate:.2f}'
 
     class Meta:
         model = StudyGroup
