@@ -68,6 +68,7 @@
               <div class="metric-row">
                 <div><strong>{{ group.completed_lessons_count ?? 0 }}</strong><span>проведено</span></div>
                 <div><strong>{{ group.lessons_until_next_billing ?? '—' }}</strong><span>до оплати</span></div>
+                <div v-if="canSeeTeacherRate"><strong>{{ formatMoney(group.teacher_rate ?? undefined) }}</strong><span>Оплата викладача</span></div>
               </div>
             </article>
           </div>
@@ -152,7 +153,7 @@
                   />
                 </label>
                 <label class="mobile-field">
-                  <span>Ставка викладача</span>
+                  <span>Оплата викладача</span>
                   <input
                     v-model="pricingForm.teacher_rate"
                     class="mobile-control"
@@ -326,6 +327,7 @@ const { loading, error, run } = usePageData()
 
 const isAdmin = computed(() => Boolean(auth.me?.is_staff || auth.me?.role === 'admin'))
 const canManage = computed(() => isAdmin.value || auth.me?.role === 'teacher')
+const canSeeTeacherRate = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 
 const groupFilters = reactive({ teacher: '', student: '' })
 const hasGroupFilters = computed(() => Boolean(groupFilters.teacher || groupFilters.student))

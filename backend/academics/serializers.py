@@ -37,6 +37,7 @@ class SubjectSerializer(serializers.ModelSerializer):
 class StudyGroupSerializer(serializers.ModelSerializer):
     completed_lessons_count = serializers.SerializerMethodField()
     lessons_until_next_billing = serializers.SerializerMethodField()
+    teacher_rate = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -67,6 +68,7 @@ class StudyGroupSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = getattr(request, 'user', None)
         if not user or not getattr(user, 'is_authenticated', False):
+            rep.pop('teacher_rate', None)
             return rep
 
         if user.is_staff or getattr(user, 'role', None) == UserRole.ADMIN:
@@ -77,6 +79,7 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             rep.pop('student_price', None)
             return rep
 
+        rep.pop('teacher_rate', None)
         if role == UserRole.STUDENT:
             student_ids = [getattr(user.student_profile, 'id', None)] if hasattr(user, 'student_profile') else []
             student_ids = [sid for sid in student_ids if sid is not None]
@@ -116,6 +119,10 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             return BILLING_LESSON_COUNT
         return BILLING_LESSON_COUNT - remainder
 
+    def get_teacher_rate(self, instance):
+        _, teacher_rate = instance.get_effective_pricing(timezone.now())
+        return teacher_rate
+
     class Meta:
         model = StudyGroup
         fields = (
@@ -125,6 +132,7 @@ class StudyGroupSerializer(serializers.ModelSerializer):
             'teacher',
             'format',
             'student_price',
+            'teacher_rate',
             'completed_lessons_count',
             'lessons_until_next_billing',
             'is_active',

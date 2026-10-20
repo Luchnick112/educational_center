@@ -113,7 +113,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['teacher'], self.teacher.id)
         self.assertEqual(response.data['format'], StudyGroupFormat.GROUP)
-        self.assertNotIn('teacher_rate', response.data)
+        self.assertEqual(response.data['teacher_rate'], '350.00')
         self.assertNotIn('student_price', response.data)
 
     def test_admin_can_update_group_format(self):
@@ -202,7 +202,31 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('student_price', response.data)
-        self.assertNotIn('teacher_rate', response.data)
+        self.assertEqual(response.data['teacher_rate'], '350.00')
+
+    def test_current_teacher_rate_is_visible_to_admin_and_group_teacher(self):
+        GroupPricing.objects.create(
+            group=self.group,
+            student_price=Decimal('700.00'),
+            teacher_rate=Decimal('420.00'),
+            effective_from=timezone.now() - timedelta(days=1),
+        )
+
+        self.client.force_authenticate(self.teacher_user)
+        teacher_response = self.client.get(f'/api/academics/groups/{self.group.id}/')
+
+        admin_user = User.objects.create_user(
+            username='group_rate_admin',
+            email='group_rate_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+        admin_response = self.client.get(f'/api/academics/groups/{self.group.id}/')
+
+        self.assertEqual(teacher_response.data['teacher_rate'], '420.00')
+        self.assertEqual(admin_response.data['teacher_rate'], '420.00')
 
     def test_teacher_only_sees_active_groups_and_student_enrollments(self):
         inactive_group = StudyGroup.objects.create(
