@@ -48,6 +48,7 @@ describe('MyGroupsView', () => {
             subject: 1,
             format: 'group',
             student_price: '500.00',
+            teacher_rate: '350.00',
           },
         ] as never
       }
@@ -68,6 +69,8 @@ describe('MyGroupsView', () => {
 
     expect(wrapper.get('.group-detail-modal').attributes('role')).toBe('dialog')
     expect(wrapper.get('#group-detail-title').text()).toBe('Математика 7')
+    expect(wrapper.get('.group-detail').text()).toContain('Оплата викладача')
+    expect(wrapper.get('.group-detail').text()).toContain('350.00')
     expect(document.body.style.overflow).toBe('hidden')
 
     await wrapper.get('.group-detail__actions .btn').trigger('click')

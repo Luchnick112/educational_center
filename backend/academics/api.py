@@ -111,7 +111,7 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == UserRole.ADMIN:
             return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            return self.queryset.filter(teacher=user.teacher_profile)
+            return self.queryset.filter(teacher=user.teacher_profile, is_active=True)
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             return self.queryset.filter(enrollments__student=user.student_profile).distinct()
         if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
@@ -185,6 +185,12 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             sync_enrollment_scheduled_lesson_participants(enrollment)
 
         queryset = StudentEnrollment.objects.filter(group=group).select_related('group', 'student', 'student__user')
+        if request.user.role == UserRole.TEACHER and hasattr(request.user, 'teacher_profile'):
+            queryset = queryset.filter(
+                student__user__is_active=True,
+                status='active',
+                end_date__isnull=True,
+            )
         return response.Response(StudentEnrollmentSerializer(queryset, many=True, context={'request': request}).data)
 
 
@@ -198,7 +204,13 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == UserRole.ADMIN:
             return self.queryset.all()
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            return self.queryset.filter(group__teacher=user.teacher_profile)
+            return self.queryset.filter(
+                group__teacher=user.teacher_profile,
+                group__is_active=True,
+                student__user__is_active=True,
+                status='active',
+                end_date__isnull=True,
+            )
         if user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             return self.queryset.filter(student=user.student_profile)
         if user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):

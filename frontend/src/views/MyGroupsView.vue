@@ -33,6 +33,7 @@
             <th>Назва групи</th>
             <th>Тип</th>
             <th v-if="isAdmin" class="col-student-price">Ціна за навчання</th>
+            <th v-if="canSeeTeacherRate">Оплата викладача</th>
             <th>Кількість учнів</th>
             <th>Завершено уроків</th>
             <th>До рахунку</th>
@@ -50,6 +51,7 @@
             <td class="col-group-name" data-label="Назва групи">{{ row.group.name || `Група #${row.group.id}` }}</td>
             <td data-label="Тип">{{ groupFormatLabel(row.group.format) }}</td>
             <td v-if="isAdmin" class="col-student-price" data-label="Ціна за навчання">{{ priceLabel(row.group.student_price) }}</td>
+            <td v-if="canSeeTeacherRate" data-label="Оплата викладача">{{ priceLabel(row.group.teacher_rate) }}</td>
             <td data-label="Кількість учнів">{{ row.studentIds.length }}</td>
             <td data-label="Завершено уроків">{{ groupCompletedLessonsLabel(row.group) }}</td>
             <td data-label="До рахунку">{{ groupLessonsUntilBillingLabel(row.group) }}</td>
@@ -93,6 +95,10 @@
               <span class="mobile-group-card__label">Навчання</span>
               <span>{{ priceLabel(row.group.student_price) }}</span>
             </span>
+            <span v-if="canSeeTeacherRate">
+              <span class="mobile-group-card__label">Оплата викладача</span>
+              <span>{{ priceLabel(row.group.teacher_rate) }}</span>
+            </span>
           </span>
           <span class="mobile-group-card__students">
             <span class="mobile-group-card__label">Студенти</span>
@@ -134,6 +140,10 @@
           <div v-if="isAdmin" class="detail-item col-student-price">
             <span class="detail-item__label">Ціна за навчання</span>
             <span>{{ priceLabel(selectedGroupDetail.group.student_price) }}</span>
+          </div>
+          <div v-if="canSeeTeacherRate" class="detail-item">
+            <span class="detail-item__label">Оплата викладача</span>
+            <span>{{ priceLabel(selectedGroupDetail.group.teacher_rate) }}</span>
           </div>
           <div class="detail-item">
             <span class="detail-item__label">Учнів</span>
@@ -372,6 +382,8 @@ type Group = {
   subject?: number | null
   format?: GroupFormat | string | null
   student_price?: string | number | null
+  teacher_rate?: string | number | null
+  is_active?: boolean
   completed_lessons_count?: number | null
   lessons_until_next_billing?: number | null
 }
@@ -451,6 +463,7 @@ const DETAIL_QUERY_KEY = 'group'
 const LIST_ROUTE_NAME = 'my-groups'
 
 const editableGroup = computed(() => groups.value.find((g) => g.id === selectedGroupId.value) || null)
+const canSeeTeacherRate = computed(() => isAdmin.value || auth.me?.role === 'teacher')
 const selectedGroupPricingRules = computed(() => {
   if (!selectedGroupId.value) return []
   return pricingRules.value
@@ -778,11 +791,20 @@ async function loadData() {
     apiRequest<Group[]>('/api/academics/groups/'),
     apiRequest<Enrollment[]>('/api/academics/enrollments/'),
   ])
+  const visibleGroups = auth.me?.role === 'teacher' ? gr.filter((group) => group.is_active !== false) : gr
+  const visibleGroupIds = new Set(visibleGroups.map((group) => Number(group.id)))
+  const visibleStudentIds = new Set(st.map((student) => Number(student.id)))
   teachers.value = t
   subjects.value = sub
   students.value = st
-  groups.value = gr
-  enrollments.value = en
+  groups.value = visibleGroups
+  enrollments.value = auth.me?.role === 'teacher'
+    ? en.filter((enrollment) => (
+      visibleGroupIds.has(Number(enrollment.group))
+      && visibleStudentIds.has(Number(enrollment.student))
+      && isActiveEnrollment(enrollment)
+    ))
+    : en
 }
 
 async function loadPricingRules(groupId?: number | null) {
