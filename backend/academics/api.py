@@ -184,7 +184,13 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         for enrollment in active_enrollments:
             sync_enrollment_scheduled_lesson_participants(enrollment)
 
-        queryset = self.get_queryset().filter(group=group)
+        queryset = StudentEnrollment.objects.filter(group=group).select_related('group', 'student', 'student__user')
+        if request.user.role == UserRole.TEACHER and hasattr(request.user, 'teacher_profile'):
+            queryset = queryset.filter(
+                student__user__is_active=True,
+                status='active',
+                end_date__isnull=True,
+            )
         return response.Response(StudentEnrollmentSerializer(queryset, many=True, context={'request': request}).data)
 
 
