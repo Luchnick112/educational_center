@@ -535,9 +535,7 @@ function formatLessonDateTime(iso: string) {
 
 function isoFromLocal(localDateTime: string) {
   if (!localDateTime) return null
-  const d = new Date(localDateTime)
-  if (isNaN(d.getTime())) return null
-  return d.toISOString()
+  return localDateTime.length === 16 ? `${localDateTime}:00` : localDateTime
 }
 
 function payrollAmountValue(value: string | number | null | undefined) {
@@ -911,7 +909,7 @@ async function createLesson() {
       method: 'POST',
       body: {
         group: lessonForm.value.group,
-        starts_at: new Date(lessonForm.value.starts_at_local).toISOString(),
+        starts_at: isoFromLocal(lessonForm.value.starts_at_local),
         status: 'scheduled',
         notes: lessonForm.value.notes,
       },
@@ -937,7 +935,7 @@ async function updateLesson() {
   try {
     const body: Record<string, unknown> = { notes: editLessonForm.value.notes }
     if (canEditLessonTime.value) {
-      body.starts_at = new Date(editLessonForm.value.starts_at_local).toISOString()
+      body.starts_at = isoFromLocal(editLessonForm.value.starts_at_local)
     }
     if (canManageLessons.value) {
       body.status = editLessonForm.value.status

@@ -38,7 +38,7 @@ export function formatDateTime(value?: string) {
 
 export function formatMoney(value?: string | number) {
   const amount = Number(value ?? 0)
-  return new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', maximumFractionDigits: 2 }).format(
+  return new Intl.NumberFormat('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
     Number.isFinite(amount) ? amount : 0,
   )
 }

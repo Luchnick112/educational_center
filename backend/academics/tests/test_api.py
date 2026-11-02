@@ -1162,7 +1162,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
 
     def test_teacher_can_update_scheduled_lesson_time(self):
         self.client.force_authenticate(self.teacher_user)
-        starts_at = timezone.now() + timedelta(days=2)
+        starts_at = timezone.localtime(timezone.now()) + timedelta(days=2)
 
         response = self.client.patch(
             f'/api/academics/lessons/{self.lesson.id}/',
@@ -1178,7 +1178,7 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.lesson.status = LessonStatus.CANCELLED
         self.lesson.save(update_fields=['status'])
         self.client.force_authenticate(self.teacher_user)
-        starts_at = timezone.now() + timedelta(days=2)
+        starts_at = timezone.localtime(timezone.now()) + timedelta(days=2)
 
         response = self.client.patch(
             f'/api/academics/lessons/{self.lesson.id}/',
@@ -1261,8 +1261,8 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(forbidden_response.status_code, 404)
 
     def test_student_parent_teacher_lesson_reschedule_workflow(self):
-        requested_starts_at = timezone.now() + timedelta(days=2)
-        applied_starts_at = timezone.now() + timedelta(days=3)
+        requested_starts_at = timezone.localtime(timezone.now()) + timedelta(days=2)
+        applied_starts_at = timezone.localtime(timezone.now()) + timedelta(days=3)
         self.client.force_authenticate(self.student_user)
 
         create_response = self.client.post(

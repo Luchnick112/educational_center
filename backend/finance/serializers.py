@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from academics.fields import ScheduleDateTimeField
 from users.models import TeacherProfile
 
 from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
@@ -26,7 +27,7 @@ class ParentChargeSerializer(serializers.ModelSerializer):
     invoice_date = serializers.SerializerMethodField()
     parent_name = serializers.SerializerMethodField()
     student_name = serializers.SerializerMethodField()
-    lesson_starts_at = serializers.DateTimeField(source='participant.lesson.starts_at', read_only=True)
+    lesson_starts_at = ScheduleDateTimeField(source='participant.lesson.starts_at', read_only=True)
 
     class Meta:
         model = ParentCharge
@@ -61,8 +62,10 @@ class ParentChargeSerializer(serializers.ModelSerializer):
         return instance.participant.lesson.group.name
 
     def get_invoice_date(self, instance):
-        value = instance.period_end_at or instance.issued_at or instance.participant.lesson.starts_at
-        return value.isoformat() if value else None
+        value = instance.period_end_at or instance.issued_at
+        if value:
+            return value.isoformat()
+        return ScheduleDateTimeField().to_representation(instance.participant.lesson.starts_at)
 
 
 class TeacherPayoutSerializer(serializers.ModelSerializer):
@@ -76,7 +79,7 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
     lesson = serializers.IntegerField(source='participant.lesson_id', read_only=True)
     student_name = serializers.SerializerMethodField()
     teacher_name = serializers.SerializerMethodField()
-    lesson_starts_at = serializers.DateTimeField(source='participant.lesson.starts_at', read_only=True)
+    lesson_starts_at = ScheduleDateTimeField(source='participant.lesson.starts_at', read_only=True)
 
     class Meta:
         model = TeacherPayout
@@ -111,8 +114,9 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
         return instance.participant.lesson.group.name
 
     def get_invoice_date(self, instance):
-        value = instance.period_end_at or instance.participant.lesson.starts_at
-        return value.isoformat() if value else None
+        if instance.period_end_at:
+            return instance.period_end_at.isoformat()
+        return ScheduleDateTimeField().to_representation(instance.participant.lesson.starts_at)
 
     def get_payout_type(self, instance):
         return 'participant'
@@ -126,7 +130,7 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
     teacher_name = serializers.SerializerMethodField()
     group_name = serializers.SerializerMethodField()
     invoice_date = serializers.SerializerMethodField()
-    lesson_starts_at = serializers.DateTimeField(source='lesson.starts_at', read_only=True)
+    lesson_starts_at = ScheduleDateTimeField(source='lesson.starts_at', read_only=True)
     approved_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     paid_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     period_start_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
@@ -171,8 +175,9 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
         return instance.lesson.group.name
 
     def get_invoice_date(self, instance):
-        value = instance.period_end_at or instance.lesson.starts_at
-        return value.isoformat() if value else None
+        if instance.period_end_at:
+            return instance.period_end_at.isoformat()
+        return ScheduleDateTimeField().to_representation(instance.lesson.starts_at)
 
 
 class StudentPaymentSerializer(serializers.ModelSerializer):
