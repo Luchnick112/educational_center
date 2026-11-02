@@ -8,6 +8,7 @@ from rest_framework import serializers
 from users.models import StudentParentRelation, UserRole
 
 from .constants import BILLING_LESSON_COUNT
+from .fields import ScheduleDateTimeField
 from .models import (
     AttendanceStatus,
     GroupAttendanceRate,
@@ -276,7 +277,7 @@ class LessonParticipantAmountUpdateSerializer(serializers.Serializer):
 
 
 class LessonSerializer(serializers.ModelSerializer):
-    starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    starts_at = ScheduleDateTimeField(style=DATETIME_INPUT_STYLE)
     completed_at = serializers.DateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
     participants = LessonParticipantSerializer(many=True, read_only=True)
     participant_updates = LessonParticipantAmountUpdateSerializer(many=True, write_only=True, required=False)
@@ -538,7 +539,9 @@ class LessonConfirmSerializer(serializers.Serializer):
 
 
 class LessonRescheduleRequestSerializer(serializers.ModelSerializer):
-    lesson_starts_at = serializers.DateTimeField(source='lesson.starts_at', read_only=True)
+    lesson_starts_at = ScheduleDateTimeField(source='lesson.starts_at', read_only=True)
+    requested_starts_at = ScheduleDateTimeField(required=False, allow_null=True, style=DATETIME_INPUT_STYLE)
+    new_starts_at = ScheduleDateTimeField(read_only=True)
     student_first_name = serializers.CharField(source='student.user.first_name', read_only=True)
     student_last_name = serializers.CharField(source='student.user.last_name', read_only=True)
 
@@ -580,5 +583,5 @@ class LessonRescheduleRequestSerializer(serializers.ModelSerializer):
 
 
 class LessonRescheduleApplySerializer(serializers.Serializer):
-    starts_at = serializers.DateTimeField(style=DATETIME_INPUT_STYLE)
+    starts_at = ScheduleDateTimeField(style=DATETIME_INPUT_STYLE)
     teacher_comment = serializers.CharField(required=False, allow_blank=True)

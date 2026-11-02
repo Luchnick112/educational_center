@@ -660,10 +660,14 @@ function onWindowKeydown(event: KeyboardEvent) {
 
 function isoFromLocal(dtLocal: string) {
   if (!dtLocal) return null
-  // datetime-local returns "YYYY-MM-DDTHH:MM" (no timezone). Treat as local time and convert to ISO.
   const d = new Date(dtLocal)
   if (isNaN(d.getTime())) return null
   return d.toISOString()
+}
+
+function scheduleValueFromLocal(dtLocal: string) {
+  if (!dtLocal) return null
+  return dtLocal.length === 16 ? `${dtLocal}:00` : dtLocal
 }
 
 function localFromIso(iso: string) {
@@ -967,7 +971,7 @@ function payloadForSubmit() {
   if (tab === 'lessons') {
     return {
       group: form.value.lesson.group,
-      starts_at: isoFromLocal(form.value.lesson.starts_at_local),
+      starts_at: scheduleValueFromLocal(form.value.lesson.starts_at_local),
       status: form.value.lesson.status,
       notes: form.value.lesson.notes,
     }
