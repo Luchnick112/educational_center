@@ -32,6 +32,7 @@
             <th class="col-teacher">Вчитель</th>
             <th>Назва групи</th>
             <th>Тип</th>
+            <th v-if="isAdmin">Статус</th>
             <th v-if="isAdmin" class="col-student-price">Ціна за навчання</th>
             <th v-if="canSeeTeacherRate">Оплата викладача</th>
             <th>Кількість учнів</th>
@@ -50,6 +51,7 @@
             <td class="col-teacher" data-label="Вчитель">{{ teacherLabel(row.group.teacher) }}</td>
             <td class="col-group-name" data-label="Назва групи">{{ row.group.name || `Група #${row.group.id}` }}</td>
             <td data-label="Тип">{{ groupFormatLabel(row.group.format) }}</td>
+            <td v-if="isAdmin" data-label="Статус">{{ groupStatusLabel(row.group.is_active) }}</td>
             <td v-if="isAdmin" class="col-student-price" data-label="Ціна за навчання">{{ priceLabel(row.group.student_price) }}</td>
             <td v-if="canSeeTeacherRate" data-label="Оплата викладача">{{ priceLabel(row.group.teacher_rate) }}</td>
             <td data-label="Кількість учнів">{{ row.studentIds.length }}</td>
@@ -71,6 +73,7 @@
           <span class="mobile-group-card__header">
             <span class="mobile-group-card__title">{{ row.group.name || `Група #${row.group.id}` }}</span>
             <span class="mobile-group-card__format">{{ groupFormatLabel(row.group.format) }}</span>
+            <span v-if="isAdmin" class="mobile-group-card__format">{{ groupStatusLabel(row.group.is_active) }}</span>
           </span>
           <span class="mobile-group-card__teacher">
             <span class="mobile-group-card__label">Вчитель</span>
@@ -137,6 +140,10 @@
             <span class="detail-item__label">Тип</span>
             <span>{{ groupFormatLabel(selectedGroupDetail.group.format) }}</span>
           </div>
+          <div v-if="isAdmin" class="detail-item">
+            <span class="detail-item__label">Статус</span>
+            <span>{{ groupStatusLabel(selectedGroupDetail.group.is_active) }}</span>
+          </div>
           <div v-if="isAdmin" class="detail-item col-student-price">
             <span class="detail-item__label">Ціна за навчання</span>
             <span>{{ priceLabel(selectedGroupDetail.group.student_price) }}</span>
@@ -182,6 +189,10 @@
           <select class="input" v-model="createForm.format">
             <option v-for="option in groupFormatOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
           </select>
+        </label>
+        <label v-if="isAdmin" class="check">
+          <input type="checkbox" v-model="createForm.is_active" />
+          <span>Активна</span>
         </label>
         <div v-if="isAdmin" class="field">
           <div class="field__label">Ціна за навчання</div>
@@ -254,6 +265,10 @@
           <select class="input" v-model="editForm.format">
             <option v-for="option in groupFormatOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
           </select>
+        </label>
+        <label v-if="isAdmin" class="check">
+          <input type="checkbox" v-model="editForm.is_active" />
+          <span>Активна</span>
         </label>
         <div class="field">
           <div class="field__label">Учні групи</div>
@@ -450,9 +465,10 @@ const createForm = ref({
   teacher: null as number | null,
   format: 'group' as GroupFormat,
   student_price: 0,
+  is_active: true,
   students: [] as number[],
 })
-const editForm = ref({ subject: null as number | null, format: 'group' as GroupFormat, student_price: 0, students: [] as number[] })
+const editForm = ref({ subject: null as number | null, format: 'group' as GroupFormat, student_price: 0, is_active: true, students: [] as number[] })
 const pricingForm = ref({ effective_from_date: '', student_price: 0, teacher_rate: 0 })
 const attendanceRateForm = ref({
   effective_from_date: '',
@@ -608,6 +624,10 @@ function teacherLabel(teacherId?: number | null) {
 
 function groupFormatLabel(format?: string | null) {
   return groupFormatOptions.find((option) => option.value === format)?.label || 'Груповий'
+}
+
+function groupStatusLabel(isActive?: boolean) {
+  return isActive === false ? 'Неактивна' : 'Активна'
 }
 
 function priceLabel(value?: string | number | null) {
@@ -848,6 +868,7 @@ function resetCreateForm() {
     teacher: null,
     format: 'group',
     student_price: 0,
+    is_active: true,
     students: [],
   }
   createStudentsOpen.value = false
@@ -913,6 +934,7 @@ function openEditForm() {
   editForm.value.subject = g.subject || null
   editForm.value.format = g.format === 'individual' ? 'individual' : 'group'
   editForm.value.student_price = Number(g.student_price || 0)
+  editForm.value.is_active = g.is_active !== false
   editForm.value.students = activeStudentIdsByGroup(g.id)
   const teacher = teachers.value.find((item) => item.id === g.teacher)
   pricingForm.value = {
@@ -941,7 +963,7 @@ async function createGroup() {
     const body: Record<string, unknown> = {
       subject: createForm.value.subject,
       format: createForm.value.format,
-      is_active: true,
+      is_active: createForm.value.is_active,
     }
     if (isAdmin.value) {
       body.teacher = createForm.value.teacher
@@ -979,6 +1001,7 @@ async function saveEditedGroup() {
     const body: Record<string, unknown> = {
       subject: editForm.value.subject,
       format: editForm.value.format,
+      is_active: editForm.value.is_active,
     }
     if (isAdmin.value) {
       body.student_price = editForm.value.student_price
@@ -1195,6 +1218,7 @@ watch(
   margin-bottom: 10px;
 }
 .grid { display: grid; gap: 10px; }
+.check { display: flex; align-items: center; gap: 8px; color: var(--text-soft); font-size: 13px; }
 .dropdown { position: relative; }
 .dropdown__trigger { width: 100%; text-align: left; }
 .dropdown__menu {

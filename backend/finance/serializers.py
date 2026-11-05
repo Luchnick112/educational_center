@@ -3,6 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from academics.fields import ScheduleDateTimeField
+from academics.models import LessonStatus
 from users.models import TeacherProfile
 
 from .models import LessonTeacherPayout, ParentCharge, StudentPayment, TeacherPayment, TeacherPayout
@@ -67,6 +68,12 @@ class ParentChargeSerializer(serializers.ModelSerializer):
             return value.isoformat()
         return ScheduleDateTimeField().to_representation(instance.participant.lesson.starts_at)
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.participant.lesson.status == LessonStatus.CANCELLED:
+            representation['amount'] = '0.00'
+        return representation
+
 
 class TeacherPayoutSerializer(serializers.ModelSerializer):
     payout_type = serializers.SerializerMethodField()
@@ -120,6 +127,12 @@ class TeacherPayoutSerializer(serializers.ModelSerializer):
 
     def get_payout_type(self, instance):
         return 'participant'
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.participant.lesson.status == LessonStatus.CANCELLED:
+            representation['amount'] = '0.00'
+        return representation
 
 
 class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
@@ -178,6 +191,12 @@ class LessonTeacherPayoutSerializer(serializers.ModelSerializer):
         if instance.period_end_at:
             return instance.period_end_at.isoformat()
         return ScheduleDateTimeField().to_representation(instance.lesson.starts_at)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.lesson.status == LessonStatus.CANCELLED:
+            representation['amount'] = '0.00'
+        return representation
 
 
 class StudentPaymentSerializer(serializers.ModelSerializer):

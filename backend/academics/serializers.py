@@ -221,6 +221,10 @@ class LessonParticipantSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
+        if instance.lesson.status == LessonStatus.CANCELLED:
+            rep['billed_amount'] = '0.00'
+            rep['payroll_amount'] = '0.00'
+
         if instance.attendance_status != AttendanceStatus.PRESENT and 'payroll_amount' in rep:
             rep['payroll_amount'] = '0.00'
 
@@ -300,12 +304,18 @@ class LessonSerializer(serializers.ModelSerializer):
             return
 
         if getattr(user, 'role', None) == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            self.fields['group'].queryset = StudyGroup.objects.filter(teacher=user.teacher_profile)
+            self.fields['group'].queryset = StudyGroup.objects.filter(
+                teacher=user.teacher_profile,
+                is_active=True,
+            )
             return
 
         self.fields['group'].queryset = StudyGroup.objects.none()
 
     def get_payroll_amount(self, instance):
+        if instance.status == LessonStatus.CANCELLED:
+            return '0.00'
+
         annotated_lesson_payout = getattr(instance, 'lesson_teacher_payout_amount', None)
         if annotated_lesson_payout is not None:
             return annotated_lesson_payout
@@ -331,6 +341,9 @@ class LessonSerializer(serializers.ModelSerializer):
         return f'{value:.2f}'
 
     def get_billed_amount(self, instance):
+        if instance.status == LessonStatus.CANCELLED:
+            return '0.00'
+
         value = getattr(instance, 'billed_amount_total', None)
         if value is None:
             value = sum((participant.billed_amount for participant in instance.participants.all()), Decimal('0.00'))

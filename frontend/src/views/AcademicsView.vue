@@ -485,6 +485,7 @@ const columns = computed(() => {
       { key: 'id', label: 'ID' },
       { key: 'name', label: 'Група', render: (r: GroupRow) => r.name || `Група #${r.id}` },
       { key: 'format', label: 'Тип', render: (r: GroupRow) => r.format === 'individual' ? 'Індивідуальний' : 'Груповий' },
+      { key: 'is_active', label: 'Статус', render: (r: GroupRow) => r.is_active === false ? 'Неактивна' : 'Активна' },
       { key: 'subject', label: 'Предмет' },
       { key: 'teacher', label: 'Викладач' },
       { key: 'completed_lessons_count', label: 'Завершено уроків', render: (r: GroupRow) => groupCompletedLessonsLabel(r) },

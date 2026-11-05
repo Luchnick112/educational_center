@@ -118,20 +118,18 @@
             <ion-segment-button value="teacher"><ion-label>Викладачу</ion-label></ion-segment-button>
           </ion-segment>
 
-          <label v-if="paymentForm.kind === 'student'" class="mobile-field">
-            <span>Учень</span>
-            <select v-model.number="paymentForm.profile" class="mobile-control" required>
-              <option :value="null" disabled>Оберіть учня</option>
-              <option v-for="student in students" :key="student.id" :value="student.id">{{ profileLabel(student, 'Учень') }}</option>
-            </select>
-          </label>
-          <label v-else class="mobile-field">
-            <span>Викладач</span>
-            <select v-model.number="paymentForm.profile" class="mobile-control" required>
-              <option :value="null" disabled>Оберіть викладача</option>
-              <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ profileLabel(teacher, 'Викладач') }}</option>
-            </select>
-          </label>
+          <MobileSearchableSelect
+            v-if="paymentForm.kind === 'student'"
+            v-model="paymentProfileModel"
+            label="Учень"
+            :options="studentPaymentOptions"
+          />
+          <MobileSearchableSelect
+            v-else
+            v-model="paymentProfileModel"
+            label="Викладач"
+            :options="teacherPaymentOptions"
+          />
 
           <div class="mobile-form-grid">
             <label class="mobile-field">
@@ -265,6 +263,8 @@ const summaryName = computed(() => summaries.value.length === 1
 const hasPaymentFilters = computed(() => Object.values(paymentFilters).some(Boolean))
 const studentFilterOptions = computed(() => userFilterOptions(students.value, 'Усі учні', 'Учень'))
 const teacherFilterOptions = computed(() => userFilterOptions(teachers.value, 'Усі викладачі', 'Викладач'))
+const studentPaymentOptions = computed(() => userFilterOptions(students.value, 'Оберіть учня', 'Учень'))
+const teacherPaymentOptions = computed(() => userFilterOptions(teachers.value, 'Оберіть викладача', 'Викладач'))
 
 const paymentForm = reactive({
   kind: 'student' as 'student' | 'teacher',
@@ -272,6 +272,10 @@ const paymentForm = reactive({
   amount: '',
   paid_at: today(),
   comment: '',
+})
+const paymentProfileModel = computed({
+  get: () => paymentForm.profile == null ? '' : String(paymentForm.profile),
+  set: (value: string) => { paymentForm.profile = value ? Number(value) : null },
 })
 const selectedTeacherPayoutKeys = ref<string[]>([])
 
@@ -361,7 +365,8 @@ async function clearPaymentFilters() {
 
 function openPayment() {
   paymentForm.kind = financeMode.value === 'teachers' ? 'teacher' : 'student'
-  paymentForm.profile = paymentForm.kind === 'teacher' ? teachers.value[0]?.id ?? null : students.value[0]?.id ?? null
+  const options = paymentForm.kind === 'teacher' ? teacherPaymentOptions.value : studentPaymentOptions.value
+  paymentForm.profile = options[1]?.value ? Number(options[1].value) : null
   paymentForm.amount = ''
   paymentForm.paid_at = today()
   paymentForm.comment = ''
@@ -380,7 +385,8 @@ function closePayment() {
 }
 
 watch(() => paymentForm.kind, (kind) => {
-  paymentForm.profile = kind === 'teacher' ? teachers.value[0]?.id ?? null : students.value[0]?.id ?? null
+  const options = kind === 'teacher' ? teacherPaymentOptions.value : studentPaymentOptions.value
+  paymentForm.profile = options[1]?.value ? Number(options[1].value) : null
   teacherPreview.value = null
   selectedTeacherPayoutKeys.value = []
 })

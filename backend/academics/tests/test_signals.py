@@ -412,3 +412,16 @@ class LessonSignalsTestCase(TestCase):
         self.assertEqual(charge.student, self.student)
         self.assertEqual(charge.amount, Decimal('5000.00'))
         self.assertEqual(charge.lesson_count, 10)
+
+    def test_cancelling_lesson_removes_it_from_draft_group_payout(self):
+        lessons = [self.create_completed_lesson(days_offset=index) for index in range(10)]
+        payout = LessonTeacherPayout.objects.get()
+        charge = ParentCharge.objects.get()
+
+        lessons[0].status = LessonStatus.CANCELLED
+        lessons[0].save(update_fields=['status'])
+
+        payout.refresh_from_db()
+        charge.refresh_from_db()
+        self.assertEqual(payout.amount, Decimal('2250.00'))
+        self.assertEqual(charge.amount, Decimal('4500.00'))

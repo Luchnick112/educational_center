@@ -308,15 +308,18 @@ def _cancel_lesson_financial_documents(lesson: Lesson) -> None:
     ParentCharge.objects.filter(
         participant__lesson=lesson,
         status__in=(ChargeStatus.DRAFT, ChargeStatus.ISSUED),
-    ).update(status=ChargeStatus.CANCELLED)
+    ).update(status=ChargeStatus.CANCELLED, amount=Decimal('0.00'))
     TeacherPayout.objects.filter(
         participant__lesson=lesson,
         status__in=(PayoutStatus.DRAFT, PayoutStatus.APPROVED),
-    ).update(status=PayoutStatus.CANCELLED)
+    ).update(status=PayoutStatus.CANCELLED, amount=Decimal('0.00'))
     LessonTeacherPayout.objects.filter(
         lesson=lesson,
         status__in=(PayoutStatus.DRAFT, PayoutStatus.APPROVED),
-    ).update(status=PayoutStatus.CANCELLED)
+    ).update(status=PayoutStatus.CANCELLED, amount=Decimal('0.00'))
+
+    _recalculate_draft_parent_charges(group=lesson.group)
+    _recalculate_draft_lesson_teacher_payouts_for_group(lesson.group)
 
 
 @receiver(post_save, sender=Lesson)

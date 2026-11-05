@@ -53,6 +53,13 @@
                 <div>
                   <h2>{{ group.name || `Група #${group.id}` }}</h2>
                   <span class="format-badge">{{ group.format === 'individual' ? 'Індивідуальна' : 'Групова' }}</span>
+                  <span
+                    v-if="isAdmin"
+                    class="status-badge"
+                    :data-status="group.is_active === false ? 'inactive' : 'active'"
+                  >
+                    {{ group.is_active === false ? 'Неактивна' : 'Активна' }}
+                  </span>
                 </div>
                 <ion-button
                   v-if="isAdmin"
@@ -383,6 +390,7 @@ const filteredStudents = computed(() => {
   return options.map((option) => option.student)
 })
 const filteredGroups = computed(() => groups.value.filter((group) => {
+  if (auth.me?.role === 'teacher' && group.is_active === false) return false
   if (groupFilters.teacher && String(group.teacher ?? '') !== groupFilters.teacher) return false
   if (groupFilters.student) {
     if (!groupHasActiveStudent(group.id, groupFilters.student)) return false
@@ -826,6 +834,23 @@ onMounted(load)
 </script>
 
 <style scoped>
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(27, 122, 89, 0.12);
+  color: #167653;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-badge[data-status='inactive'] {
+  background: rgba(176, 84, 56, 0.12);
+  color: #a0442d;
+}
+
 .attendance-rate-section {
   gap: 14px;
   padding: 14px 12px 12px;
