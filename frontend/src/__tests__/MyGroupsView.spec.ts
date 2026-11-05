@@ -49,6 +49,7 @@ describe('MyGroupsView', () => {
             format: 'group',
             student_price: '500.00',
             teacher_rate: '350.00',
+            is_active: false,
           },
         ] as never
       }
@@ -71,6 +72,7 @@ describe('MyGroupsView', () => {
     expect(wrapper.get('#group-detail-title').text()).toBe('Математика 7')
     expect(wrapper.get('.group-detail').text()).toContain('Оплата викладача')
     expect(wrapper.get('.group-detail').text()).toContain('350.00')
+    expect(wrapper.get('.group-detail').text()).toContain('Неактивна')
     expect(document.body.style.overflow).toBe('hidden')
 
     await wrapper.get('.group-detail__actions .btn').trigger('click')
@@ -79,6 +81,8 @@ describe('MyGroupsView', () => {
     expect(wrapper.find('.group-detail-modal').exists()).toBe(false)
     expect(wrapper.get('.group-edit-modal').attributes('role')).toBe('dialog')
     expect(wrapper.get('#group-edit-title').text()).toContain('Математика 7')
+    const statusCheckbox = wrapper.get('.group-edit-modal input[type="checkbox"]').element as HTMLInputElement
+    expect(statusCheckbox.checked).toBe(false)
   })
 
   it('shows searchable alphabetic lookups on the create route', async () => {

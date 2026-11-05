@@ -23,6 +23,9 @@ from .models import (
 
 
 def group_lesson_teacher_amount(lesson: Lesson) -> Decimal:
+    if lesson.status == LessonStatus.CANCELLED:
+        return Decimal('0.00')
+
     present_count = lesson.participants.filter(attendance_status=AttendanceStatus.PRESENT).count()
     if present_count <= 0:
         return Decimal('0.00')

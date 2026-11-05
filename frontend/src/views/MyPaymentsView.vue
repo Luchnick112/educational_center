@@ -54,15 +54,11 @@
         <div class="panel">
           <div class="panel__title">Внести оплату учня</div>
           <form class="payment-form" @submit.prevent="submitStudentPayment">
-            <label class="field">
-              <span class="field__label">Учень</span>
-              <select class="input" v-model="studentPaymentForm.student" required>
-                <option value="">Оберіть учня</option>
-                <option v-for="student in students" :key="student.id" :value="String(student.id)">
-                  {{ profileLabel(student) }}
-                </option>
-              </select>
-            </label>
+            <SearchableSelect
+              v-model="studentPaymentForm.student"
+              label="Учень"
+              :options="studentPaymentOptions"
+            />
             <label class="field">
               <span class="field__label">Дата</span>
               <input class="input" type="date" v-model="studentPaymentForm.paid_at" required />
@@ -118,15 +114,11 @@
         <div class="panel">
           <div class="panel__title">Внести оплату викладачу</div>
           <form class="payment-form" @submit.prevent="submitTeacherPayment">
-            <label class="field">
-              <span class="field__label">Викладач</span>
-              <select class="input" v-model="teacherPaymentForm.teacher" required>
-                <option value="">Оберіть викладача</option>
-                <option v-for="teacher in teachers" :key="teacher.id" :value="String(teacher.id)">
-                  {{ profileLabel(teacher) }}
-                </option>
-              </select>
-            </label>
+            <SearchableSelect
+              v-model="teacherPaymentForm.teacher"
+              label="Викладач"
+              :options="teacherPaymentOptions"
+            />
             <label class="field">
               <span class="field__label">Дата</span>
               <input class="input" type="date" v-model="teacherPaymentForm.paid_at" required />
@@ -444,6 +436,20 @@ const studentFilterOptions = computed(() => [
 ])
 const teacherFilterOptions = computed(() => [
   { value: '', label: 'Всі викладачі' },
+  ...sortFilterOptions(teachers.value.map((teacher) => ({
+    value: String(teacher.id),
+    label: userFilterLabel(teacher, 'Викладач'),
+  }))),
+])
+const studentPaymentOptions = computed(() => [
+  { value: '', label: 'Оберіть учня' },
+  ...sortFilterOptions(students.value.map((student) => ({
+    value: String(student.id),
+    label: userFilterLabel(student, 'Учень'),
+  }))),
+])
+const teacherPaymentOptions = computed(() => [
+  { value: '', label: 'Оберіть викладача' },
   ...sortFilterOptions(teachers.value.map((teacher) => ({
     value: String(teacher.id),
     label: userFilterLabel(teacher, 'Викладач'),
@@ -801,6 +807,11 @@ async function loadPayments() {
 }
 
 async function submitStudentPayment() {
+  if (!studentPaymentForm.student) {
+    error.value = 'Оберіть учня'
+    return
+  }
+
   savingPayment.value = true
   error.value = null
   notice.value = null
@@ -826,6 +837,11 @@ async function submitStudentPayment() {
 }
 
 async function submitTeacherPayment() {
+  if (!teacherPaymentForm.teacher) {
+    error.value = 'Оберіть викладача'
+    return
+  }
+
   if (teacherPaymentPreview.value) {
     await allocateTeacherPayment()
     return
@@ -943,12 +959,6 @@ function today() {
   const date = new Date()
   const pad = (value: number) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-function profileLabel(profile: ProfileOption) {
-  const user = profile.user_detail
-  if (!user) return `#${profile.id}`
-  return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.telegram_username || user.email || `#${profile.id}`
 }
 
 function teacherPayoutLabel(payout: Payout) {

@@ -343,6 +343,58 @@ class RoleAwareApiTestCase(AcademicBaseTestCase):
         self.assertEqual(response.data[0]['payroll_amount'], '350.00')
         self.assertEqual(response.data[0]['billed_amount'], '600.00')
 
+    def test_cancelled_completed_lesson_has_zero_amounts_and_no_teacher_accrual(self):
+        self.make_group_individual()
+        participant = self.lesson.participants.get()
+        participant.attendance_status = AttendanceStatus.PRESENT
+        participant.save(update_fields=['attendance_status'])
+        self.move_lesson_after_end_time()
+        self.client.force_authenticate(self.teacher_user)
+
+        complete_response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.COMPLETED},
+            format='json',
+        )
+        self.assertEqual(complete_response.status_code, 200)
+        self.assertEqual(complete_response.data['payroll_amount'], '350.00')
+        self.assertNotIn('billed_amount', complete_response.data)
+
+        cancel_response = self.client.patch(
+            f'/api/academics/lessons/{self.lesson.id}/',
+            {'status': LessonStatus.CANCELLED},
+            format='json',
+        )
+
+        self.assertEqual(cancel_response.status_code, 200)
+        self.assertEqual(cancel_response.data['payroll_amount'], '0.00')
+        self.assertNotIn('billed_amount', cancel_response.data)
+        self.assertEqual(cancel_response.data['participants'][0]['payroll_amount'], '0.00')
+        participant.refresh_from_db()
+        self.assertEqual(participant.teacher_payout.status, PayoutStatus.CANCELLED)
+        self.assertEqual(participant.teacher_payout.amount, Decimal('0.00'))
+        self.assertEqual(participant.parent_charge.status, ChargeStatus.CANCELLED)
+        self.assertEqual(participant.parent_charge.amount, Decimal('0.00'))
+
+        admin_user = User.objects.create_user(
+            username='cancelled_lesson_amount_admin',
+            email='cancelled_lesson_amount_admin@example.com',
+            password='pass12345',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.client.force_authenticate(admin_user)
+        lesson_response = self.client.get(f'/api/academics/lessons/{self.lesson.id}/')
+        payments_response = self.client.get('/api/my/payments/', {'teacher': self.teacher.id})
+
+        self.assertEqual(lesson_response.status_code, 200)
+        self.assertEqual(lesson_response.data['payroll_amount'], '0.00')
+        self.assertEqual(lesson_response.data['billed_amount'], '0.00')
+        self.assertEqual(payments_response.status_code, 200)
+        payout_row = next(item for item in payments_response.data['payouts'] if item['id'] == participant.teacher_payout.id)
+        self.assertEqual(payout_row['amount'], '0.00')
+        self.assertEqual(payments_response.data['teacher_summaries'][0]['accrued_amount'], '0.00')
+
     def test_admin_can_update_lesson_detail_and_participant_amounts(self):
         self.make_group_individual()
         admin_user = User.objects.create_user(

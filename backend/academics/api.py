@@ -125,6 +125,7 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
             serializer.save(
                 teacher=user.teacher_profile,
                 student_price=Decimal('0.00'),
+                is_active=True,
             )
             return
         serializer.save(student_price=student_price)
@@ -221,6 +222,8 @@ class StudentEnrollmentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         group = serializer.validated_data['group']
         if user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
+            if not group.is_active:
+                raise exceptions.PermissionDenied('You can only enroll students in active groups.')
             if group.teacher_id != user.teacher_profile.id:
                 raise exceptions.PermissionDenied('You can only enroll students in your own groups.')
         enrollment = serializer.save()
@@ -308,7 +311,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == UserRole.ADMIN:
             queryset = self.queryset.all()
         elif user.role == UserRole.TEACHER and hasattr(user, 'teacher_profile'):
-            queryset = self.queryset.filter(teacher=user.teacher_profile)
+            queryset = self.queryset.filter(teacher=user.teacher_profile, group__is_active=True)
         elif user.role == UserRole.STUDENT and hasattr(user, 'student_profile'):
             queryset = self.queryset.filter(participants__student=user.student_profile).distinct()
         elif user.role == UserRole.PARENT and hasattr(user, 'parent_profile'):
