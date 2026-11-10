@@ -508,9 +508,10 @@ function nextLessonTime() {
   return localDateTime(date)
 }
 
-function toIso(value: string) {
+function toScheduleDateTime(value: string) {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  if (Number.isNaN(date.getTime())) return null
+  return value.length === 16 ? `${value}:00` : value
 }
 
 function lessonsPath(page: number) {
@@ -578,7 +579,7 @@ function closeCreate() {
 }
 
 async function createLesson() {
-  const startsAt = toIso(createForm.starts_at)
+  const startsAt = toScheduleDateTime(createForm.starts_at)
   if (!createForm.group || !startsAt) {
     formError.value = 'Оберіть групу та коректний час уроку.'
     return
@@ -633,7 +634,7 @@ async function refreshDetail() {
 
 async function saveLesson() {
   if (!selectedLesson.value || !canManage.value) return
-  const startsAt = toIso(detailForm.starts_at)
+  const startsAt = toScheduleDateTime(detailForm.starts_at)
   if (!startsAt) {
     formError.value = 'Вкажіть коректну дату та час.'
     return
@@ -732,7 +733,7 @@ async function restoreLesson() {
   try {
     await apiRequest(`/api/academics/lessons/${selectedLesson.value.id}/`, {
       method: 'PATCH',
-      body: { status: 'scheduled', starts_at: toIso(detailForm.starts_at), notes: detailForm.notes },
+      body: { status: 'scheduled', starts_at: toScheduleDateTime(detailForm.starts_at), notes: detailForm.notes },
     })
     notice.value = 'Урок повернуто в заплановані.'
     await refreshDetail()
