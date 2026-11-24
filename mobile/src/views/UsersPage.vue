@@ -50,12 +50,54 @@
               <div class="avatar" aria-hidden="true">{{ initials(user) }}</div>
               <div class="data-item__main user-item__identity">
                 <h2>{{ userName(user) }}</h2>
-                <p v-if="user.telegram_username">{{ user.telegram_username }}</p>
-                <p v-if="user.email">{{ user.email }}</p>
-                <p v-if="user.phone">{{ user.phone }}</p>
+                <div v-if="user.telegram_username" class="user-item__contact">
+                  <span class="user-item__contact-value">{{ user.telegram_username }}</span>
+                  <ion-button
+                    class="user-item__copy"
+                    fill="clear"
+                    size="small"
+                    :aria-label="`Копіювати Telegram ${user.telegram_username}`"
+                    @click.stop="copyUserValue(user.telegram_username, 'Telegram')"
+                  >
+                    <ion-icon slot="icon-only" :icon="copyOutline" />
+                  </ion-button>
+                </div>
+                <div v-if="user.email" class="user-item__contact">
+                  <span class="user-item__contact-value">{{ user.email }}</span>
+                  <ion-button
+                    class="user-item__copy"
+                    fill="clear"
+                    size="small"
+                    :aria-label="`Копіювати email ${user.email}`"
+                    @click.stop="copyUserValue(user.email, 'Email')"
+                  >
+                    <ion-icon slot="icon-only" :icon="copyOutline" />
+                  </ion-button>
+                </div>
+                <div v-if="user.phone" class="user-item__contact">
+                  <span class="user-item__contact-value">{{ user.phone }}</span>
+                  <ion-button
+                    class="user-item__copy"
+                    fill="clear"
+                    size="small"
+                    :aria-label="`Копіювати телефон ${user.phone}`"
+                    @click.stop="copyUserValue(user.phone, 'Телефон')"
+                  >
+                    <ion-icon slot="icon-only" :icon="copyOutline" />
+                  </ion-button>
+                </div>
                 <div class="user-item__meta">
                   <span class="role-badge" :data-role="user.role">{{ roleLabel(user.role) }}</span>
                   <span v-if="!user.is_active" class="inactive-label">Неактивний</span>
+                  <ion-button
+                    class="icon-action user-item__edit"
+                    fill="clear"
+                    size="small"
+                    :aria-label="`Редагувати ${userName(user)}`"
+                    @click.stop="openEdit(user)"
+                  >
+                    <ion-icon slot="icon-only" :icon="createOutline" />
+                  </ion-button>
                 </div>
               </div>
             </article>
@@ -70,9 +112,11 @@
           <ion-buttons slot="start">
             <ion-button @click="closeEditor">Скасувати</ion-button>
           </ion-buttons>
-          <ion-title>Новий користувач</ion-title>
+          <ion-title>{{ editingUserId ? 'Редагувати користувача' : 'Новий користувач' }}</ion-title>
           <ion-buttons slot="end">
-            <ion-button strong :disabled="saving" @click="saveUser">Створити</ion-button>
+            <ion-button strong :disabled="saving" @click="saveUser">
+              {{ editingUserId ? 'Зберегти' : 'Створити' }}
+            </ion-button>
           </ion-buttons>
         </ion-toolbar>
       </ion-header>
@@ -94,7 +138,7 @@
 
           <label class="mobile-field">
             <span>Роль</span>
-            <select v-model="form.role" class="mobile-control" required>
+            <select v-model="form.role" class="mobile-control" :disabled="Boolean(editingUserId)" required>
               <option v-for="option in roleOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
@@ -122,7 +166,7 @@
             <input v-model.trim="form.phone" class="mobile-control" type="tel" autocomplete="tel" />
           </label>
 
-          <label class="mobile-field">
+          <label v-if="!editingUserId" class="mobile-field">
             <span>Початковий пароль</span>
             <input
               v-model="form.password"
@@ -136,7 +180,7 @@
 
           <ion-button class="mobile-submit" expand="block" type="submit" :disabled="saving">
             <ion-spinner v-if="saving" name="crescent" />
-            <span v-else>Створити користувача</span>
+            <span v-else>{{ editingUserId ? 'Зберегти користувача' : 'Створити користувача' }}</span>
           </ion-button>
         </form>
       </ion-content>
@@ -151,12 +195,14 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonModal,
   IonPage,
   IonSpinner,
   IonTitle,
   IonToolbar,
 } from '@ionic/vue'
+import { copyOutline, createOutline } from 'ionicons/icons'
 import MobileHeader from '@/components/MobileHeader.vue'
 import PageState from '@/components/PageState.vue'
 import { ApiError, apiRequest, errorMessage } from '@/services/api'
@@ -174,6 +220,7 @@ const users = ref<UserAccount[]>([])
 const query = ref('')
 const roleFilter = ref('')
 const editorOpen = ref(false)
+const editingUserId = ref<number | null>(null)
 const saving = ref(false)
 const formError = ref('')
 const notice = ref('')
@@ -242,14 +289,64 @@ function resetForm() {
 }
 
 function openCreate() {
+  editingUserId.value = null
   resetForm()
+  editorOpen.value = true
+}
+
+function openEdit(user: UserAccount) {
+  editingUserId.value = user.id
+  Object.assign(form, {
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
+    role: user.role,
+    telegram_username: user.telegram_username || '',
+    email: user.email || '',
+    phone: user.phone || '',
+    password: '',
+  })
+  formError.value = ''
   editorOpen.value = true
 }
 
 function closeEditor() {
   if (saving.value) return
   editorOpen.value = false
+  editingUserId.value = null
   formError.value = ''
+}
+
+async function copyUserValue(value: string | null | undefined, label: string) {
+  const text = String(value ?? '').trim()
+  if (!text) return
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch {
+        await copyWithLegacyBrowserApi(text)
+      }
+    } else {
+      await copyWithLegacyBrowserApi(text)
+    }
+    notice.value = `${label} скопійовано.`
+  } catch {
+    notice.value = `Не вдалося скопіювати ${label.toLocaleLowerCase('uk')}.`
+  }
+}
+
+function copyWithLegacyBrowserApi(text: string) {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  textarea.remove()
+  if (!copied) throw new Error('Не вдалося скопіювати текст')
 }
 
 async function saveUser() {
@@ -258,22 +355,36 @@ async function saveUser() {
     return
   }
 
+  const userId = editingUserId.value
   saving.value = true
   formError.value = ''
   try {
-    const body: Record<string, string> = {
-      first_name: form.first_name,
-      last_name: form.last_name,
-      role: form.role,
-      telegram_username: form.telegram_username,
-      email: form.email,
-      phone: form.phone,
+    if (userId) {
+      await apiRequest<UserAccount>(`/api/users/${userId}/`, {
+        method: 'PATCH',
+        body: {
+          first_name: form.first_name,
+          last_name: form.last_name,
+          telegram_username: form.telegram_username || null,
+          email: form.email,
+          phone: form.phone,
+        },
+      })
+    } else {
+      const body: Record<string, string> = {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        role: form.role,
+        telegram_username: form.telegram_username,
+        email: form.email,
+        phone: form.phone,
+      }
+      if (form.password) body.password = form.password
+      await apiRequest<UserAccount>('/api/users/register/', { method: 'POST', body })
     }
-    if (form.password) body.password = form.password
-
-    await apiRequest<UserAccount>('/api/users/register/', { method: 'POST', body })
     editorOpen.value = false
-    notice.value = 'Користувача створено.'
+    editingUserId.value = null
+    notice.value = userId ? 'Користувача оновлено.' : 'Користувача створено.'
     await load()
   } catch (caught) {
     formError.value = caught instanceof ApiError
@@ -286,3 +397,37 @@ async function saveUser() {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.user-item__contact {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 3px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.user-item__contact-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.user-item__copy {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin: -5px -8px -5px 0;
+  color: var(--app-muted);
+}
+
+.user-item__copy ion-icon {
+  font-size: 17px;
+}
+
+.user-item__edit {
+  flex: 0 0 auto;
+  margin: -8px -8px -8px auto;
+}
+</style>
