@@ -321,9 +321,23 @@ const createGroupModel = computed({
   set: (value: string) => { createForm.group = value ? Number(value) : null },
 })
 
+function dateInputValue(date: Date) {
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function getDefaultLessonPeriod() {
+  const today = new Date()
+  return {
+    date_from: dateInputValue(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+    date_to: dateInputValue(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+  }
+}
+
+const defaultLessonPeriod = getDefaultLessonPeriod()
 const lessonFilters = reactive({
-  date_from: '',
-  date_to: '',
+  date_from: defaultLessonPeriod.date_from,
+  date_to: defaultLessonPeriod.date_to,
   teacher: '',
   student: '',
   group: '',
